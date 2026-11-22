@@ -1,0 +1,187 @@
+
+.shell {
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: var(--ngx-toolbar) minmax(0, 1fr) var(--ngx-statusbar);
+  background: var(--ngx-color-bg);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  background: var(--ngx-color-surface);
+  border-bottom: 1px solid var(--ngx-color-border);
+}
+
+.brand {
+  font-weight: 650;
+  margin-right: 8px;
+  white-space: nowrap;
+}
+
+.name {
+  max-width: 220px;
+}
+
+.grow {
+  flex: 1;
+}
+
+.body {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  overflow: hidden;
+  align-items: stretch;
+}
+
+.bodyEditing {
+  grid-template-columns: minmax(0, 1fr) 360px;
+}
+
+.side, .props {
+  background: var(--ngx-color-surface);
+  border-right: 1px solid var(--ngx-color-border);
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.side :global(.ant-tabs),
+.props :global(.ant-tabs) {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.side :global(.ant-tabs-content-holder),
+.side :global(.ant-tabs-content),
+.side :global(.ant-tabs-tabpane),
+.props :global(.ant-tabs-content-holder),
+.props :global(.ant-tabs-content),
+.props :global(.ant-tabs-tabpane) {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  overflow: auto;
+}
+
+.props {
+  border-right: none;
+  border-left: 1px solid var(--ngx-color-border);
+}
+
+.viewport {
+  min-width: 0;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 12px;
+  background: var(--ngx-color-surface);
+  border-top: 1px solid var(--ngx-color-border);
+  color: var(--ngx-color-muted);
+  font-size: 12px;
+}
+
+.guide {
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  pointer-events: none;
+  max-width: calc(100% - 24px);
+}
+
+.guideStep {
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: var(--ngx-glass-bg);
+  border: 1px solid var(--ngx-glass-border);
+  color: var(--ngx-color-text);
+  font-size: 12px;
+  line-height: 1.35;
+  box-shadow: var(--ngx-shadow);
+}
+
+.guideMuted {
+  color: var(--ngx-color-muted);
+}
+
+
+.propsBody {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.propsBody > * {
+  flex: 1;
+  min-height: 0;
+}
+
+.editEmpty {
+  text-align: center;
+  padding: 36px 16px 20px;
+}
+
+.editEmpty p {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--ngx-color-text);
+}
+
+.editEmpty div {
+  color: var(--ngx-color-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.back {
+  height: var(--ngx-ctl-h, 32px);
+  padding: 0 10px;
+  border: 1px solid var(--ngx-color-border);
+  background: var(--ngx-color-surface);
+  border-radius: var(--ngx-radius-ctl, 6px);
+  color: var(--ngx-color-text);
+  font-size: var(--ngx-fs-body, 13px);
+  cursor: pointer;
+}
+
+.back:hover {
+  border-color: var(--ngx-color-primary);
+  color: var(--ngx-color-primary);
+}
+
+.brand {
+  color: var(--ngx-color-text);
+}
+
+.draftTag {
+  padding: 2px 8px;
+  border-radius: var(--ngx-radius-tag, 999px);
+  background: var(--ngx-color-primary-soft);
+  color: var(--ngx-color-muted);
+  font-size: var(--ngx-fs-caption, 12px);
+  white-space: nowrap;
+}

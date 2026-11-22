@@ -1,0 +1,26 @@
+.toggle {
+  display: inline-flex;
+  height: var(--ngx-ctl-h);
+  padding: 2px;
+  border: 1px solid var(--ngx-color-border);
+  border-radius: var(--ngx-radius-ctl);
+  background: var(--ngx-color-surface);
+}
+
+.toggle button {
+  height: calc(var(--ngx-ctl-h) - 6px);
+  padding: 0 10px;
+  border: 0;
+  border-radius: calc(var(--ngx-radius-ctl) - 1px);
+  background: transparent;
+  color: var(--ngx-color-muted);
+  font: inherit;
+  font-size: var(--ngx-fs-caption);
+  cursor: pointer;
+}
+
+.toggle button[aria-pressed="true"] {
+  background: var(--ngx-color-primary-soft);
+  color: var(--ngx-color-primary);
+  font-weight: 600;
+}

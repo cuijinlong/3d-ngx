@@ -1,0 +1,191 @@
+.drawer {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 12px;
+  width: min(800px, calc(100% - 168px));
+  background: var(--ngx-color-surface-raised);
+  border: 1px solid var(--ngx-color-border);
+  border-radius: 12px;
+  box-shadow: var(--ngx-shadow);
+  z-index: 3;
+  padding: 8px 14px 10px;
+  color: var(--ngx-color-text);
+  pointer-events: auto;
+}
+
+.collapsed {
+  width: 72px;
+  padding: 8px 10px;
+}
+
+.handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--ngx-color-border);
+  margin: 0 auto 8px;
+  border: 0;
+  padding: 0;
+  display: block;
+  cursor: pointer;
+}
+
+.collapsed .handle {
+  margin-bottom: 0;
+}
+
+.collapsed .body {
+  display: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 28px;
+  margin-bottom: 6px;
+}
+
+.row:last-child,
+.kpis {
+  margin-bottom: 0;
+}
+
+.lab {
+  color: var(--ngx-color-muted);
+  font-size: 11px;
+  font-weight: 550;
+  white-space: nowrap;
+}
+
+.group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.grow {
+  flex: 1;
+  justify-content: flex-end;
+}
+
+.name {
+  font-weight: 650;
+  color: var(--ngx-color-text);
+  font-size: 12px;
+}
+
+.dim {
+  color: var(--ngx-color-muted);
+  font-weight: 400;
+}
+
+.val {
+  font-size: 12px;
+  color: var(--ngx-color-text);
+}
+
+.note {
+  font-size: 11px;
+  color: var(--ngx-color-muted);
+  font-weight: 400;
+}
+
+.btn {
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 0;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.start {
+  background: var(--ngx-color-primary);
+  color: var(--ngx-color-on-primary);
+}
+
+.stop {
+  background: var(--ngx-color-surface);
+  color: var(--ngx-color-danger);
+  border: 1px solid var(--ngx-color-danger);
+}
+
+.btn:disabled {
+  opacity: 0.42;
+  background: var(--ngx-color-bg);
+  color: var(--ngx-color-muted);
+  border: 1px solid var(--ngx-color-border);
+  cursor: not-allowed;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 11px;
+  background: var(--ngx-color-bg);
+  color: var(--ngx-color-muted);
+  font-size: 11px;
+}
+
+.chip i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ngx-color-offline);
+  flex: none;
+}
+
+.chipOn {
+  background: color-mix(in srgb, var(--ngx-color-success) 16%, var(--ngx-color-surface));
+  color: var(--ngx-color-success);
+  font-weight: 650;
+}
+
+.chipOn i {
+  background: var(--ngx-color-success);
+}
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.kpis > div {
+  background: color-mix(in srgb, var(--ngx-color-bg) 80%, var(--ngx-color-surface));
+  border: 1px solid var(--ngx-color-border);
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+
+.kpis .lab {
+  display: block;
+  margin-bottom: 2px;
+}
+
+.kpis b {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ngx-color-text);
+  letter-spacing: -0.02em;
+}
+
+.kpis .kpiDim {
+  color: var(--ngx-color-muted);
+  font-weight: 550;
+}

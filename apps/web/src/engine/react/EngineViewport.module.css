@@ -1,0 +1,224 @@
+
+.wrap {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--ngx-color-viewport);
+  overflow: hidden;
+}
+
+.wrap :global(canvas.pc-app),
+.wrap canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
+
+.hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ngx-color-muted);
+  pointer-events: none;
+  font-size: 13px;
+}
+
+.badge {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  left: auto;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.labels {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  overflow: hidden;
+}
+
+.tag {
+  pointer-events: auto;
+  position: absolute;
+  left: 0;
+  top: 0;
+  min-width: 148px;
+  max-width: 220px;
+  margin: 0;
+  padding: 7px 9px 6px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--ngx-color-nameplate);
+  color: var(--ngx-color-nameplate-text);
+  text-align: left;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  box-shadow: var(--ngx-shadow);
+  border-left: 3px solid var(--ngx-color-muted);
+}
+
+.tagBound {
+  background: var(--ngx-color-nameplate);
+  border-left-color: var(--ngx-color-success);
+}
+
+.tagMuted {
+  background: var(--ngx-color-nameplate);
+}
+
+.tagSelected {
+  outline: 1px solid var(--ngx-color-primary-hover);
+  box-shadow: var(--ngx-focus-ring), var(--ngx-shadow);
+}
+
+.overviewBtn {
+  position: absolute;
+  right: 12px;
+  bottom: 16px;
+  z-index: 4;
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--ngx-glass-border);
+  border-radius: 8px;
+  background: var(--ngx-glass-bg);
+  color: var(--ngx-color-text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  box-shadow: var(--ngx-shadow);
+}
+
+.overviewBtn:hover {
+  border-color: var(--ngx-color-primary);
+  color: var(--ngx-color-primary);
+}
+
+.tagTitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tagTitle > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tagRun,
+.tagStop,
+.tagDemo {
+  flex: none;
+  padding: 0 5px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.tagRun {
+  background: var(--ngx-color-success);
+  color: var(--ngx-color-on-primary);
+}
+
+.tagStop {
+  background: var(--ngx-color-muted);
+  color: var(--ngx-color-on-primary);
+}
+
+.tagDemo {
+  background: var(--ngx-color-warning);
+  color: var(--ngx-color-on-primary);
+}
+
+.tagLine {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 2px;
+  color: color-mix(in srgb, var(--ngx-color-nameplate-text) 80%, transparent);
+  font-variant-numeric: tabular-nums;
+}
+
+.tagMissing {
+  color: var(--ngx-color-muted);
+}
+
+
+.guide {
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  pointer-events: none;
+  max-width: calc(100% - 24px);
+}
+
+.guideStep {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--ngx-glass-bg);
+  border: 1px solid var(--ngx-glass-border);
+  color: var(--ngx-color-text);
+  font-size: 12px;
+  line-height: 1.3;
+  box-shadow: var(--ngx-shadow);
+}
+
+.guideStepMuted {
+  color: var(--ngx-color-muted);
+}
+
+
+.tagBadge {
+  min-width: 112px;
+  max-width: 180px;
+  padding: 5px 8px 5px;
+}
+
+.tagActions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.tagCmd {
+  flex: 1;
+  height: 22px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 3px;
+  background: var(--ngx-color-primary);
+  color: var(--ngx-color-on-primary);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.tagCmd:disabled {
+  background: var(--ngx-color-muted);
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.tagCmdStop {
+  background: var(--ngx-color-danger);
+}
+
+.tagCmdStop:disabled {
+  background: var(--ngx-color-muted);
+}

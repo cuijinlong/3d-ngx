@@ -1,0 +1,161 @@
+:root {
+  --ngx-font: "PingFang SC", "Noto Sans SC", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+  --ngx-fs-caption: 12px;
+  --ngx-fs-body: 13px;
+  --ngx-fs-section: 16px;
+  --ngx-fs-title: 20px;
+  --ngx-fs-display: 24px;
+  --ngx-line-height: 1.6;
+  --ngx-space-1: 4px;
+  --ngx-space-2: 8px;
+  --ngx-space-3: 16px;
+  --ngx-space-4: 24px;
+  --ngx-space-5: 32px;
+  --ngx-radius: 8px;
+  --ngx-radius-ctl: 6px;
+  --ngx-radius-tag: 4px;
+  --ngx-ctl-h: 32px;
+  --ngx-ctl-h-lg: 36px;
+  --ngx-glass-blur: 16px;
+  --ngx-rail: 64px;
+  --ngx-toolbar: 48px;
+  --ngx-statusbar: 28px;
+
+  --ngx-color-bg: #edf1f7;
+  --ngx-color-surface: #ffffff;
+  --ngx-color-surface-raised: #ffffff;
+  --ngx-color-border: #dce3ed;
+  --ngx-color-text: #1f2329;
+  --ngx-color-muted: #5f6e84;
+  --ngx-color-primary: #1657e8;
+  --ngx-color-primary-hover: #2f6bff;
+  --ngx-color-primary-strong: #002c96;
+  --ngx-color-primary-soft: #e8eefc;
+  --ngx-color-on-primary: #ffffff;
+  --ngx-color-success: #19b37d;
+  --ngx-color-warning: #e8930c;
+  --ngx-color-danger: #e5484d;
+  --ngx-color-offline: #6B7178;
+  --ngx-color-viewport: #dce3ed;
+  --ngx-color-nameplate: rgba(31, 35, 41, 0.88);
+  --ngx-color-nameplate-text: #ffffff;
+  --ngx-glass-bg: rgba(255, 255, 255, 0.72);
+  --ngx-glass-border: rgba(220, 227, 237, 0.85);
+  --ngx-glass-rgb: 255, 255, 255;
+  --ngx-glass-border-rgb: 220, 227, 237;
+  --ngx-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  --ngx-focus-ring: 0 0 0 3px rgba(22, 87, 232, 0.18);
+}
+
+[data-theme="light"] {
+  --ngx-color-bg: #edf1f7;
+  --ngx-color-surface: #ffffff;
+  --ngx-color-surface-raised: #ffffff;
+  --ngx-color-border: #dce3ed;
+  --ngx-color-text: #1f2329;
+  --ngx-color-muted: #5f6e84;
+  --ngx-color-primary: #1657e8;
+  --ngx-color-primary-hover: #2f6bff;
+  --ngx-color-primary-strong: #002c96;
+  --ngx-color-primary-soft: #e8eefc;
+  --ngx-color-on-primary: #ffffff;
+  --ngx-color-success: #19b37d;
+  --ngx-color-warning: #e8930c;
+  --ngx-color-danger: #e5484d;
+  --ngx-color-offline: #6B7178;
+  --ngx-color-viewport: #dce3ed;
+  --ngx-color-nameplate: rgba(31, 35, 41, 0.88);
+  --ngx-color-nameplate-text: #ffffff;
+  --ngx-glass-bg: rgba(255, 255, 255, 0.72);
+  --ngx-glass-border: rgba(220, 227, 237, 0.85);
+  --ngx-glass-rgb: 255, 255, 255;
+  --ngx-glass-border-rgb: 220, 227, 237;
+  --ngx-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  --ngx-focus-ring: 0 0 0 3px rgba(22, 87, 232, 0.18);
+}
+
+[data-theme="dark"] {
+  --ngx-color-bg: #12161c;
+  --ngx-color-surface: #1b212b;
+  --ngx-color-surface-raised: #232a36;
+  --ngx-color-border: #2c3542;
+  --ngx-color-text: #e8edf4;
+  --ngx-color-muted: #8b97a8;
+  --ngx-color-primary: #1657e8;
+  --ngx-color-primary-hover: #2f6bff;
+  --ngx-color-primary-strong: #9db6ff;
+  --ngx-color-primary-soft: rgba(22, 87, 232, 0.20);
+  --ngx-color-on-primary: #ffffff;
+  --ngx-color-success: #19b37d;
+  --ngx-color-warning: #e8930c;
+  --ngx-color-danger: #e5484d;
+  --ngx-color-offline: #8b9198;
+  --ngx-color-viewport: #0e1218;
+  --ngx-color-nameplate: rgba(12, 16, 22, 0.90);
+  --ngx-color-nameplate-text: #e8edf4;
+  --ngx-glass-bg: rgba(27, 33, 43, 0.72);
+  --ngx-glass-border: rgba(255, 255, 255, 0.08);
+  --ngx-glass-rgb: 27, 33, 43;
+  --ngx-glass-border-rgb: 255, 255, 255;
+  --ngx-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --ngx-focus-ring: 0 0 0 3px rgba(47, 107, 255, 0.35);
+}
+
+:root,
+[data-theme="light"],
+[data-theme="dark"] {
+  --idt-bg: var(--ngx-color-bg);
+  --idt-surface: var(--ngx-color-surface);
+  --idt-border: var(--ngx-color-border);
+  --idt-text: var(--ngx-color-text);
+  --idt-muted: var(--ngx-color-muted);
+  --idt-primary: var(--ngx-color-primary);
+  --idt-primary-strong: var(--ngx-color-primary-strong);
+  --idt-accent: var(--ngx-color-primary-hover);
+  --idt-success: var(--ngx-color-success);
+  --idt-warning: var(--ngx-color-warning);
+  --idt-danger: var(--ngx-color-danger);
+  --idt-viewport: var(--ngx-color-viewport);
+  --idt-shadow: var(--ngx-shadow);
+  --idt-font: var(--ngx-font);
+  --idt-rail: var(--ngx-rail);
+  --idt-toolbar: var(--ngx-toolbar);
+  --idt-statusbar: var(--ngx-statusbar);
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--ngx-color-bg);
+  color: var(--ngx-color-text);
+  font-family: var(--ngx-font);
+  font-size: var(--ngx-fs-body);
+  line-height: var(--ngx-line-height);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+.idt-demo-tag {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: var(--ngx-radius-tag);
+  background: color-mix(in srgb, var(--ngx-color-warning) 18%, var(--ngx-color-surface));
+  color: var(--ngx-color-warning);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}

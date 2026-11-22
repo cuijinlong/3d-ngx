@@ -1,0 +1,17 @@
+{
+  "name": "3d-ngx",
+  "private": true,
+  "version": "1.0.0",
+  "description": "工业三维数字孪生前端基础框架",
+  "packageManager": "pnpm@10.32.1",
+  "scripts": {
+    "dev": "pnpm --filter @idt/web dev",
+    "build": "pnpm --filter @idt/web build",
+    "preview": "pnpm --filter @idt/web preview",
+    "test": "pnpm --filter @idt/web test",
+    "typecheck": "pnpm --filter @idt/web typecheck"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

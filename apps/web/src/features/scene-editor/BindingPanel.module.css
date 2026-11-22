@@ -1,0 +1,87 @@
+
+.panel {
+  padding: 12px 14px 20px;
+  display: grid;
+  gap: 16px;
+  color: var(--ngx-color-text);
+}
+
+.title {
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.muted {
+  color: var(--ngx-color-muted);
+  font-size: 13px;
+}
+
+.section {
+  display: grid;
+  gap: 8px;
+}
+
+.sectionLabel {
+  font-size: 12px;
+  color: var(--ngx-color-muted);
+}
+
+.realtime {
+  margin-left: 6px;
+  color: var(--ngx-color-success);
+  font-size: 12px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+  min-height: 28px;
+}
+
+.rowName {
+  font-size: 13px;
+}
+
+.rowSummary {
+  color: var(--ngx-color-muted);
+  font-size: 12px;
+  text-align: right;
+}
+
+.auto {
+  margin-left: 6px;
+  color: var(--ngx-color-primary);
+  font-size: 11px;
+}
+
+.form {
+  display: grid;
+  gap: 10px;
+  min-width: 280px;
+}
+
+.formRow {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.formLabel {
+  color: var(--ngx-color-muted);
+  font-size: 12px;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.modes {
+  display: flex;
+  gap: 12px;
+}

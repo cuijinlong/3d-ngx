@@ -1,0 +1,181 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  background: var(--ngx-color-surface);
+}
+
+.header {
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--ngx-color-border);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--ngx-color-text);
+}
+
+.sub {
+  color: var(--ngx-color-muted);
+  font-weight: 400;
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.tabs {
+  display: flex;
+  gap: 0;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--ngx-color-border);
+  background: var(--ngx-color-surface);
+}
+
+.tab {
+  height: 36px;
+  padding: 0 14px;
+  border: 0;
+  background: transparent;
+  color: var(--ngx-color-muted);
+  font: inherit;
+  font-weight: 550;
+  position: relative;
+  cursor: pointer;
+}
+
+.tabOn {
+  color: var(--ngx-color-primary);
+  font-weight: 650;
+}
+
+.tabOn:after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: -1px;
+  height: 2px;
+  background: var(--ngx-color-primary);
+  border-radius: 1px;
+}
+
+.body {
+  padding: 14px 16px 16px;
+  overflow: auto;
+  flex: 1;
+}
+
+.empty {
+  text-align: center;
+  padding: 36px 12px 20px;
+}
+
+.empty p {
+  font-size: 14px;
+  margin: 0 0 8px;
+  font-weight: 650;
+  color: var(--ngx-color-text);
+}
+
+.help {
+  color: var(--ngx-color-muted);
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.metric {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border: 1px solid var(--ngx-color-border);
+  border-radius: 8px;
+  background: var(--ngx-color-surface);
+}
+
+.metric .k {
+  color: var(--ngx-color-muted);
+  font-weight: 550;
+}
+
+.metric .n {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--ngx-color-text);
+}
+
+.metric .n small {
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--ngx-color-muted);
+  margin-left: 4px;
+}
+
+.ok {
+  color: var(--ngx-color-success) !important;
+}
+
+.charts {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.chart {
+  border: 1px solid var(--ngx-color-border);
+  border-radius: 8px;
+  padding: 10px 12px 8px;
+  background: var(--ngx-color-surface);
+}
+
+.chartHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 4px;
+}
+
+.chartHead .k {
+  font-weight: 550;
+  font-size: 12px;
+}
+
+.cur {
+  color: var(--ngx-color-muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.hint {
+  color: var(--ngx-color-muted);
+  font-weight: 400;
+  font-size: 11px;
+  line-height: 1.45;
+  margin: 8px 0 0;
+}
+
+.editBody {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.alarms {
+  margin-top: 16px;
+  padding-top: 8px;
+  border-top: 1px solid var(--ngx-color-border);
+}
