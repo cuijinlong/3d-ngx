@@ -1,0 +1,26 @@
+console.error: Failed to load resource: the server responded with a status of 404 (Not Found)
+console.error: Warning: [antd: message] Static function can not consume context like dynamic theme. Please use 'App' component instead.
+console.error: Warning: [antd: Spin] `tip` is deprecated. Please use `description` instead.
+console.error: [PlayCanvas React]:
+
+The `<OrbitControls/>` component is deprecated and will be removed in a future release. Use the PlayCanvas `CameraControls` script from `playcanvas` via the `<Script/>` component instead: `<Script script={CameraControls}/>`.
+afterImport={"itemCount":"13","placedCount":"13","plateDom":13,"hasCommandBar":false,"hasCreateMock":true,"footer":"已导入模型已加载 1942 个节点可连接 197 个点已连接 0 台设备已保存演示数据","toast":"示例模型已导入，解析到 197 个可连接点，并已自动保存"}
+wrote /tmp/ngx-shots-out/ngx-overview.png
+clicked create mock
+clicked bind-by-name
+afterBind={"itemCount":"13","placedCount":"13","plateDom":13,"hasCommandBar":false,"hasCreateMock":true,"footer":"已导入模型已加载 1942 个节点可连接 197 个点已连接 46 台设备已保存演示数据","toast":"已根据模型创建 28 台模拟设备（演示数据） | 已按名称连接 46 个对象（81 个无匹配）"}
+clicked sidebar 模块机（1#）
+afterSelect={"itemCount":"13","placedCount":"13","plateDom":13,"hasCommandBar":true,"hasCreateMock":true,"footer":"已导入模型已加载 1942 个节点可连接 197 个点已连接 46 台设备已保存演示数据","toast":"已根据模型创建 28 台模拟设备（演示数据） | 已按名称连接 46 个对象（81 个无匹配）"}
+wrote /tmp/ngx-shots-out/ngx-nameplate.png
+wrote /tmp/ngx-shots-out/ngx-telemetry.png
+wrote /tmp/ngx-shots-out/ngx-start-stop.png
+wrote /tmp/ngx-shots-out/ngx-no-transform.png
+final={
+  "itemCount": "13",
+  "placedCount": "13",
+  "plateDom": 13,
+  "hasCommandBar": true,
+  "hasCreateMock": true,
+  "footer": "已导入模型已加载 1942 个节点可连接 197 个点已连接 46 台设备已保存演示数据",
+  "toast": "已根据模型创建 28 台模拟设备（演示数据） | 已按名称连接 46 个对象（81 个无匹配）"
+}

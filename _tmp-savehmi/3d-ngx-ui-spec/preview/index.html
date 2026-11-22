@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>3D-NGX 界面稿 · 总览与新建场景</title>
+  <style>
+    :root {
+      --text: #1f2329;
+      --muted: #5f6e84;
+      --primary: #1657e8;
+      --primary-2: #2f6bff;
+      --ok: #19b37d;
+      --danger: #e5484d;
+      --warn: #c9922a;
+      --off: #6B7178;
+      --bg: #edf1f7;
+      --card: #ffffff;
+      --line: #dbe3ee;
+      --plate: rgba(31, 35, 41, .88);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      font: 13px/1.45 "Noto Sans CJK SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: var(--text);
+      background: var(--bg);
+    }
+    button, input, select { font: inherit; color: inherit; }
+    button { cursor: pointer; }
+    .app { display: flex; flex-direction: column; height: 100%; }
+    /* top */
+    .top {
+      height: 48px; background: var(--card); border-bottom: 1px solid var(--line);
+      display: flex; align-items: center; gap: 10px; padding: 0 14px; flex-shrink: 0;
+    }
+    .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; }
+    .mark { width: 18px; height: 18px; border-radius: 4px; background: var(--primary); }
+    .scene-name {
+      height: 30px; border: 1px solid var(--line); border-radius: 6px;
+      padding: 0 10px; width: 160px; background: #f7f9fc;
+    }
+    .sp { flex: 1; }
+    .btn {
+      height: 30px; padding: 0 12px; border-radius: 6px; border: 1px solid var(--line);
+      background: var(--card); color: var(--text);
+    }
+    .btn:hover { border-color: #c5d0e0; }
+    .btn-primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-2); }
+    .btn-ghost { border-color: transparent; background: transparent; color: var(--muted); }
+    .btn-ok { background: var(--ok); border-color: var(--ok); color: #fff; }
+    .btn-danger {
+      background: #fff; border-color: var(--danger); color: var(--danger);
+    }
+    /* body */
+    .work { flex: 1; display: grid; grid-template-columns: 220px 1fr 280px; min-height: 0; }
+    .panel { background: var(--card); overflow: auto; }
+    .panel-l { border-right: 1px solid var(--line); }
+    .panel-r { border-left: 1px solid var(--line); }
+    .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--line); padding: 0 8px; }
+    .tab {
+      height: 36px; padding: 0 10px; border: 0; background: none; color: var(--muted);
+    }
+    .tab.on { color: var(--primary); font-weight: 600; box-shadow: inset 0 -2px 0 var(--primary); }
+    .list { padding: 8px; }
+    .dev {
+      display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 6px;
+    }
+    .dev:hover { background: #f3f6fb; }
+    .dev.on { background: #e8efff; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); flex-shrink: 0; }
+    .dot.warn { background: var(--warn); }
+    .dot.off { background: var(--off); }
+    .dev .n { flex: 1; }
+    .dev .sub { color: var(--muted); font-size: 12px; }
+    .group { padding: 10px 12px 4px; color: var(--muted); font-size: 11px; letter-spacing: .04em; }
+    /* viewport */
+    .vp { position: relative; background: #eef3f9; overflow: hidden; }
+    .grid {
+      position: absolute; inset: 0;
+      background-image:
+        linear-gradient(#d7deea 1px, transparent 1px),
+        linear-gradient(90deg, #d7deea 1px, transparent 1px);
+      background-size: 40px 40px;
+      opacity: .7;
+    }
+    .plant { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+    svg.iso { width: 96%; height: 86%; overflow: visible; }
+    .plate {
+      pointer-events: auto; cursor: pointer;
+    }
+    .plate rect { fill: var(--plate); }
+    .plate text { font-family: "Noto Sans CJK SC", "PingFang SC", sans-serif; }
+    .tools {
+      position: absolute; left: 12px; top: 12px; display: flex; gap: 6px;
+    }
+    .presets {
+      position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%);
+      display: flex; gap: 6px; align-items: center;
+      background: rgba(255,255,255,.92); border: 1px solid var(--line);
+      border-radius: 8px; padding: 6px; box-shadow: 0 4px 16px rgba(31,35,41,.06);
+    }
+    .presets .btn.on { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .demo-tag {
+      position: absolute; right: 12px; top: 12px;
+      background: #fff; border: 1px solid var(--line); color: var(--muted);
+      height: 26px; padding: 0 8px; border-radius: 6px; display: flex; align-items: center;
+      font-size: 12px;
+    }
+    /* right card */
+    .card { padding: 14px 16px; }
+    .card h3 { margin: 0 0 10px; font-size: 13px; }
+    .field { margin-bottom: 10px; }
+    .field label { display: block; color: var(--muted); font-size: 12px; margin-bottom: 4px; }
+    .st { display: inline-flex; align-items: center; gap: 6px; }
+    .pts { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .pts th { text-align: left; color: var(--muted); font-weight: 500; padding: 4px 0; border-bottom: 1px solid var(--line); }
+    .pts td { padding: 6px 0; border-bottom: 1px solid #f0f3f8; }
+    .pts .num { text-align: right; font-variant-numeric: tabular-nums; padding-right: 8px; }
+    .pts th:nth-child(2), .pts td:nth-child(2) { width: 52px; }
+    .pts th:nth-child(3), .pts td:nth-child(3) { width: 40px; }
+    .actions { display: flex; gap: 8px; margin-top: 14px; }
+    .actions .btn { flex: 1; height: 34px; font-weight: 600; }
+    .hint { color: var(--muted); font-size: 12px; }
+    .sec-head { display: flex; align-items: center; justify-content: space-between; }
+    /* modal */
+    .mask {
+      display: none; position: fixed; inset: 0; background: rgba(31,35,41,.36);
+      align-items: center; justify-content: center; z-index: 20;
+    }
+    .mask.on { display: flex; }
+    .modal {
+      width: 560px; background: #fff; border-radius: 12px;
+      box-shadow: 0 16px 48px rgba(31,35,41,.18); overflow: hidden;
+    }
+    .modal h2 { margin: 0; padding: 16px 20px 0; font-size: 16px; }
+    .modal .body { padding: 16px 20px 8px; }
+    .modal .foot {
+      padding: 12px 20px 16px; display: flex; justify-content: flex-end; gap: 8px;
+    }
+    .row { margin-bottom: 12px; }
+    .row label { display: block; margin-bottom: 6px; font-size: 13px; }
+    .row label em { color: var(--danger); font-style: normal; margin-left: 2px; }
+    .row input, .row select {
+      width: 100%; height: 34px; border: 1px solid var(--line); border-radius: 6px;
+      padding: 0 10px; background: #fff;
+    }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .upload {
+      border: 1px dashed #b7c4d6; border-radius: 8px; padding: 16px; text-align: center;
+      color: var(--muted); background: #f8fafc;
+    }
+    .upload b { color: var(--text); }
+    .packs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .pack {
+      border: 1px solid var(--line); border-radius: 8px; padding: 12px; cursor: pointer;
+      background: #fff; text-align: left;
+    }
+    .pack.on { border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); background: #f3f7ff; }
+    .pack .t { font-weight: 700; margin-bottom: 4px; }
+    .pack .d { color: var(--muted); font-size: 12px; }
+    .bases { display: flex; gap: 8px; flex-wrap: wrap; }
+    .bases label {
+      display: inline-flex; align-items: center; gap: 6px; margin: 0;
+      border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; cursor: pointer;
+      white-space: nowrap;
+    }
+    .bases label.on { border-color: var(--primary); color: var(--primary); background: #f3f7ff; }
+    .weather { display: none; }
+    .weather.show { display: block; }
+    .err { color: var(--danger); font-size: 12px; margin-top: 4px; display: none; }
+    .watermark {
+      position: absolute; left: 12px; bottom: 16px; color: var(--muted); font-size: 11px;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="top">
+      <div class="brand"><span class="mark"></span>3D-NGX 工作室</div>
+      <input class="scene-name" value="天骄科技园" />
+      <button class="btn btn-ghost" title="编辑工具收在这里">调整</button>
+      <div class="sp"></div>
+      <button class="btn" id="btn-new">新建场景</button>
+      <button class="btn">保存</button>
+      <button class="btn btn-primary">预览运行</button>
+    </header>
+    <div class="work">
+      <aside class="panel panel-l">
+        <div class="tabs">
+          <button class="tab on">设备</button>
+          <button class="tab">可连接</button>
+        </div>
+        <div class="group">冷源 9</div>
+        <div class="list" id="dev-list"></div>
+        <div class="group">水泵 2</div>
+        <div class="list">
+          <div class="dev" data-id="p1"><i class="dot"></i><span class="n">立式管道离心泵</span></div>
+          <div class="dev" data-id="p2"><i class="dot"></i><span class="n">立式管道离心泵 2</span></div>
+        </div>
+        <div class="group">电柜 2</div>
+        <div class="list">
+          <div class="dev" data-id="c1"><i class="dot"></i><span class="n">PLC 控制柜</span></div>
+          <div class="dev" data-id="c2"><i class="dot off"></i><span class="n">PLC 控制柜 2</span></div>
+        </div>
+      </aside>
+      <div class="vp">
+        <div class="grid"></div>
+        <div class="plant" id="plant"></div>
+        <div class="demo-tag">演示数据</div>
+        <div class="presets">
+          <button class="btn">演示</button>
+          <button class="btn">正面</button>
+          <button class="btn on">等轴测</button>
+          <button class="btn">左等轴</button>
+          <button class="btn">俯视</button>
+        </div>
+        <div class="watermark">界面稿 · 示意总览，非真实 GLB 渲染</div>
+      </div>
+      <aside class="panel panel-r">
+        <div class="card">
+          <div class="sec-head">
+            <h3>1# 模块机</h3>
+            <span class="hint">风冷冷水机</span>
+          </div>
+          <div class="field">
+            <label>当前状态</label>
+            <div class="st"><i class="dot"></i>运行</div>
+          </div>
+          <div class="field">
+            <label>测点</label>
+            <table class="pts">
+              <thead><tr><th>名称</th><th class="num">数值</th><th>单位</th><th>绑定</th></tr></thead>
+              <tbody>
+                <tr><td>温度</td><td class="num">25.0</td><td>℃</td><td class="hint">未绑定</td></tr>
+                <tr><td>功率</td><td class="num">15.2</td><td>kW</td><td class="hint">未绑定</td></tr>
+                <tr><td>开度</td><td class="num">60</td><td>%</td><td class="hint">未绑定</td></tr>
+                <tr><td>运行状态</td><td class="num">运行</td><td></td><td class="hint">未绑定</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="actions">
+            <button class="btn btn-ok">启动</button>
+            <button class="btn btn-danger">停止</button>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <div class="mask" id="mask">
+    <div class="modal" role="dialog" aria-labelledby="m-title">
+      <h2 id="m-title">新建场景</h2>
+      <div class="body">
+        <div class="row">
+          <label>场景名称<em>*</em></label>
+          <input placeholder="例如：天骄科技园" />
+        </div>
+        <div class="grid2">
+          <div class="row">
+            <label>场站<em>*</em></label>
+            <select><option>请选择场站</option></select>
+          </div>
+          <div class="row">
+            <label>视图类型<em>*</em></label>
+            <select><option>请选择视图类型</option></select>
+          </div>
+        </div>
+        <div class="grid2">
+          <div class="row">
+            <label>分项</label>
+            <select><option>请选择（按现有数据）</option></select>
+          </div>
+          <div class="row">
+            <label>分区 / 用能性质</label>
+            <select><option>请选择（按现有数据）</option></select>
+          </div>
+        </div>
+        <div class="row">
+          <label>上传模型<em>*</em></label>
+          <div class="upload">拖入或选择 <b>.glb</b> 文件</div>
+        </div>
+        <div class="row">
+          <label>风格套装<em>*</em></label>
+          <div class="packs">
+            <button type="button" class="pack on" data-pack="hud">
+              <div class="t">HUD 套装</div>
+              <div class="d">适合机房、冷热源。可折叠浮层、管线三态、自适应底座。</div>
+            </button>
+            <button type="button" class="pack" data-pack="campus">
+              <div class="t">全景套装</div>
+              <div class="d">适合院区全景。昼夜与天气联动，需填写天气地点。</div>
+            </button>
+          </div>
+        </div>
+        <div class="row">
+          <label>设备底座</label>
+          <div class="bases" id="bases">
+            <label class="on"><input type="radio" name="base" value="auto" checked /> 自动</label>
+            <label><input type="radio" name="base" value="steel" /> 钢结构</label>
+            <label><input type="radio" name="base" value="concrete" /> 混凝土</label>
+            <label><input type="radio" name="base" value="none" /> 无</label>
+          </div>
+        </div>
+        <div class="row weather" id="weather">
+          <label>天气地点<em>*</em></label>
+          <input placeholder="院区所在城市或地点" />
+          <div class="err" id="weather-err">全景套装必须填写天气地点</div>
+        </div>
+      </div>
+      <div class="foot">
+        <button class="btn" id="btn-cancel">取消</button>
+        <button class="btn btn-primary" id="btn-create">创建场景</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const list = document.getElementById("dev-list");
+    for (let i = 1; i <= 9; i++) {
+      const el = document.createElement("div");
+      el.className = "dev" + (i === 1 ? " on" : "");
+      el.innerHTML = `<i class="dot"></i><span class="n">${i}# 模块机</span>`;
+      list.appendChild(el);
+    }
+
+    const plant = document.getElementById("plant");
+    const W = 1100, H = 640;
+    let svg = `<svg class="iso" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
+    // pipes (schematic isometric-ish)
+    svg += `<path d="M120 430 C 200 500, 900 500, 980 430" fill="none" stroke="#3E7CA6" stroke-width="14" stroke-linecap="round"/>`;
+    svg += `<path d="M120 448 C 200 518, 900 518, 980 448" fill="none" stroke="#5aa3c9" stroke-width="6" stroke-linecap="round" opacity=".7"/>`;
+    // pumps
+    [[180,470,"泵 1"],[320,488,"泵 2"]].forEach(([x,y,n]) => {
+      svg += `<g transform="translate(${x} ${y})">
+        <ellipse cx="0" cy="18" rx="28" ry="10" fill="#c5d0dc"/>
+        <rect x="-22" y="-16" width="44" height="36" rx="6" fill="#6b7c8a" stroke="#4d5c68"/>
+        <circle cx="0" cy="0" r="10" fill="#8fa0ae"/>
+        <text x="0" y="44" text-anchor="middle" fill="#5f6e84" font-size="11">${n}</text>
+      </g>`;
+    });
+    // PLC
+    [[960,200,"PLC 柜"],[1020,220,"PLC 柜 2"]].forEach(([x,y,n], i) => {
+      svg += `<g transform="translate(${x} ${y})">
+        <rect x="-22" y="-36" width="44" height="62" rx="3" fill="#2a3138" stroke="#3d4550"/>
+        <rect x="-14" y="-26" width="28" height="14" fill="#1a1f24"/>
+        <circle cx="-8" cy="4" r="3" fill="${i===1?"#6B7178":"#19b37d"}"/>
+        <circle cx="0" cy="4" r="3" fill="${i===1?"#6B7178":"#19b37d"}"/>
+        <circle cx="8" cy="4" r="3" fill="${i===1?"#6B7178":"#19b37d"}"/>
+        <text x="0" y="42" text-anchor="middle" fill="#5f6e84" font-size="11">${n}</text>
+      </g>`;
+    });
+    // 9 chillers in a row, slight iso offset
+    for (let i = 0; i < 9; i++) {
+      const x = 130 + i * 92;
+      const y = 250 + (i % 2) * 6;
+      const on = i === 0;
+      svg += `<g class="chiller" data-i="${i+1}" transform="translate(${x} ${y})">
+        <rect x="-38" y="-28" width="76" height="64" rx="4" fill="#dfe7ef" stroke="${on?"#1657e8":"#9aabc0"}" stroke-width="${on?2:1}"/>
+        <rect x="-30" y="-20" width="24" height="24" rx="2" fill="#8aa0b3"/>
+        <rect x="6" y="-20" width="24" height="24" rx="2" fill="#8aa0b3"/>
+        <circle cx="-18" cy="-8" r="7" fill="#c5d3de"/>
+        <circle cx="18" cy="-8" r="7" fill="#c5d3de"/>
+        <rect x="-28" y="10" width="56" height="8" rx="1" fill="#b7c6d4"/>
+      </g>`;
+      const expand = i === 0;
+      const pw = expand ? 132 : 96;
+      const ph = expand ? 64 : 28;
+      const px = x - pw/2;
+      const py = y - 28 - ph - 16;
+      svg += `<g class="plate" data-i="${i+1}" transform="translate(${px} ${py})">
+        <rect width="${pw}" height="${ph}" rx="6"/>
+        <circle cx="12" cy="14" r="4" fill="#19b37d"/>
+        <text x="22" y="18" fill="#fff" font-size="12" font-weight="600">${i+1}# 模块机</text>`;
+      if (expand) {
+        svg += `<text x="12" y="40" fill="#c9d3de" font-size="11">25.0℃　15.2 kW</text>
+          <text x="12" y="58" fill="#c9d3de" font-size="11">开度 60%　运行</text>`;
+      }
+      svg += `</g>`;
+    }
+    svg += `</svg>`;
+    plant.innerHTML = svg;
+
+    const mask = document.getElementById("mask");
+    document.getElementById("btn-new").onclick = () => mask.classList.add("on");
+    document.getElementById("btn-cancel").onclick = () => mask.classList.remove("on");
+    mask.addEventListener("click", (e) => { if (e.target === mask) mask.classList.remove("on"); });
+
+    const weather = document.getElementById("weather");
+    const bases = [...document.querySelectorAll("#bases label")];
+    document.querySelectorAll(".pack").forEach((p) => {
+      p.onclick = () => {
+        document.querySelectorAll(".pack").forEach((x) => x.classList.remove("on"));
+        p.classList.add("on");
+        const campus = p.dataset.pack === "campus";
+        weather.classList.toggle("show", campus);
+        bases.forEach((b) => b.classList.remove("on"));
+        const def = campus ? "none" : "auto";
+        const lab = bases.find((b) => b.querySelector("input").value === def);
+        if (lab) { lab.classList.add("on"); lab.querySelector("input").checked = true; }
+      };
+    });
+    bases.forEach((b) => {
+      b.onclick = () => {
+        bases.forEach((x) => x.classList.remove("on"));
+        b.classList.add("on");
+      };
+    });
+  </script>
+</body>
+</html>

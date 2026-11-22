@@ -1,0 +1,8 @@
+{
+  "via": "node-api",
+  "path": "POST /api/rpc/oneway/{deviceId}",
+  "deviceName": "天骄-模块机-1#·生产园区",
+  "method": "start",
+  "status": 504,
+  "bodyPreview": ""
+}

@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<title>tee</title>
+<style>
+@font-face{font-family:"Noto Sans SC";src:url("file:///usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc") format("truetype");font-weight:400 500;font-style:normal;font-display:block;}
+@font-face{font-family:"Noto Sans SC";src:url("file:///usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc") format("truetype");font-weight:600 700;font-style:normal;font-display:block;}
+:root{
+  --text:#1f2329; --muted:#5f6e84; --pri:#1657e8; --prih:#2f6bff;
+  --ok:#19b37d; --danger:#e5484d; --warn:#c9922a; --off:#6B7178;
+  --bg:#fff; --wash:#edf1f7; --line:#d8e0ea; --rail:#0b1626;
+  --shadow:0 8px 28px rgba(31,35,41,.14);
+  --panel:380px; --railw:64px; --toph:48px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:#e8edf4;color:var(--text);
+  font:13px/1.5 "PingFang SC","Noto Sans SC","Microsoft YaHei",sans-serif;}
+h1,h2,h3,p{margin:0;font-weight:600}
+button,input{font:inherit}
+.page{padding:28px 32px 56px}
+.page>h1{font-size:22px;margin-bottom:6px}
+.lead{color:var(--muted);font-weight:400;max-width:920px;margin:0 0 22px}
+.toc{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 28px}
+.toc a{color:var(--pri);text-decoration:none;font-size:12px;padding:4px 10px;border:1px solid var(--line);border-radius:14px;background:#fff}
+.grid{display:flex;flex-direction:column;gap:40px}
+.block h2{font-size:13px;color:var(--muted);font-weight:500;margin:0 0 10px}
+.wb{
+  width:1600px;height:1000px;background:#fff;border-radius:10px;
+  overflow:hidden;box-shadow:var(--shadow);display:flex;
+  position:relative;isolation:isolate;
+}
+.rail{width:var(--railw);background:var(--rail);color:#9aa8ba;display:flex;flex-direction:column;align-items:center;padding:10px 0 16px;flex:none}
+.rail .logo{width:36px;height:36px;border-radius:8px;background:#1657e8;color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;letter-spacing:-.4px;margin-bottom:14px}
+.rail a{width:64px;height:52px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:#8b98a8;text-decoration:none;font-size:10px}
+.rail a.on{color:#fff;background:rgba(255,255,255,.06)}
+.rail svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.col{flex:1;min-width:0;display:flex;flex-direction:column}
+.top{height:var(--toph);flex:none;display:flex;align-items:center;gap:10px;padding:0 14px;border-bottom:1px solid var(--line);background:#fff}
+.brand{font-weight:650;font-size:13px;white-space:nowrap}
+.scene{height:28px;padding:0 10px;border:1px solid var(--line);border-radius:6px;display:flex;align-items:center;color:var(--text);background:var(--wash);min-width:120px}
+.ghost,.btn,.link{border:0;background:transparent;color:var(--text);height:28px;padding:0 10px;border-radius:6px;cursor:default;white-space:nowrap}
+.ghost{border:1px solid var(--line);background:#fff}
+.ghost.pri{border-color:var(--pri);color:var(--pri)}
+.btn-pri{background:var(--pri);color:#fff;height:28px;padding:0 12px;border-radius:6px;border:0}
+.search{margin-left:8px;position:relative;width:240px}
+.search input{width:100%;height:28px;border:1px solid var(--line);border-radius:6px;padding:0 10px 0 28px;background:var(--wash);color:var(--text);outline:none}
+.search.on input{background:#fff;border-color:var(--pri);box-shadow:0 0 0 3px rgba(22,87,232,.12)}
+.search .ico{position:absolute;left:8px;top:6px;color:var(--muted);pointer-events:none}
+.sp{flex:1}
+.tag{font-size:11px;color:#c9922a;background:#faf3e3;border-radius:4px;padding:1px 6px}
+.stage{flex:1;min-height:0;display:flex}
+.view{flex:1;min-width:0;position:relative;background:#e8eef5 center/cover no-repeat}
+.view.unbound{background-image:url(assets/canvas-unbound.jpg)}
+.view.bound{background-image:url(assets/canvas-bound.jpg)}
+.view.startstop{background-image:url(assets/canvas-startstop.jpg)}
+.view.pump{background-image:url(assets/canvas-pump.jpg)}
+.view.pick{background-image:url(assets/canvas-pick.jpg)}
+.view.wide{background-size:100% 100%;background-position:left top;background-repeat:no-repeat}
+.view.wide.unbound{background-image:url(assets/canvas-unbound-wide.jpg)}
+.view.wide.bound{background-image:url(assets/canvas-bound-wide.jpg)}
+.view.wide.startstop{background-image:url(assets/canvas-startstop-wide.jpg)}
+.view.wide.pump{background-image:url(assets/canvas-pump-wide.jpg)}
+.view.wide.pick{background-image:url(assets/canvas-pick-wide.jpg)}
+.view:after{content:"";position:absolute;inset:0;box-shadow:inset 0 0 0 1px rgba(216,224,234,.5);pointer-events:none}
+.statusbar{position:absolute;left:0;right:0;bottom:0;height:28px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;background:rgba(255,255,255,.92);border-top:1px solid var(--line);color:var(--muted);font-size:12px;z-index:2}
+.fab{position:absolute;right:16px;bottom:40px;z-index:4;height:28px;padding:0 12px;border-radius:14px;border:1px solid var(--line);background:#fff;color:var(--pri);font-weight:600;box-shadow:0 2px 8px rgba(31,35,41,.08)}
+.drawer{position:absolute;left:50%;transform:translateX(-50%);bottom:36px;width:min(800px,calc(100% - 168px));background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 28px rgba(31,35,41,.12);z-index:3;padding:8px 14px 10px}
+.drawer .handle{width:36px;height:4px;border-radius:2px;background:#c9d2de;margin:0 auto 8px}
+.drawer.collapsed{width:72px;padding:8px 10px}
+.drawer.collapsed .d-body{display:none}
+.d-row{display:flex;align-items:center;gap:12px;min-height:28px;margin-bottom:6px}
+.d-row:last-child{margin-bottom:0}
+.d-lab{color:var(--muted);font-size:11px;font-weight:550;white-space:nowrap}
+.d-name{font-weight:650;color:var(--text);font-size:12px}
+.d-name.dim,.d-val.dim{color:var(--muted);font-weight:400}
+.d-val{font-size:12px;color:var(--text)}
+.d-group{display:flex;align-items:center;gap:8px;min-width:0}
+.d-group.sp{flex:1}
+.d-btn{height:24px;padding:0 10px;border-radius:6px;border:0;font-size:12px;font-weight:600}
+.d-btn.start{background:var(--pri);color:#fff}
+.d-btn.stop{background:#fff;color:var(--danger);border:1px solid var(--danger)}
+.d-btn:disabled,.d-btn.off{opacity:.42;background:var(--wash);color:var(--muted);border:1px solid var(--line)}
+.d-note{font-size:11px;color:var(--muted);font-weight:400}
+.chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.chip{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:11px;background:var(--wash);color:var(--muted);font-size:11px}
+.chip i{width:6px;height:6px;border-radius:50%;background:#9aa8ba;flex:none}
+.chip.on{background:#e8f8f1;color:#0f7a54;font-weight:650}
+.chip.on i{background:var(--ok)}
+.d-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.d-kpis>div{background:#f7f9fc;border:1px solid var(--wash);border-radius:8px;padding:6px 10px}
+.d-kpis .d-lab{display:block;margin-bottom:2px}
+.d-kpis b{font-size:16px;font-weight:700;color:var(--text);letter-spacing:-.02em}
+.d-kpis b.dim{color:var(--muted);font-weight:550}
+.phd{padding:14px 16px 12px;border-bottom:1px solid var(--wash);display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.phd h3{font-size:14px}
+.phd .actions{flex:none;display:flex;gap:8px}
+.sub{color:var(--muted);font-weight:400;font-size:12px;margin-top:2px}
+.tabs{display:flex;gap:0;padding:0 16px;border-bottom:1px solid var(--line);background:#fff}
+.tab{height:36px;padding:0 14px;border:0;background:transparent;color:var(--muted);font-weight:550;position:relative}
+.tab.on{color:var(--pri);font-weight:650}
+.tab.on:after{content:"";position:absolute;left:12px;right:12px;bottom:-1px;height:2px;background:var(--pri);border-radius:1px}
+.metrics{display:flex;flex-direction:column;gap:8px}
+.metric{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#fff}
+.metric .k{color:var(--muted);font-weight:550}
+.metric .n{font-size:18px;font-weight:700;letter-spacing:-.03em}
+.metric .n small{font-size:12px;font-weight:550;color:var(--muted);margin-left:4px}
+.metric .n.ok{color:#0f7a54}
+.charts{display:flex;flex-direction:column;gap:10px}
+.chart{border:1px solid var(--line);border-radius:8px;padding:10px 12px 8px;background:#fff}
+.chart .h{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px}
+.chart .k{font-weight:550;font-size:12px}
+.chart .cur{color:var(--muted);font-size:11px;font-weight:400}
+.panel{width:var(--panel);flex:none;background:#fff;border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.pbody{padding:14px 16px 16px;overflow:auto;flex:1}
+.sec{margin-bottom:18px}
+.sec-h{font-size:12px;font-weight:650;margin:0 0 8px}
+.help{color:var(--muted);font-weight:400;font-size:12px;margin:0 0 8px}
+.hint{color:var(--muted);font-weight:400;font-size:11px;line-height:1.45;margin:8px 0 0}
+.empty{text-align:center;padding:48px 12px 20px}
+.empty .mark{width:44px;height:44px;border-radius:22px;background:#eef3ff;color:var(--pri);display:flex;align-items:center;justify-content:center;margin:0 auto 14px}
+.empty p{font-size:14px;margin-bottom:8px}
+.empty .help{margin-bottom:16px}
+.bind{display:flex;align-items:center;gap:8px;min-height:36px;border:1px solid var(--line);border-radius:6px;padding:6px 8px 6px 10px}
+.bind.ph{color:var(--muted)}
+.bind .nm{font-weight:550;flex:1}
+.bind .k{color:var(--muted);font-size:11px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--ok);flex:none}
+.dim{opacity:.42;pointer-events:none}
+.foot{padding-top:10px}
+.danger{color:var(--danger);background:transparent;border:0;padding:0;height:auto}
+.drop,.pop,.palette{
+  position:absolute;background:#fff;border:1px solid var(--line);
+  border-radius:8px;box-shadow:var(--shadow);z-index:5
+}
+.palette{top:40px;left:0;width:320px;padding:6px 0}
+.palette .item{padding:8px 12px;display:flex;align-items:center;gap:8px}
+.palette .item:hover,.palette .item.hi{background:#f3f7ff}
+.palette .st{margin-left:auto;font-size:11px;color:var(--muted)}
+.palette .st.ok{color:var(--ok)}
+.palette .st.none{color:var(--muted)}
+.drop{width:calc(var(--panel) - 32px);right:16px;top:auto;padding:6px 0;max-height:240px;overflow:auto}
+.drop .item{padding:8px 12px;display:flex;flex-direction:column;gap:1px}
+.drop .item.hi{background:#f3f7ff}
+.drop .k{color:var(--muted);font-size:11px}
+.drop .note{padding:8px 12px;color:var(--muted);font-size:11px;border-top:1px solid var(--wash)}
+.pop{width:300px;padding:12px 14px 14px}
+.pop-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;font-weight:650}
+.ctrl{height:32px;border:1px solid var(--line);border-radius:6px;padding:0 8px;display:flex;align-items:center;background:#fff}
+.req:after{content:" *";color:var(--danger)}
+.actions{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
+.note{margin-top:8px;color:var(--muted);font-size:12px;font-weight:400;max-width:1600px}
+.behs{border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.beh{display:grid;grid-template-columns:1fr 28px;column-gap:8px;row-gap:2px;align-items:center;min-height:44px;padding:8px 8px 8px 12px;border-bottom:1px solid var(--wash);background:#fff}
+.beh:last-child{border-bottom:0}
+.beh .k{font-weight:550;grid-column:1;grid-row:1;white-space:nowrap}
+.beh .v{color:var(--muted);font-size:12px;grid-column:1;grid-row:2;display:flex;align-items:center;flex-wrap:wrap;gap:6px;text-align:left;justify-content:flex-start;line-height:1.35}
+.beh .v.on{color:var(--pri)}
+.beh.active{background:#f3f7ff}
+.editico{width:28px;height:28px;border:0;background:transparent;color:var(--pri);display:flex;align-items:center;justify-content:center;padding:0;grid-column:2;grid-row:1 / span 2}
+.pop.form{width:400px;padding:14px 16px 14px}
+.pop.form .grid{display:grid;grid-template-columns:max-content 1fr;column-gap:16px;row-gap:12px;align-items:center}
+.pop.form .lab{line-height:1.35;white-space:nowrap;color:var(--text);font-size:13px}
+.pop.form .full{grid-column:2}
+.seg-mini{display:inline-flex;background:var(--wash);border-radius:14px;padding:2px}
+.seg-mini b{min-width:52px;height:26px;padding:0 10px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-weight:500;color:var(--muted);font-size:12px}
+.seg-mini .on{background:var(--pri);color:#fff}
+.tf2{display:inline-flex;gap:8px}
+.tf2 b{min-width:64px;height:28px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:12px;background:var(--wash);color:var(--muted)}
+.tf2 .on{background:var(--pri);color:#fff}
+.bind .x{color:var(--muted);font-size:16px;padding:0 4px;border:0;background:transparent;line-height:1}
+.auto{flex:none;font-size:10px;color:var(--pri);background:#eef3ff;border-radius:4px;padding:0 5px;height:18px;line-height:18px;font-weight:550}
+.checks{display:flex;flex-direction:column;gap:8px}
+.ck{display:flex;align-items:center;gap:8px;font-weight:500}
+.ck i{width:14px;height:14px;border-radius:3px;border:1.5px solid var(--line);display:inline-flex;align-items:center;justify-content:center;flex:none;background:#fff}
+.ck.on i{border-color:var(--pri);background:var(--pri);color:#fff}
+.ck.on i:after{content:"";width:8px;height:5px;border:2px solid #fff;border-top:0;border-right:0;transform:rotate(-45deg);margin-top:-1px}
+.plate{margin-top:4px;padding:10px 12px;border:1px dashed var(--line);border-radius:8px;background:#f7f9fc}
+.plate .ttl{font-size:12px;font-weight:650;margin-bottom:4px}
+.plate p{font-weight:400;color:var(--muted);font-size:12px;line-height:1.45}
+
+
+html,body{margin:0;background:#fff;overflow:hidden}
+.wb{border-radius:0;box-shadow:none}
+</style>
+</head>
+<body>
+<div class="wb">
+  <nav class="rail"><div class="logo">3D</div>
+    <a><svg viewBox="0 0 24 24"><path d="M4 11.5 12 5l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z"/></svg><span>首页</span></a>
+    <a class="on"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="1.5"/><path d="M8 9h8M8 12h5"/></svg><span>工作室</span></a>
+    <a><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="m11 9 5 3-5 3z"/></svg><span>运行</span></a>
+    <a><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg><span>搜索</span></a>
+    <a><svg viewBox="0 0 24 24"><rect x="6" y="3" width="12" height="18" rx="2"/><path d="M10 18h4"/></svg><span>设备</span></a>
+    <a><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v2.2M12 18.8V21M4.9 6.5l1.6 1.6M17.5 17.9l1.6 1.6M3 12h2.2M18.8 12H21M4.9 17.5l1.6-1.6M17.5 6.1l1.6-1.6"/></svg><span>设置</span></a>
+  </nav>
+  <div class="col">
+    <header class="top">
+      <div class="brand">3D-NGX 工作室</div>
+      <div class="scene">天骄科技园</div>
+      <button class="ghost">撤销</button>
+      <button class="ghost">重做</button>
+      <div class="search">
+        <svg class="ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg>
+        <input value="" placeholder="查找画面对象" readonly>
+        
+      </div>
+      <div class="sp"></div>
+      <span class="tag">演示数据</span>
+      <button class="ghost">隐藏测点</button>
+      <button class="ghost pri">编辑</button>
+      <button class="ghost">导入模型</button>
+      <button class="ghost">保存</button>
+      <button class="btn-pri">预览运行</button>
+    </header>
+    <div class="stage">
+      <div class="view unbound wide">
+        <div class="drawer"><div class="handle"></div><div class="d-body">
+          <div class="d-row">
+            <div class="d-group"><span class="d-lab">设备控制</span><span class="d-note">该对象没有控制面板和屏幕，不提供启停</span></div>
+            <div class="d-group sp" style="justify-content:flex-end"><span class="d-name">三通 2</span></div>
+          </div>
+          <div class="d-row"><span class="d-lab">设备数据</span><span class="d-val">已绑定 · 无看板数据</span></div>
+          <div class="d-row"><span class="d-lab">运行状态</span><div class="chips"><span class="chip"><i></i>停止 —</span><span class="chip"><i></i>运行 —</span><span class="chip"><i></i>故障 —</span><span class="chip"><i></i>报警 —</span><span class="chip"><i></i>检修 —</span><span class="chip"><i></i>备用 —</span></div></div>
+          <div class="d-kpis"><div><span class="d-lab">运行设备</span><b class="dim">—</b></div><div><span class="d-lab">设备总数</span><b class="">32</b></div><div><span class="d-lab">系统告警</span><b class="dim">—</b></div><div><span class="d-lab">总消耗量</span><b class="dim">—</b></div></div>
+          </div></div>
+        <div class="statusbar"><span>画面对象 109 个，已连接 1 台 · 演示数据</span><span></span></div>
+        <button class="fab">总览</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+</body></html>

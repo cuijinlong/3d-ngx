@@ -1,0 +1,218 @@
+{
+  "ok": false,
+  "shots": [
+    "/Users/cuijinlong/Documents/workspace/3d-ngx/_tmp-savehmi/ngx-upload/gb2-editor-live.png",
+    "/Users/cuijinlong/Documents/workspace/3d-ngx/_tmp-savehmi/ngx-upload/gb2-editor-live-viewport.png"
+  ],
+  "live": {
+    "vw": 1440,
+    "vh": 900,
+    "canvas": {
+      "clientW": 776,
+      "clientH": 824,
+      "x": 344,
+      "y": 48,
+      "w": 776,
+      "h": 824
+    },
+    "chain": [
+      {
+        "tag": "CANVAS",
+        "class": "pc-app",
+        "ch": 824,
+        "h": 824,
+        "maxH": "none",
+        "overflow": "clip"
+      },
+      {
+        "tag": "DIV",
+        "class": "_wrap_ou9zk_2",
+        "ch": 824,
+        "h": 824,
+        "maxH": "none",
+        "overflow": "hidden"
+      },
+      {
+        "tag": "DIV",
+        "class": "_viewport_11m3b_79",
+        "ch": 824,
+        "h": 824,
+        "maxH": "none",
+        "overflow": "hidden"
+      },
+      {
+        "tag": "DIV",
+        "class": "_body_11m3b_35",
+        "ch": 824,
+        "h": 824,
+        "maxH": "none",
+        "overflow": "hidden"
+      },
+      {
+        "tag": "DIV",
+        "class": "_shell_11m3b_2",
+        "ch": 900,
+        "h": 900,
+        "maxH": "100%",
+        "overflow": "hidden"
+      },
+      {
+        "tag": "MAIN",
+        "class": "_content_10kjs_64",
+        "ch": 900,
+        "h": 900,
+        "maxH": "none",
+        "overflow": "hidden"
+      },
+      {
+        "tag": "DIV",
+        "class": "_shell_10kjs_2",
+        "ch": 900,
+        "h": 900,
+        "maxH": "none",
+        "overflow": "visible"
+      },
+      {
+        "tag": "DIV",
+        "class": "css-dev-only-do-not-override-pbsm9t ant-app css-var-_r_0_",
+        "ch": 900,
+        "h": 900,
+        "maxH": "none",
+        "overflow": "hidden"
+      },
+      {
+        "tag": "DIV",
+        "class": "",
+        "ch": 900,
+        "h": 900,
+        "maxH": "none",
+        "overflow": "hidden"
+      },
+      {
+        "tag": "BODY",
+        "class": "",
+        "ch": 900,
+        "h": 900,
+        "maxH": "none",
+        "overflow": "hidden"
+      }
+    ],
+    "plateCount": 0,
+    "visiblePlates": 0,
+    "plates": [],
+    "toolbarHasTransform": false,
+    "hasPropTab": false,
+    "hasBindTab": true,
+    "hasStatus": true,
+    "hasImport": true,
+    "hasConnectByName": true
+  },
+  "demo": {
+    "vw": 1440,
+    "vh": 900,
+    "canvas": {
+      "clientW": 776,
+      "clientH": 824,
+      "x": 344,
+      "y": 48,
+      "w": 776,
+      "h": 824
+    },
+    "chain": [
+      {
+        "tag": "CANVAS",
+        "class": "pc-app",
+        "ch": 824,
+        "h": 824,
+        "maxH": "none",
+        "overflow": "clip"
+      },
+      {
+        "tag": "DIV",
+        "class": "_wrap_ou9zk_2",
+        "ch": 824,
+        "h": 824,
+        "maxH": "none",
+        "overflow": "hidden"
+      },
+      {
+        "tag": "DIV",
+        "class": "_viewport_11m3b_79",
+        "ch": 824,
+        "h": 824,
+        "maxH": "none",
+        "overflow": "hidden"
+      },
+      {
+        "tag": "DIV",
+        "class": "_body_11m3b_35",
+        "ch": 824,
+        "h": 824,
+        "maxH": "none",
+        "overflow": "hidden"
+      },
+      {
+        "tag": "DIV",
+        "class": "_shell_11m3b_2",
+        "ch": 900,
+        "h": 900,
+        "maxH": "100%",
+        "overflow": "hidden"
+      },
+      {
+        "tag": "MAIN",
+        "class": "_content_10kjs_64",
+        "ch": 900,
+        "h": 900,
+        "maxH": "none",
+        "overflow": "hidden"
+      },
+      {
+        "tag": "DIV",
+        "class": "_shell_10kjs_2",
+        "ch": 900,
+        "h": 900,
+        "maxH": "none",
+        "overflow": "visible"
+      },
+      {
+        "tag": "DIV",
+        "class": "css-dev-only-do-not-override-pbsm9t ant-app css-var-_r_0_",
+        "ch": 900,
+        "h": 900,
+        "maxH": "none",
+        "overflow": "hidden"
+      },
+      {
+        "tag": "DIV",
+        "class": "",
+        "ch": 900,
+        "h": 900,
+        "maxH": "none",
+        "overflow": "hidden"
+      },
+      {
+        "tag": "BODY",
+        "class": "",
+        "ch": 900,
+        "h": 900,
+        "maxH": "none",
+        "overflow": "hidden"
+      }
+    ],
+    "plateCount": 0,
+    "visiblePlates": 0,
+    "plates": [],
+    "toolbarHasTransform": false,
+    "hasPropTab": false,
+    "hasBindTab": true,
+    "hasStatus": true,
+    "hasImport": true,
+    "hasConnectByName": true
+  },
+  "runtime": null,
+  "start": null,
+  "errors": [
+    "Protocol error (Page.captureScreenshot): Target closed"
+  ]
+}

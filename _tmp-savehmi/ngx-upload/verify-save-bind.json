@@ -1,0 +1,71 @@
+{
+  "ok": true,
+  "previousAutoSaved": true,
+  "previousImportState": {
+    "bindable": 197,
+    "autoSaved": true,
+    "imported": true,
+    "unsaved": false,
+    "footer": "可绑定 (197)",
+    "load": "模型已导入并保存"
+  },
+  "previousEditorUrl": "http://127.0.0.1:5173/studio/editor/scene_b471b867e581",
+  "connected": true,
+  "reusedScene": "天骄科技园草稿已导入模型 · 实体 127更新 2026-11-21 00:52:07编辑复制删除",
+  "uploaded": false,
+  "autoSaved": true,
+  "match": {
+    "clicked": true,
+    "messages": []
+  },
+  "chiller1Binding": {
+    "deviceCount": 52,
+    "kind": "guard",
+    "deviceId": "4402d2c7-e50c-11f1-9407-71dd197ec25f",
+    "deviceName": "天骄-模块机-1#·生产园区",
+    "start": "start",
+    "stop": "stop",
+    "text": "可绑定参数（来自 GLB，未写死） 温度（℃） · ℃ · 测点 功率（kW） · kW · 测点 开度（%） · % · 测点 运行状态 · 测点 风扇转动 · 动作 指示灯闪烁 · 动作 启动 · 动作 停止 · 动作 绑定后端设备（52 台） 天骄-模块机-1#·生产园区 · 风冷冷水机 按名称匹配绑定 测点映射（选项来自后端/数据源） 温度（℃） temperature 功率（kW） power 开度（%） opening 运行状态 running 动作 / 指令映射 风扇转动 · 1_spin_fan 选择后端指令 running 指示灯闪烁 · 1_blink_led 选择后端指令 running 启动 远程启动 running 停止 远程停止 running 解 绑"
+  },
+  "reopen": {
+    "list": {
+      "count": 2,
+      "names": [
+        "天骄科技园草稿",
+        "天骄科技园草稿"
+      ],
+      "savedText": "天骄科技园草稿已导入模型 · 实体 127更新 2026-11-21 00:52:07编辑复制删除",
+      "hasSaved": true
+    },
+    "editor": {
+      "bindable": 197,
+      "footer": "可绑定 (197)",
+      "load": "已加载 1942 个节点",
+      "url": "/studio/editor/scene_b471b867e581"
+    },
+    "modelVisible": true,
+    "listAfter": {
+      "count": 2,
+      "hasModel": true,
+      "text": "天骄科技园草稿已导入模型 · 实体 127更新 2026-11-21 00:54:36编辑复制删除"
+    }
+  },
+  "rpc": {
+    "via": "node-api",
+    "path": "POST /api/rpc/oneway/{deviceId}",
+    "deviceName": "天骄-模块机-1#·生产园区",
+    "method": "start",
+    "status": 504,
+    "bodyPreview": ""
+  },
+  "shots": [
+    "/Users/cuijinlong/Documents/workspace/3d-ngx/_tmp-savehmi/ngx-upload/06-scenes-list-after-save.png"
+  ],
+  "errors": [],
+  "editorState": {
+    "bindable": 197,
+    "footer": "可绑定 (197)",
+    "load": "已加载 1942 个节点",
+    "url": "/studio/editor/scene_b471b867e581"
+  }
+}

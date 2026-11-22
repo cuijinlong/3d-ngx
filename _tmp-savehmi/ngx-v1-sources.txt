@@ -1,0 +1,3076 @@
+
+================================================================================
+FILE apps/web/src/features/scene-editor/BindingPanel.tsx LINES 499
+================================================================================
+   1|
+   2|import { Alert, Button, Input, Select, Space, Typography, message } from "antd";
+   3|import { useEffect, useMemo, useRef, useState } from "react";
+   4|import type {
+   5|  ActionMapping,
+   6|  CommandDef,
+   7|  Device,
+   8|  DeviceBinding,
+   9|  DevicePoint,
+  10|  ParsedHmiScene,
+  11|  SceneEntity,
+  12|  TelemetryMapping,
+  13|} from "@idt/shared-types";
+  14|import { getCommandProvider, getDataProvider, getProviderKind, isRealtimePlatformDevice, isVirtualPlatformDevice } from "@idt/data-adapter";
+  15|import { createDevicesFromHmi } from "../../services/device/deviceService";
+  16|import { useDeviceStore } from "../../stores/device.store";
+  17|import { useSceneStore } from "../../stores/scene.store";
+  18|import { createId } from "../../utils/id";
+  19|import {
+  20|  buildDeviceBinding,
+  21|  planNameMatches,
+  22|  signalsForEntity,
+  23|  suggestCommandForAction,
+  24|} from "../../utils/bind-by-name";
+  25|
+  26|function commandOf(binding: DeviceBinding | undefined, name: string): string | undefined {
+  27|  return binding?.actionMappings.find((m) => m.actionId === name)?.commandId;
+  28|}
+  29|
+  30|export function BindingPanel({
+  31|  entity,
+  32|  hmi,
+  33|  devices,
+  34|}: {
+  35|  entity?: SceneEntity;
+  36|  hmi: ParsedHmiScene | null;
+  37|  devices: Device[];
+  38|}) {
+  39|  const document = useSceneStore((s) => s.document);
+  40|  const setDocument = useSceneStore((s) => s.setDocument);
+  41|  const persist = useSceneStore((s) => s.persist);
+  42|  const refresh = useDeviceStore((s) => s.refresh);
+  43|  const kind = getProviderKind();
+  44|  const sourceLabel = kind === "guard" ? "后端设备" : "演示数据";
+  45|
+  46|  const [points, setPoints] = useState<DevicePoint[]>([]);
+  47|  const [commands, setCommands] = useState<CommandDef[]>([]);
+  48|  const [loadingMaps, setLoadingMaps] = useState(false);
+  49|
+  50|  const bindableDevices = useMemo(() => devices.filter(isRealtimePlatformDevice), [devices]);
+  51|
+  52|  const triedRefresh = useRef(false);
+  53|  useEffect(() => {
+  54|    if (devices.length === 0 && !triedRefresh.current) {
+  55|      triedRefresh.current = true;
+  56|      void refresh();
+  57|    }
+  58|  }, [devices.length, refresh]);
+  59|
+  60|  const binding = useMemo(() => {
+  61|    if (!document || !entity) return undefined;
+  62|    return document.bindings.find((b) => b.sceneEntityId === entity.id || b.sceneEntityId === entity.nodeName);
+  63|  }, [document, entity]);
+  64|
+  65|  const boundRealtime = bindableDevices.find((item) => item.id === binding?.deviceId);
+  66|  const [virtualBound, setVirtualBound] = useState(false);
+  67|
+  68|  useEffect(() => {
+  69|    const deviceId = binding?.deviceId;
+  70|    if (!deviceId) {
+  71|      setPoints([]);
+  72|      setCommands([]);
+  73|      setVirtualBound(false);
+  74|      return;
+  75|    }
+  76|    if (boundRealtime) {
+  77|      setVirtualBound(false);
+  78|      let cancelled = false;
+  79|      setLoadingMaps(true);
+  80|      Promise.all([getDataProvider().listTelemetryKeys(deviceId), getCommandProvider().listCommands(deviceId)])
+  81|        .then(([nextPoints, nextCommands]) => {
+  82|          if (cancelled) return;
+  83|          setPoints(nextPoints);
+  84|          setCommands(nextCommands);
+  85|        })
+  86|        .catch((error: unknown) => {
+  87|          if (!cancelled) message.error(error instanceof Error ? error.message : "读取设备测点失败");
+  88|        })
+  89|        .finally(() => {
+  90|          if (!cancelled) setLoadingMaps(false);
+  91|        });
+  92|      return () => {
+  93|        cancelled = true;
+  94|      };
+  95|    }
+  96|    if (kind !== "guard") {
+  97|      setVirtualBound(false);
+  98|      return;
+  99|    }
+ 100|    let cancelled = false;
+ 101|    setLoadingMaps(true);
+ 102|    getDataProvider()
+ 103|      .getDevice(deviceId)
+ 104|      .then((device) => {
+ 105|        if (cancelled) return;
+ 106|        if (device && isVirtualPlatformDevice(device)) {
+ 107|          setVirtualBound(true);
+ 108|          setPoints([]);
+ 109|          setCommands([]);
+ 110|          return;
+ 111|        }
+ 112|        setVirtualBound(false);
+ 113|      })
+ 114|      .catch(() => {
+ 115|        if (!cancelled) setVirtualBound(false);
+ 116|      })
+ 117|      .finally(() => {
+ 118|        if (!cancelled) setLoadingMaps(false);
+ 119|      });
+ 120|    return () => {
+ 121|      cancelled = true;
+ 122|    };
+ 123|  }, [binding?.deviceId, boundRealtime, kind]);
+ 124|
+ 125|  if (!document) return null;
+ 126|
+ 127|  const replaceAllBindings = (next: DeviceBinding[]) => {
+ 128|    const entities = document.entities.map((e) => {
+ 129|      const found = next.find((b) => b.sceneEntityId === e.id || b.sceneEntityId === e.nodeName);
+ 130|      return found ? { ...e, binding: { deviceId: found.deviceId } } : { ...e, binding: undefined };
+ 131|    });
+ 132|    setDocument({ ...document, bindings: next, entities }, "更新设备绑定");
+ 133|  };
+ 134|
+ 135|  const matchByName = async () => {
+ 136|    let pool = bindableDevices;
+ 137|    if (pool.length === 0 && kind === "mock" && hmi) {
+ 138|      await createDevicesFromHmi(hmi);
+ 139|      await refresh();
+ 140|      pool = useDeviceStore.getState().devices.filter(isRealtimePlatformDevice);
+ 141|    }
+ 142|    const { plans, skippedBound, unmatched } = planNameMatches({
+ 143|      entities: document.entities,
+ 144|      devices: pool,
+ 145|      bindables: hmi?.bindables ?? [],
+ 146|      existing: document.bindings,
+ 147|    });
+ 148|    if (plans.length === 0) {
+ 149|      if (pool.length === 0) {
+ 150|        message.warning(
+ 151|          kind === "guard"
+ 152|            ? "还没有可绑定的实时设备，请先连接后端或刷新设备"
+ 153|            : "还没有设备列表，请先按模型创建模拟设备或刷新设备",
+ 154|        );
+ 155|      } else if (skippedBound && unmatched === document.entities.length - skippedBound) {
+ 156|        message.info(`已有绑定，未改动 ${skippedBound} 个对象`);
+ 157|      } else message.info("没有按名称匹配到可连接的设备");
+ 158|      return;
+ 159|    }
+ 160|    setLoadingMaps(true);
+ 161|    try {
+ 162|      const cache = new Map<string, { points: DevicePoint[]; commands: CommandDef[] }>();
+ 163|      for (const plan of plans) {
+ 164|        if (cache.has(plan.device.id)) continue;
+ 165|        const [nextPoints, nextCommands] = await Promise.all([
+ 166|          getDataProvider().listTelemetryKeys(plan.device.id),
+ 167|          getCommandProvider().listCommands(plan.device.id),
+ 168|        ]);
+ 169|        cache.set(plan.device.id, { points: nextPoints, commands: nextCommands });
+ 170|      }
+ 171|      const replaced = new Set(plans.map((plan) => plan.entity.id));
+ 172|      const next = document.bindings.filter(
+ 173|        (item) => !replaced.has(item.sceneEntityId) && !plans.some((plan) => plan.entity.nodeName === item.sceneEntityId),
+ 174|      );
+ 175|      for (const plan of plans) {
+ 176|        const maps = cache.get(plan.device.id)!;
+ 177|        const existing = document.bindings.find(
+ 178|          (item) => item.sceneEntityId === plan.entity.id || item.sceneEntityId === plan.entity.nodeName,
+ 179|        );
+ 180|        next.push(
+ 181|          buildDeviceBinding({
+ 182|            existingId: existing?.id,
+ 183|            createId: () => createId("bind"),
+ 184|            entity: plan.entity,
+ 185|            device: plan.device,
+ 186|            signals: plan.signals,
+ 187|            points: maps.points,
+ 188|            commands: maps.commands,
+ 189|            devices: pool,
+ 190|          }),
+ 191|        );
+ 192|      }
+ 193|      replaceAllBindings(next);
+ 194|      try {
+ 195|        await persist("按名称自动连接后自动保存");
+ 196|      } catch (error) {
+ 197|        message.warning(error instanceof Error ? `绑定已更新，但自动保存失败：${error.message}` : "绑定已更新，但自动保存失败，请再点一次保存");
+ 198|      }
+ 199|      const extras = [
+ 200|        skippedBound ? `跳过 ${skippedBound} 个已绑定` : "",
+ 201|        unmatched ? `${unmatched} 个无匹配` : "",
+ 202|      ].filter(Boolean);
+ 203|      message.success(`已按名称连接 ${plans.length} 个对象${extras.length ? `（${extras.join("，")}）` : ""}`);
+ 204|    } catch (error) {
+ 205|      message.error(error instanceof Error ? error.message : "按名称自动连接失败");
+ 206|    } finally {
+ 207|      setLoadingMaps(false);
+ 208|    }
+ 209|  };
+ 210|
+ 211|  const matchButton = (
+ 212|    <Button size="small" data-bind-by-name="true" loading={loadingMaps} onClick={() => void matchByName()}>
+ 213|      按名称自动连接
+ 214|    </Button>
+ 215|  );
+ 216|
+ 217|  if (!entity) {
+ 218|    return (
+ 219|      <div style={{ padding: 12, display: "grid", gap: 12 }}>
+ 220|        <div style={{ color: "var(--idt-muted)" }}>先在画面里点一台设备，再把它连到后台。也可以不选，直接按名称自动连接。</div>
+ 221|        {kind === "mock" ? (
+ 222|          <Button
+ 223|            size="small"
+ 224|            onClick={() => {
+ 225|              if (!hmi) {
+ 226|                message.warning("还没有解析到模型中的设备定义");
+ 227|                return;
+ 228|              }
+ 229|              void createDevicesFromHmi(hmi).then(async (created) => {
+ 230|                await refresh();
+ 231|                message.success(`已根据模型创建 ${created.length} 台模拟设备（演示数据）`);
+ 232|              });
+ 233|            }}
+ 234|          >
+ 235|            按模型创建模拟设备
+ 236|          </Button>
+ 237|        ) : null}
+ 238|        {matchButton}
+ 239|      </div>
+ 240|    );
+ 241|  }
+ 242|
+ 243|  const signals = signalsForEntity(hmi?.bindables ?? [], entity);
+ 244|
+ 245|  const patchBindings = (next: DeviceBinding[]) => {
+ 246|    const entities = document.entities.map((e) =>
+ 247|      e.id === entity.id
+ 248|        ? {
+ 249|            ...e,
+ 250|            binding: next.find((b) => b.sceneEntityId === e.id)
+ 251|              ? { deviceId: next.find((b) => b.sceneEntityId === e.id)!.deviceId }
+ 252|              : undefined,
+ 253|          }
+ 254|        : e,
+ 255|    );
+ 256|    setDocument({ ...document, bindings: next, entities }, "更新设备绑定");
+ 257|  };
+ 258|
+ 259|  const replaceBinding = (next: DeviceBinding | null) => {
+ 260|    const rest = document.bindings.filter((b) => b.sceneEntityId !== entity.id && b.sceneEntityId !== entity.nodeName);
+ 261|    patchBindings(next ? [...rest, next] : rest);
+ 262|  };
+ 263|
+ 264|  const bindDevice = async (deviceId: string) => {
+ 265|    const device = bindableDevices.find((d) => d.id === deviceId);
+ 266|    if (!device || isVirtualPlatformDevice(device)) {
+ 267|      message.warning("只能绑定平台实时设备，虚拟设备仅用于手动上报");
+ 268|      return;
+ 269|    }
+ 270|    setLoadingMaps(true);
+ 271|    try {
+ 272|      const nextPoints = await getDataProvider().listTelemetryKeys(deviceId);
+ 273|      const nextCommands = await getCommandProvider().listCommands(deviceId);
+ 274|      setPoints(nextPoints);
+ 275|      setCommands(nextCommands);
+ 276|      replaceBinding(
+ 277|        buildDeviceBinding({
+ 278|          existingId: binding?.id,
+ 279|          createId: () => createId("bind"),
+ 280|          entity,
+ 281|          device,
+ 282|          signals,
+ 283|          points: nextPoints,
+ 284|          commands: nextCommands,
+ 285|          devices: bindableDevices,
+ 286|        }),
+ 287|      );
+ 288|    } catch (error) {
+ 289|      message.error(error instanceof Error ? error.message : "读取后端测点失败");
+ 290|    } finally {
+ 291|      setLoadingMaps(false);
+ 292|    }
+ 293|  };
+ 294|
+ 295|  const patchCurrent = (partial: Partial<DeviceBinding>) => {
+ 296|    if (!binding) return;
+ 297|    replaceBinding({ ...binding, ...partial });
+ 298|  };
+ 299|
+ 300|  const createFromModel = async () => {
+ 301|    if (kind === "guard") {
+ 302|      message.info("当前已连接后端，请直接选择后端设备绑定，不必再创建模拟设备");
+ 303|      return;
+ 304|    }
+ 305|    if (!hmi) {
+ 306|      message.warning("还没有解析到模型中的设备定义");
+ 307|      return;
+ 308|    }
+ 309|    const created = await createDevicesFromHmi(hmi);
+ 310|    await refresh();
+ 311|    message.success(`已根据模型创建 ${created.length} 台模拟设备（演示数据）`);
+ 312|  };
+ 313|
+ 314|  const pointOptions = points.map((p) => ({ value: p.key, label: p.unit ? `${p.key}（${p.unit}）` : p.key }));
+ 315|  const commandOptions = commands.map((c) => ({ value: c.id, label: c.label }));
+ 316|  const telemetrySignals = signals.filter((s) => s.kind === "telemetry" || s.kind === "state");
+ 317|  const actionSignals = signals.filter((s) => s.kind === "action");
+ 318|
+ 319|  return (
+ 320|    <div
+ 321|      style={{ padding: 12, display: "grid", gap: 12 }}
+ 322|      data-device-count={devices.length}
+ 323|      data-provider-kind={kind}
+ 324|      data-bound-device-id={binding?.deviceId ?? ""}
+ 325|      data-bound-device-name={binding?.deviceName ?? ""}
+ 326|      data-command-start={commandOf(binding, "start") ?? ""}
+ 327|      data-command-stop={commandOf(binding, "stop") ?? ""}
+ 328|    >
+ 329|      <div>
+ 330|        <Typography.Text type="secondary">可绑定参数（来自 GLB，未写死）</Typography.Text>
+ 331|        {signals.length === 0 ? (
+ 332|          <div style={{ color: "var(--idt-muted)", marginTop: 6 }}>该节点没有解析到测点或动作。</div>
+ 333|        ) : (
+ 334|          <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+ 335|            {signals.map((s) => (
+ 336|              <li key={s.id}>
+ 337|                {s.label}
+ 338|                {s.unit ? ` · ${s.unit}` : ""} · {s.kind === "action" ? "动作" : "测点"}
+ 339|              </li>
+ 340|            ))}
+ 341|          </ul>
+ 342|        )}
+ 343|      </div>
+ 344|      <div>
+ 345|        <Typography.Text type="secondary">绑定{sourceLabel}（{bindableDevices.length} 台{kind === "guard" ? "实时设备" : ""}）</Typography.Text>
+ 346|        {virtualBound ? (
+ 347|          <Alert
+ 348|            type="warning"
+ 349|            showIcon
+ 350|            data-virtual-binding="true"
+ 351|            style={{ marginTop: 6 }}
+ 352|            message="当前绑定的是平台虚拟设备，不能再当作实时设备使用。虚拟设备只用于手动上报，请解绑后改绑实时设备，或在「组织-场站-设备管理」将其改为实时。"
+ 353|          />
+ 354|        ) : null}
+ 355|        <Select
+ 356|          getPopupContainer={() => window.document.body}
+ 357|          virtual={false}
+ 358|          style={{ width: "100%", marginTop: 6 }}
+ 359|          placeholder={`选择${sourceLabel}`}
+ 360|          value={boundRealtime ? binding?.deviceId : undefined}
+ 361|          allowClear
+ 362|          showSearch
+ 363|          optionFilterProp="label"
+ 364|          loading={loadingMaps}
+ 365|          onClear={() => replaceBinding(null)}
+ 366|          onChange={(id) => void bindDevice(id)}
+ 367|          options={bindableDevices.map((d) => ({
+ 368|            value: d.id,
+ 369|            label: `${d.name} · ${d.type}${d.source === "guard" ? "" : "（演示）"}`,
+ 370|          }))}
+ 371|        />
+ 372|        <div style={{ marginTop: 8 }}>{matchButton}</div>
+ 373|      </div>
+ 374|      {binding ? (
+ 375|        <div style={{ display: "grid", gap: 10 }}>
+ 376|          <Typography.Text type="secondary">测点映射（选项来自后端/数据源）</Typography.Text>
+ 377|          {telemetrySignals.length === 0 ? (
+ 378|            <div style={{ color: "var(--idt-muted)", fontSize: 12 }}>该节点没有遥测或状态参数。</div>
+ 379|          ) : (
+ 380|            telemetrySignals.map((s) => {
+ 381|              const current = binding.telemetryMappings.find((m) => m.field === s.name);
+ 382|              return (
+ 383|                <div key={s.id} style={{ display: "grid", gap: 4 }}>
+ 384|                  <span style={{ fontSize: 12 }}>{s.label}</span>
+ 385|                  <Select
+ 386|                    getPopupContainer={() => window.document.body}
+ 387|                    virtual={false}
+ 388|                    allowClear
+ 389|                    showSearch
+ 390|                    optionFilterProp="label"
+ 391|                    placeholder={loadingMaps ? "正在读取测点…" : "选择遥测键"}
+ 392|                    value={current?.telemetryKey || undefined}
+ 393|                    options={pointOptions}
+ 394|                    onChange={(key) => {
+ 395|                      const point = points.find((p) => p.key === key);
+ 396|                      const rest = binding.telemetryMappings.filter((m) => m.field !== s.name);
+ 397|                      const next: TelemetryMapping = {
+ 398|                        field: s.name,
+ 399|                        telemetryKey: key ?? "",
+ 400|                        label: s.label,
+ 401|                        unit: s.unit ?? point?.unit,
+ 402|                        displayType: s.valueType,
+ 403|                      };
+ 404|                      patchCurrent({ telemetryMappings: key ? [...rest, next] : rest });
+ 405|                    }}
+ 406|                  />
+ 407|                </div>
+ 408|              );
+ 409|            })
+ 410|          )}
+ 411|          <Typography.Text type="secondary">动作 / 指令映射</Typography.Text>
+ 412|          {actionSignals.length === 0 ? (
+ 413|            <div style={{ color: "var(--idt-muted)", fontSize: 12 }}>该节点没有动作参数。</div>
+ 414|          ) : (
+ 415|            actionSignals.map((s) => {
+ 416|              const current = binding.actionMappings.find((m) => m.actionId === s.name);
+ 417|              return (
+ 418|                <div key={s.id} style={{ display: "grid", gap: 4 }}>
+ 419|                  <span style={{ fontSize: 12 }}>{s.label}{s.clip ? ` · ${s.clip}` : ""}</span>
+ 420|                  <Select
+ 421|                    getPopupContainer={() => window.document.body}
+ 422|                    virtual={false}
+ 423|                    allowClear
+ 424|                    showSearch
+ 425|                    optionFilterProp="label"
+ 426|                    placeholder={commands.length ? "选择后端指令" : "后端暂无指令列表"}
+ 427|                    value={current?.commandId || undefined}
+ 428|                    options={commandOptions}
+ 429|                    onChange={(commandId) => {
+ 430|                      const rest = binding.actionMappings.filter((m) => m.actionId !== s.name);
+ 431|                      const suggested = commandId
+ 432|                        ? suggestCommandForAction(s.name, s.label, commands.filter((c) => c.id === commandId), {
+ 433|                            entityName: entity.name,
+ 434|                            boundDevice: devices.find((d) => d.id === binding.deviceId),
+ 435|                            devices,
+ 436|                          })
+ 437|                        : undefined;
+ 438|                      const next: ActionMapping = {
+ 439|                        ...(current ?? { actionId: s.name, label: s.label, clip: s.clip }),
+ 440|                        commandId,
+ 441|                        commandParams: suggested?.params,
+ 442|                      };
+ 443|                      patchCurrent({ actionMappings: commandId ? [...rest, next] : rest });
+ 444|                    }}
+ 445|                  />
+ 446|                  <Select
+ 447|                    getPopupContainer={() => window.document.body}
+ 448|                    virtual={false}
+ 449|                    allowClear
+ 450|                    showSearch
+ 451|                    optionFilterProp="label"
+ 452|                    placeholder="用哪个遥测键驱动动画"
+ 453|                    value={current?.telemetryKey || undefined}
+ 454|                    options={pointOptions}
+ 455|                    onChange={(telemetryKey) => {
+ 456|                      const rest = binding.actionMappings.filter((m) => m.actionId !== s.name);
+ 457|                      const next: ActionMapping = {
+ 458|                        ...(current ?? { actionId: s.name, label: s.label, clip: s.clip }),
+ 459|                        telemetryKey,
+ 460|                      };
+ 461|                      patchCurrent({ actionMappings: [...rest, next] });
+ 462|                    }}
+ 463|                  />
+ 464|                  <Input
+ 465|                    placeholder="触发值，例如 true 或 运行"
+ 466|                    value={current?.whenValue === undefined || current?.whenValue === null ? "" : String(current.whenValue)}
+ 467|                    onChange={(e) => {
+ 468|                      const raw = e.target.value;
+ 469|                      let whenValue: string | number | boolean = raw;
+ 470|                      if (raw === "true") whenValue = true;
+ 471|                      else if (raw === "false") whenValue = false;
+ 472|                      else if (raw !== "" && !Number.isNaN(Number(raw))) whenValue = Number(raw);
+ 473|                      const rest = binding.actionMappings.filter((m) => m.actionId !== s.name);
+ 474|                      const next: ActionMapping = {
+ 475|                        ...(current ?? { actionId: s.name, label: s.label, clip: s.clip }),
+ 476|                        whenValue: raw === "" ? undefined : whenValue,
+ 477|                      };
+ 478|                      patchCurrent({ actionMappings: [...rest, next] });
+ 479|                    }}
+ 480|                  />
+ 481|                </div>
+ 482|              );
+ 483|            })
+ 484|          )}
+ 485|          <Button size="small" danger onClick={() => replaceBinding(null)}>
+ 486|            解绑
+ 487|          </Button>
+ 488|        </div>
+ 489|      ) : null}
+ 490|      {kind === "mock" ? (
+ 491|        <Space>
+ 492|          <Button size="small" onClick={() => void createFromModel()}>
+ 493|            按模型创建模拟设备
+ 494|          </Button>
+ 495|        </Space>
+ 496|      ) : null}
+ 497|    </div>
+ 498|  );
+ 499|}
+
+================================================================================
+FILE apps/web/src/features/scene-editor/EditorShell.tsx LINES 353
+================================================================================
+   1|
+   2|import { Button, Input, Segmented, Tabs, Upload, message } from "antd";
+   3|import { useCallback, useEffect, useMemo, useState } from "react";
+   4|import { useNavigate } from "react-router-dom";
+   5|import { parseHmiGlb } from "@idt/engine-adapter";
+   6|import type { ParsedHmiScene, SceneEntity } from "@idt/shared-types";
+   7|import { EngineViewport } from "../../engine/react/EngineViewport";
+   8|import { routes } from "../../constants/routes";
+   9|import { importAssetFile, importPublicModel, resolveAssetUrl, readAssetBuffer } from "../../services/asset/assetService";
+  10|import { attachHmiSnapshot, publishScene } from "../../services/scene/sceneService";
+  11|import { createDevicesFromHmi } from "../../services/device/deviceService";
+  12|import { useAppStore } from "../../stores/app.store";
+  13|import { useDeviceStore } from "../../stores/device.store";
+  14|import { useEditorStore } from "../../stores/editor.store";
+  15|import { useSceneStore } from "../../stores/scene.store";
+  16|import { useSelectionStore } from "../../stores/selection.store";
+  17|import { downloadText } from "../../utils/download";
+  18|import { uniqueEntitiesFromParsed } from "../../utils/hmi-entities";
+  19|import { createId } from "../../utils/id";
+  20|import { SceneTree } from "./SceneTree";
+  21|import { BindingPanel } from "./BindingPanel";
+  22|import { AssetPanel } from "./AssetPanel";
+  23|import { ActionCommandBar } from "./ActionCommandBar";
+  24|import { resolveSceneEntity } from "../../utils/scene-entity";
+  25|import { useTelemetryFeed } from "../../hooks/useTelemetryFeed";
+  26|import { useDemoTelemetry, useTelemetrySource } from "../../hooks/useTelemetrySource";
+  27|import { useTelemetryStore } from "../../stores/telemetry.store";
+  28|import { buildDevicePlates } from "../../utils/device-plates";
+  29|import { getProviderKind } from "@idt/data-adapter";
+  30|import styles from "./EditorShell.module.css";
+  31|
+  32|export function EditorShell() {
+  33|  const nav = useNavigate();
+  34|  const document = useSceneStore((s) => s.document);
+  35|  const hmi = useSceneStore((s) => s.hmi);
+  36|  const setDocument = useSceneStore((s) => s.setDocument);
+  37|  const setHmi = useSceneStore((s) => s.setHmi);
+  38|  const persist = useSceneStore((s) => s.persist);
+  39|  const undo = useSceneStore((s) => s.undo);
+  40|  const redo = useSceneStore((s) => s.redo);
+  41|  const past = useSceneStore((s) => s.past);
+  42|  const future = useSceneStore((s) => s.future);
+  43|  const dirty = useEditorStore((s) => s.dirty);
+  44|  const [telemetrySource, setTelemetrySource] = useTelemetrySource();
+  45|  const latest = useTelemetryStore((s) => s.latest);
+  46|  const selectedNode = useSelectionStore((s) => s.nodeName);
+  47|  const select = useSelectionStore((s) => s.select);
+  48|  const devices = useDeviceStore((s) => s.devices);
+  49|  const refreshDevices = useDeviceStore((s) => s.refresh);
+  50|  const ready = useAppStore((s) => s.ready);
+  51|
+  52|  const [modelUrl, setModelUrl] = useState<string>();
+  53|  const [loadState, setLoadState] = useState("未加载模型");
+  54|
+  55|  useEffect(() => {
+  56|    if (ready) void refreshDevices();
+  57|  }, [ready, refreshDevices]);
+  58|
+  59|  useEffect(() => {
+  60|    const id = document?.rootAssetId;
+  61|    if (!id) {
+  62|      setModelUrl(undefined);
+  63|      return;
+  64|    }
+  65|    let cancelled = false;
+  66|    (async () => {
+  67|      try {
+  68|        const { getAsset } = await import("../../services/asset/assetService");
+  69|        const asset = await getAsset(id);
+  70|        if (!asset || cancelled) return;
+  71|        const url = await resolveAssetUrl(asset);
+  72|        if (!cancelled) setModelUrl(url);
+  73|        const buffer = await readAssetBuffer(id);
+  74|        const parsed = parseHmiGlb(buffer);
+  75|        if (!cancelled) setHmi(parsed);
+  76|      } catch (error) {
+  77|        if (!cancelled) message.error(error instanceof Error ? error.message : "模型读取失败");
+  78|      }
+  79|    })();
+  80|    return () => {
+  81|      cancelled = true;
+  82|    };
+  83|  }, [document?.rootAssetId, setHmi]);
+  84|
+  85|
+  86|  const applyParsedScene = useCallback(
+  87|    async (parsed: ParsedHmiScene, assetId: string, sceneName?: string) => {
+  88|      if (!document) return;
+  89|      const entities: SceneEntity[] = uniqueEntitiesFromParsed(parsed).map((item) => ({
+  90|        id: item.node,
+  91|        name: item.name,
+  92|        nodeName: item.node,
+  93|        assetId,
+  94|        transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
+  95|        visible: true,
+  96|      }));
+  97|      const next = attachHmiSnapshot(
+  98|        {
+  99|          ...document,
+ 100|          rootAssetId: assetId,
+ 101|          scene: {
+ 102|            ...document.scene,
+ 103|            name: sceneName || parsed.name || document.scene.name,
+ 104|          },
+ 105|          entities,
+ 106|        },
+ 107|        parsed,
+ 108|      );
+ 109|      setDocument(next, "导入模型");
+ 110|      setHmi(parsed);
+ 111|    },
+ 112|    [document, setDocument, setHmi],
+ 113|  );
+ 114|
+ 115|  const importGlb = async (file: File) => {
+ 116|    try {
+ 117|      setLoadState("正在解析 GLB…");
+ 118|      const parsed = await parseHmiGlb(await file.arrayBuffer());
+ 119|      const asset = await importAssetFile(file, { hmiName: parsed.name, bindables: parsed.bindables.length });
+ 120|      await applyParsedScene(parsed, asset.id, parsed.name);
+ 121|      let saved = false;
+ 122|      try {
+ 123|        await persist("导入后自动保存");
+ 124|        saved = true;
+ 125|      } catch (error) {
+ 126|        message.warning(error instanceof Error ? `模型已导入，但自动保存失败：${error.message}` : "模型已导入，但自动保存失败，请再点一次保存");
+ 127|      }
+ 128|      message.success(
+ 129|        parsed.source === "hmi-extras"
+ 130|          ? `已从模型读取 ${parsed.bindables.length} 个可连接点${saved ? "，并已自动保存" : ""}`
+ 131|          : `模型没有自带连接信息，已按部件列出可连接对象${saved ? "，并已自动保存" : ""}`,
+ 132|      );
+ 133|      setLoadState(saved ? "模型已导入并保存" : "模型已导入");
+ 134|    } catch (error) {
+ 135|      setLoadState("加载失败");
+ 136|      message.error(error instanceof Error ? error.message : "导入失败");
+ 137|    }
+ 138|    return false;
+ 139|  };
+ 140|
+ 141|  const importSample = async () => {
+ 142|    try {
+ 143|      setLoadState("正在加载示例模型…");
+ 144|      const asset = await importPublicModel("/models/tianjiao.glb", "天骄科技园");
+ 145|      const buffer = await readAssetBuffer(asset.id);
+ 146|      const parsed = parseHmiGlb(buffer);
+ 147|      await applyParsedScene(parsed, asset.id, parsed.name || "天骄科技园");
+ 148|      let saved = false;
+ 149|      try {
+ 150|        await persist("导入后自动保存");
+ 151|        saved = true;
+ 152|      } catch (error) {
+ 153|        message.warning(error instanceof Error ? `示例模型已导入，但自动保存失败：${error.message}` : "示例模型已导入，但自动保存失败，请再点一次保存");
+ 154|      }
+ 155|      message.success(`示例模型已导入，解析到 ${parsed.bindables.length} 个可连接点${saved ? "，并已自动保存" : ""}`);
+ 156|      setLoadState(saved ? "示例模型已导入并保存" : "示例模型已导入");
+ 157|    } catch (error) {
+ 158|      setLoadState("示例模型不可用");
+ 159|      message.error(error instanceof Error ? error.message : "示例模型加载失败，请直接导入本地 GLB");
+ 160|    }
+ 161|  };
+ 162|
+ 163|
+ 164|  const onSelect = (nodeName: string | null) => {
+ 165|    if (!nodeName) {
+ 166|      select(null, null);
+ 167|      return;
+ 168|    }
+ 169|    const entity = resolveSceneEntity(document, nodeName);
+ 170|    select(entity?.id ?? nodeName, entity?.nodeName ?? nodeName);
+ 171|  };
+ 172|
+ 173|  const selectedEntity = useMemo(() => {
+ 174|    if (!document) return undefined;
+ 175|    return resolveSceneEntity(document, selectedNode) ?? document.entities.find((e) => e.id === useSelectionStore.getState().entityId);
+ 176|  }, [document, selectedNode]);
+ 177|
+ 178|
+ 179|  const deviceIds = useMemo(
+ 180|    () => (document?.bindings ?? []).map((b) => b.deviceId).filter(Boolean),
+ 181|    [document?.bindings],
+ 182|  );
+ 183|  useTelemetryFeed(telemetrySource === "live" ? deviceIds : []);
+ 184|  useDemoTelemetry(document?.bindings ?? [], telemetrySource === "demo");
+ 185|
+ 186|  if (!document) return null;
+ 187|
+ 188|  const bindableCount = hmi?.bindables.length ?? 0;
+ 189|  const boundCount = document.bindings.filter((b) => b.deviceId).length;
+ 190|  const labels = buildDevicePlates({
+ 191|    devices: hmi?.devices ?? [],
+ 192|    bindings: document.bindings,
+ 193|    latest,
+ 194|    source: telemetrySource,
+ 195|  });
+ 196|  const dataLabel = telemetrySource === "demo"
+ 197|    ? "演示数据"
+ 198|    : getProviderKind() === "guard" ? "后端数据" : "演示数据";
+ 199|
+ 200|  return (
+ 201|    <div className={styles.shell}>
+ 202|      <div className={styles.toolbar}>
+ 203|        <span className={styles.brand}>3D-NGX 工作室</span>
+ 204|        <Input
+ 205|          className={styles.name}
+ 206|          value={document.scene.name}
+ 207|          onChange={(e) =>
+ 208|            setDocument({ ...document, scene: { ...document.scene, name: e.target.value } }, "重命名")
+ 209|          }
+ 210|        />
+ 211|        <Button disabled={!past.length} onClick={undo}>撤销</Button>
+ 212|        <Button disabled={!future.length} onClick={redo}>重做</Button>
+ 213|        <span className={styles.grow} />
+ 214|        <span data-testid="telemetry-source">
+ 215|          <Segmented
+ 216|            size="small"
+ 217|            value={telemetrySource}
+ 218|            onChange={(v) => setTelemetrySource(v as typeof telemetrySource)}
+ 219|            options={[
+ 220|              { label: "后端测点", value: "live" },
+ 221|              { label: "演示数据", value: "demo" },
+ 222|            ]}
+ 223|          />
+ 224|        </span>
+ 225|        <Upload accept=".glb,.gltf" showUploadList={false} beforeUpload={(f) => importGlb(f)}>
+ 226|          <Button>导入模型</Button>
+ 227|        </Upload>
+ 228|        <Button onClick={() => void importSample()}>导入示例</Button>
+ 229|        <Button
+ 230|          type={dirty ? "primary" : "default"}
+ 231|          onClick={() =>
+ 232|            void persist("手动保存")
+ 233|              .then(() => message.success("已保存到本地"))
+ 234|              .catch((error: unknown) => message.error(error instanceof Error ? error.message : "保存失败"))
+ 235|          }
+ 236|        >
+ 237|          保存
+ 238|        </Button>
+ 239|        <Button
+ 240|          onClick={() => {
+ 241|            downloadText(`${document.scene.name}.json`, JSON.stringify(document, null, 2));
+ 242|          }}
+ 243|        >
+ 244|          导出 JSON
+ 245|        </Button>
+ 246|        <Button
+ 247|          onClick={async () => {
+ 248|            await persist("发布前保存");
+ 249|            const published = await publishScene(document.scene.id);
+ 250|            setDocument(published);
+ 251|            nav(routes.twinRuntime(published.scene.id));
+ 252|          }}
+ 253|        >
+ 254|          预览运行
+ 255|        </Button>
+ 256|      </div>
+ 257|      <div className={styles.body}>
+ 258|        <aside className={styles.side}>
+ 259|          <Tabs
+ 260|            size="small"
+ 261|            defaultActiveKey="hmi"
+ 262|            style={{ height: "100%" }}
+ 263|            items={[
+ 264|              {
+ 265|                key: "hmi",
+ 266|                label: `可连接 (${bindableCount})`,
+ 267|                children: <BindableList hmi={hmi} onPick={onSelect} />,
+ 268|              },
+ 269|              { key: "tree", label: "设备列表", children: <SceneTree /> },
+ 270|              { key: "assets", label: "模型", children: <AssetPanel onImport={(f) => void importGlb(f)} /> },
+ 271|            ]}
+ 272|          />
+ 273|        </aside>
+ 274|        <div className={styles.viewport}>
+ 275|          {modelUrl ? (
+ 276|            <div className={styles.guide}>
+ 277|              <span className={styles.guideStep}>1. 模型已打开</span>
+ 278|              <span className={styles.guideStep}>2. 在右侧点「按名称自动连接」</span>
+ 279|              <span className={`${styles.guideStep} ${styles.guideMuted}`}>3. 看头顶数据，点设备可启停</span>
+ 280|            </div>
+ 281|          ) : null}
+ 282|          <EngineViewport
+ 283|            mode="studio"
+ 284|            modelUrl={modelUrl}
+ 285|            gridEnabled={document.settings.gridEnabled}
+ 286|            selectedNode={selectedNode}
+ 287|            bindings={document.bindings}
+ 288|            hmi={hmi}
+ 289|            labels={labels}
+ 290|            dataLabel={dataLabel}
+ 291|            onSelect={onSelect}
+ 292|            onLoaded={(names) => setLoadState(names.length ? `已加载 ${names.length} 个节点` : "模型无节点")}
+ 293|            onError={(msg) => {
+ 294|              setLoadState("加载失败");
+ 295|              message.error(msg);
+ 296|            }}
+ 297|          />
+ 298|          <ActionCommandBar document={document} nodeName={selectedNode} />
+ 299|        </div>
+ 300|        <aside className={styles.props}>
+ 301|          <Tabs
+ 302|            size="small"
+ 303|            style={{ height: "100%" }}
+ 304|            items={[
+ 305|              { key: "bind", label: "连接设备", children: <BindingPanel entity={selectedEntity} hmi={hmi} devices={devices} /> },
+ 306|            ]}
+ 307|          />
+ 308|        </aside>
+ 309|      </div>
+ 310|      <footer className={styles.status}>
+ 311|        <span>{document.rootAssetId ? "已导入模型" : "还没有模型"}</span>
+ 312|        <span>{loadState}</span>
+ 313|        <span>可连接 {bindableCount} 个点</span>
+ 314|        <span>已连接 {boundCount} 台设备</span>
+ 315|        {dirty ? <span>未保存</span> : <span>已保存</span>}
+ 316|        <span>{dataLabel}</span>
+ 317|      </footer>
+ 318|    </div>
+ 319|  );
+ 320|}
+ 321|
+ 322|function BindableList({
+ 323|  hmi,
+ 324|  onPick,
+ 325|}: {
+ 326|  hmi: ParsedHmiScene | null;
+ 327|  onPick: (node: string) => void;
+ 328|}) {
+ 329|  if (!hmi) return <div style={{ padding: 12, color: "var(--idt-muted)" }}>导入模型后，这里会列出可以连接的设备点。</div>;
+ 330|  const groups = new Map<string, typeof hmi.bindables>();
+ 331|  for (const item of hmi.bindables) {
+ 332|    const list = groups.get(item.entityNode) ?? [];
+ 333|    list.push(item);
+ 334|    groups.set(item.entityNode, list);
+ 335|  }
+ 336|  return (
+ 337|    <div style={{ padding: 8 }}>
+ 338|      {[...groups.entries()].map(([node, items]) => (
+ 339|        <div key={node} style={{ marginBottom: 10 }}>
+ 340|          <Button type="link" size="small" onClick={() => onPick(node)} style={{ padding: 0 }}>
+ 341|            {items[0]?.entityName ?? node}
+ 342|          </Button>
+ 343|          <div style={{ color: "var(--idt-muted)", fontSize: 12, paddingLeft: 4 }}>
+ 344|            {items.map((i) => i.label).join(" · ")}
+ 345|          </div>
+ 346|        </div>
+ 347|      ))}
+ 348|    </div>
+ 349|  );
+ 350|}
+ 351|
+ 352|void createId;
+ 353|void createDevicesFromHmi;
+
+================================================================================
+FILE apps/web/src/features/scene-editor/EditorShell.module.css LINES 122
+================================================================================
+   1|
+   2|.shell {
+   3|  height: 100%;
+   4|  max-height: 100%;
+   5|  min-height: 0;
+   6|  overflow: hidden;
+   7|  display: grid;
+   8|  grid-template-rows: var(--idt-toolbar) minmax(0, 1fr) var(--idt-statusbar);
+   9|  background: var(--idt-bg);
+  10|}
+  11|
+  12|.toolbar {
+  13|  display: flex;
+  14|  align-items: center;
+  15|  gap: 8px;
+  16|  padding: 0 12px;
+  17|  background: var(--idt-surface);
+  18|  border-bottom: 1px solid var(--idt-border);
+  19|}
+  20|
+  21|.brand {
+  22|  font-weight: 650;
+  23|  margin-right: 8px;
+  24|  white-space: nowrap;
+  25|}
+  26|
+  27|.name {
+  28|  max-width: 220px;
+  29|}
+  30|
+  31|.grow {
+  32|  flex: 1;
+  33|}
+  34|
+  35|.body {
+  36|  min-height: 0;
+  37|  display: grid;
+  38|  grid-template-columns: 280px minmax(0, 1fr) 320px;
+  39|  grid-template-rows: minmax(0, 1fr);
+  40|  overflow: hidden;
+  41|  align-items: stretch;
+  42|}
+  43|
+  44|.side, .props {
+  45|  background: var(--idt-surface);
+  46|  border-right: 1px solid var(--idt-border);
+  47|  min-height: 0;
+  48|  overflow: hidden;
+  49|  display: flex;
+  50|  flex-direction: column;
+  51|}
+  52|
+  53|.side :global(.ant-tabs),
+  54|.props :global(.ant-tabs) {
+  55|  flex: 1;
+  56|  min-height: 0;
+  57|  display: flex;
+  58|  flex-direction: column;
+  59|  overflow: hidden;
+  60|}
+  61|
+  62|.side :global(.ant-tabs-content-holder),
+  63|.side :global(.ant-tabs-content),
+  64|.side :global(.ant-tabs-tabpane),
+  65|.props :global(.ant-tabs-content-holder),
+  66|.props :global(.ant-tabs-content),
+  67|.props :global(.ant-tabs-tabpane) {
+  68|  flex: 1;
+  69|  min-height: 0;
+  70|  height: 100%;
+  71|  overflow: auto;
+  72|}
+  73|
+  74|.props {
+  75|  border-right: none;
+  76|  border-left: 1px solid var(--idt-border);
+  77|}
+  78|
+  79|.viewport {
+  80|  min-width: 0;
+  81|  min-height: 0;
+  82|  position: relative;
+  83|  overflow: hidden;
+  84|}
+  85|
+  86|.status {
+  87|  display: flex;
+  88|  align-items: center;
+  89|  gap: 16px;
+  90|  padding: 0 12px;
+  91|  background: var(--idt-surface);
+  92|  border-top: 1px solid var(--idt-border);
+  93|  color: var(--idt-muted);
+  94|  font-size: 12px;
+  95|}
+  96|
+  97|.guide {
+  98|  position: absolute;
+  99|  left: 12px;
+ 100|  top: 12px;
+ 101|  z-index: 3;
+ 102|  display: flex;
+ 103|  flex-wrap: wrap;
+ 104|  gap: 6px;
+ 105|  pointer-events: none;
+ 106|  max-width: calc(100% - 24px);
+ 107|}
+ 108|
+ 109|.guideStep {
+ 110|  padding: 4px 9px;
+ 111|  border-radius: 999px;
+ 112|  background: rgba(255, 255, 255, 0.94);
+ 113|  border: 1px solid #dce3ed;
+ 114|  color: #1f2329;
+ 115|  font-size: 12px;
+ 116|  line-height: 1.35;
+ 117|  box-shadow: 0 4px 12px rgba(31, 35, 41, 0.06);
+ 118|}
+ 119|
+ 120|.guideMuted {
+ 121|  color: #5f6e84;
+ 122|}
+
+================================================================================
+FILE apps/web/src/features/scene-editor/ActionCommandBar.tsx LINES 103
+================================================================================
+   1|import { Button, Space, message } from "antd";
+   2|import { useMemo, useState } from "react";
+   3|import { getCommandProvider, getProviderKind, isRealtimePlatformDevice } from "@idt/data-adapter";
+   4|import { useDeviceStore } from "../../stores/device.store";
+   5|import type { SceneDocument } from "@idt/shared-types";
+   6|import { bindingsForNode } from "../../utils/scene-entity";
+   7|import { applyDemoCommand, isStartCommand, isStopCommand } from "../../hooks/demo-command-state";
+   8|import { loadTelemetrySource } from "../../hooks/useTelemetrySource";
+   9|
+  10|export function ActionCommandBar({
+  11|  document,
+  12|  nodeName,
+  13|}: {
+  14|  document?: SceneDocument | null;
+  15|  nodeName?: string | null;
+  16|}) {
+  17|  const [busy, setBusy] = useState<string | null>(null);
+  18|  const devices = useDeviceStore((s) => s.devices);
+  19|  const actions = useMemo(() => {
+  20|    const list: Array<{ key: string; deviceId: string; commandId: string; label: string; params?: Record<string, unknown> }> = [];
+  21|    const seen = new Set<string>();
+  22|    const kind = getProviderKind();
+  23|    const allowed = kind === "guard" ? new Set(devices.filter(isRealtimePlatformDevice).map((item) => item.id)) : null;
+  24|    for (const binding of bindingsForNode(document, nodeName ?? null)) {
+  25|      if (allowed && !allowed.has(binding.deviceId)) continue;
+  26|      for (const mapping of binding.actionMappings) {
+  27|        if (!mapping.commandId) continue;
+  28|        const key = `${binding.deviceId}:${mapping.commandId}:${mapping.actionId}`;
+  29|        if (seen.has(key)) continue;
+  30|        seen.add(key);
+  31|        list.push({
+  32|          key,
+  33|          deviceId: binding.deviceId,
+  34|          commandId: mapping.commandId,
+  35|          label: mapping.label || mapping.commandId,
+  36|          params: mapping.commandParams,
+  37|        });
+  38|      }
+  39|    }
+  40|    return list;
+  41|  }, [document, nodeName, devices]);
+  42|
+  43|  if (actions.length === 0) return null;
+  44|
+  45|  const send = async (item: (typeof actions)[number]) => {
+  46|    setBusy(item.key);
+  47|    const demo = loadTelemetrySource() === "demo";
+  48|    try {
+  49|      await getCommandProvider().sendCommand(item.deviceId, item.commandId, item.params);
+  50|      applyDemoCommand(item.deviceId, item.commandId, item.label);
+  51|      message.success(`已下发「${shortLabel(item)}」`);
+  52|    } catch (error) {
+  53|      if (demo && applyDemoCommand(item.deviceId, item.commandId, item.label) !== null) {
+  54|        message.warning("后端指令未送达，已在演示数据中切换启停");
+  55|      } else {
+  56|        message.error(error instanceof Error ? error.message : "指令下发失败");
+  57|      }
+  58|    } finally {
+  59|      setBusy(null);
+  60|    }
+  61|  };
+  62|
+  63|  return (
+  64|    <div
+  65|      data-testid="action-command-bar"
+  66|      style={{
+  67|        position: "absolute",
+  68|        left: 12,
+  69|        bottom: 16,
+  70|        zIndex: 3,
+  71|        display: "flex",
+  72|        gap: 8,
+  73|        padding: "8px 10px",
+  74|        borderRadius: 8,
+  75|        background: "rgba(255,255,255,0.92)",
+  76|        border: "1px solid #dce3ed",
+  77|        boxShadow: "0 6px 18px rgba(31,35,41,0.08)",
+  78|      }}
+  79|    >
+  80|      <Space size={8} wrap>
+  81|        {actions.map((item) => (
+  82|          <Button
+  83|            key={item.key}
+  84|            type={isStartCommand(item.commandId, item.label) ? "primary" : "default"}
+  85|            danger={isStopCommand(item.commandId, item.label)}
+  86|            size="small"
+  87|            data-command={item.commandId}
+  88|            loading={busy === item.key}
+  89|            onClick={() => void send(item)}
+  90|          >
+  91|            {shortLabel(item)}
+  92|          </Button>
+  93|        ))}
+  94|      </Space>
+  95|    </div>
+  96|  );
+  97|}
+  98|
+  99|function shortLabel(item: { commandId: string; label: string }): string {
+ 100|  if (isStartCommand(item.commandId, item.label)) return "启动";
+ 101|  if (isStopCommand(item.commandId, item.label)) return "停止";
+ 102|  return item.label.replace(/（演示指令）|（演示）/g, "");
+ 103|}
+
+================================================================================
+FILE apps/web/src/features/scene-editor/PropertyPanel.tsx LINES 26
+================================================================================
+   1|
+   2|import { Typography } from "antd";
+   3|import type { SceneEntity } from "@idt/shared-types";
+   4|
+   5|/** 仅展示对象信息。产品不是场景编辑器，不提供改位置/旋转/缩放的入口。 */
+   6|export function PropertyPanel({ entity }: { entity?: SceneEntity }) {
+   7|  if (!entity) {
+   8|    return <div style={{ padding: 12, color: "var(--idt-muted)" }}>在场景中点选模型，或从设备列表选择。</div>;
+   9|  }
+  10|
+  11|  return (
+  12|    <div style={{ padding: 12, display: "grid", gap: 10 }}>
+  13|      <div>
+  14|        <Typography.Text type="secondary">名称</Typography.Text>
+  15|        <div>{entity.name}</div>
+  16|      </div>
+  17|      <div>
+  18|        <Typography.Text type="secondary">节点</Typography.Text>
+  19|        <div>{entity.nodeName ?? entity.id}</div>
+  20|      </div>
+  21|      <div style={{ color: "var(--idt-muted)", fontSize: 12 }}>
+  22|        模型位置以 GLB 为准，工作室只做可视化与绑定，不会改写模型里的坐标。
+  23|      </div>
+  24|    </div>
+  25|  );
+  26|}
+
+================================================================================
+FILE apps/web/src/utils/bind-by-name.ts LINES 363
+================================================================================
+   1|import type {
+   2|  ActionMapping,
+   3|  BindableSignal,
+   4|  CommandDef,
+   5|  Device,
+   6|  DeviceBinding,
+   7|  DevicePoint,
+   8|  SceneEntity,
+   9|  TelemetryMapping,
+  10|} from "@idt/shared-types";
+  11|import { slugKey } from "../services/device/deviceService";
+  12|import { isVirtualPlatformDevice } from "@idt/data-adapter";
+  13|
+  14|const BUTTON_SUFFIX = /控制面板|屏幕/g;
+  15|const TAG_RE = /(\d+)\s*[#＃号]/g;
+  16|const SPLIT_RE = /[（）()【】\[\]·•.,，、_\-\/\s]+/;
+  17|const MATCH_THRESHOLD = 80;
+  18|
+  19|export function tokenizeName(raw: string): string[] {
+  20|  const cleaned = (raw ?? "").replace(BUTTON_SUFFIX, " ");
+  21|  const tokens = cleaned
+  22|    .split(SPLIT_RE)
+  23|    .map((token) => token.trim().toLowerCase())
+  24|    .filter(Boolean);
+  25|  const seen = new Set<string>();
+  26|  const out: string[] = [];
+  27|  for (const token of tokens) {
+  28|    if (seen.has(token)) continue;
+  29|    seen.add(token);
+  30|    out.push(token);
+  31|  }
+  32|  return out;
+  33|}
+  34|
+  35|export function extractUnitTag(raw: string): string | undefined {
+  36|  TAG_RE.lastIndex = 0;
+  37|  const match = TAG_RE.exec(raw ?? "");
+  38|  return match ? `${match[1]}#` : undefined;
+  39|}
+  40|
+  41|function tokenCovers(a: string, b: string): boolean {
+  42|  if (a === b) return true;
+  43|  if (a.length >= 2 && b.includes(a)) return true;
+  44|  if (b.length >= 2 && a.includes(b)) return true;
+  45|  return false;
+  46|}
+  47|
+  48|function entityTokensCovered(entityTokens: string[], deviceTokens: string[]): boolean {
+  49|  if (entityTokens.length === 0 || deviceTokens.length === 0) return false;
+  50|  return entityTokens.every((entityToken) => deviceTokens.some((deviceToken) => tokenCovers(entityToken, deviceToken)));
+  51|}
+  52|
+  53|export function scoreNameMatch(entityName: string, deviceName: string): number {
+  54|  const entityTag = extractUnitTag(entityName);
+  55|  const deviceTag = extractUnitTag(deviceName);
+  56|  if (entityTag && deviceTag && entityTag !== deviceTag) return 0;
+  57|
+  58|  const entityTokens = tokenizeName(entityName);
+  59|  const deviceTokens = tokenizeName(deviceName);
+  60|  if (!entityTokensCovered(entityTokens, deviceTokens)) return 0;
+  61|
+  62|  let score = 70;
+  63|  const same = entityTokens.filter((entityToken) => deviceTokens.includes(entityToken)).length;
+  64|  score += Math.min(20, same * 6);
+  65|  if (entityTag && entityTag === deviceTag) score += 15;
+  66|  if (entityTokens.join("") === deviceTokens.join("")) score += 10;
+  67|  return Math.min(100, score);
+  68|}
+  69|
+  70|export function isGatewayDevice(device: Pick<Device, "name" | "type">): boolean {
+  71|  const text = `${device.type} ${device.name}`.toLowerCase();
+  72|  return text.includes("网关") || text.includes("gateway");
+  73|}
+  74|
+  75|export function pickDeviceForEntity(entityName: string, devices: Device[]): Device | undefined {
+  76|  let best: Array<{ device: Device; score: number }> = [];
+  77|  for (const device of devices) {
+  78|    if (isVirtualPlatformDevice(device)) continue;
+  79|    const score = scoreNameMatch(entityName, device.name);
+  80|    if (score < MATCH_THRESHOLD) continue;
+  81|    const lead = best[0];
+  82|    if (!lead || score > lead.score) {
+  83|      best = [{ device, score }];
+  84|    } else if (score === lead.score) {
+  85|      best.push({ device, score });
+  86|    }
+  87|  }
+  88|  const top = best[0];
+  89|  if (!top) return undefined;
+  90|  if (best.length === 1) return top.device;
+  91|  const specific = best.filter((item) => !isGatewayDevice(item.device));
+  92|  return specific.length === 1 ? specific[0]?.device : undefined;
+  93|}
+  94|
+  95|function isStartAction(actionId: string, actionLabel: string): boolean {
+  96|  const text = `${actionId} ${actionLabel}`.toLowerCase();
+  97|  return actionId.toLowerCase() === "start" || actionLabel === "启动" || text.includes("启动") || /\bstart\b/.test(text);
+  98|}
+  99|
+ 100|function isStopAction(actionId: string, actionLabel: string): boolean {
+ 101|  const text = `${actionId} ${actionLabel}`.toLowerCase();
+ 102|  return actionId.toLowerCase() === "stop" || actionLabel === "停止" || text.includes("停止") || /\bstop\b/.test(text);
+ 103|}
+ 104|
+ 105|function commandTarget(command: CommandDef): string {
+ 106|  const id = command.id;
+ 107|  const idx = id.indexOf(":");
+ 108|  if (idx > 0) return id.slice(idx + 1);
+ 109|  return "";
+ 110|}
+ 111|
+ 112|function isBroadcastCommand(command: CommandDef): boolean {
+ 113|  const id = command.id.toLowerCase().replace(/[_-]/g, "");
+ 114|  return id === "startall" || id === "stopall";
+ 115|}
+ 116|
+ 117|function preferTargetName(entityName: string, devices: Device[]): string | undefined {
+ 118|  return pickDeviceForEntity(entityName, devices)?.name;
+ 119|}
+ 120|
+ 121|export function suggestCommandForAction(
+ 122|  actionId: string,
+ 123|  actionLabel: string,
+ 124|  commands: CommandDef[],
+ 125|  context?: { entityName: string; boundDevice?: Pick<Device, "name" | "type">; devices?: Device[] },
+ 126|): { command: CommandDef; params?: Record<string, unknown> } | undefined {
+ 127|  if (commands.length === 0) return undefined;
+ 128|
+ 129|  const start = isStartAction(actionId, actionLabel);
+ 130|  const stop = isStopAction(actionId, actionLabel);
+ 131|  const prefix = start ? "start" : stop ? "stop" : "";
+ 132|  const entityName = context?.entityName ?? "";
+ 133|  const devices = context?.devices ?? [];
+ 134|  const preferredName = entityName ? preferTargetName(entityName, devices) : undefined;
+ 135|
+ 136|  const exact = commands.find((c) => c.id === actionId || c.label === actionLabel);
+ 137|  if (exact && !isBroadcastCommand(exact)) {
+ 138|    const params = targetParamsForCommand(exact, entityName, devices, preferredName, context?.boundDevice);
+ 139|    return { command: exact, params };
+ 140|  }
+ 141|
+ 142|  if (prefix) {
+ 143|    const plain = commands.find((c) => c.id.toLowerCase() === prefix || c.label === (start ? "启动" : "停止"));
+ 144|    if (plain && !isBroadcastCommand(plain)) {
+ 145|      const params = targetParamsForCommand(plain, entityName, devices, preferredName, context?.boundDevice);
+ 146|      return { command: plain, params };
+ 147|    }
+ 148|
+ 149|    const prefixed = commands
+ 150|      .filter((c) => {
+ 151|        const id = c.id.toLowerCase();
+ 152|        return id.startsWith(`${prefix}:`) || id.startsWith(`${prefix}/`);
+ 153|      })
+ 154|      .map((command) => {
+ 155|        const target = commandTarget(command) || command.label;
+ 156|        const score = Math.max(
+ 157|          scoreNameMatch(entityName, target),
+ 158|          preferredName ? scoreNameMatch(preferredName, target) : 0,
+ 159|        );
+ 160|        return { command, score };
+ 161|      })
+ 162|      .filter((item) => item.score >= MATCH_THRESHOLD)
+ 163|      .sort((a, b) => b.score - a.score);
+ 164|    const topPrefixed = prefixed[0];
+ 165|    const nextPrefixed = prefixed[1];
+ 166|    if (topPrefixed && (prefixed.length === 1 || (nextPrefixed && topPrefixed.score > nextPrefixed.score))) {
+ 167|      return { command: topPrefixed.command };
+ 168|    }
+ 169|  }
+ 170|
+ 171|  const loose = commands.find((c) => {
+ 172|    if (isBroadcastCommand(c)) return false;
+ 173|    const text = `${c.id} ${c.label}`.toLowerCase();
+ 174|    return text.includes(actionId.toLowerCase()) || (actionLabel && c.label.includes(actionLabel));
+ 175|  });
+ 176|  if (loose) return { command: loose };
+ 177|  return undefined;
+ 178|}
+ 179|
+ 180|const TARGET_PARAM_NAMES = new Set(["target", "device", "deviceid", "devicename", "name"]);
+ 181|
+ 182|export function targetParamsForCommand(
+ 183|  command: CommandDef,
+ 184|  entityName: string,
+ 185|  devices: Device[],
+ 186|  preferredName?: string,
+ 187|  boundDevice?: Pick<Device, "name" | "type">,
+ 188|): Record<string, unknown> | undefined {
+ 189|  if (!command.params?.length) return undefined;
+ 190|  if (boundDevice && !isGatewayDevice(boundDevice)) return undefined;
+ 191|  const target = preferredName ?? preferTargetName(entityName, devices);
+ 192|  if (!target) return undefined;
+ 193|  const field = command.params.find((p) => TARGET_PARAM_NAMES.has(p.name.toLowerCase()));
+ 194|  if (!field) return undefined;
+ 195|  return { [field.name]: target };
+ 196|}
+ 197|
+ 198|export function suggestPoint(signalName: string, points: DevicePoint[]): DevicePoint | undefined {
+ 199|  const slug = slugKey(signalName);
+ 200|  return (
+ 201|    points.find((p) => p.key === slug || p.key === signalName || p.label === signalName) ??
+ 202|    points.find((p) => p.label.includes(signalName) || signalName.includes(p.label) || p.key.includes(slug))
+ 203|  );
+ 204|}
+ 205|
+ 206|export function isVisualEffectAction(actionId: string, label = ""): boolean {
+ 207|  const text = `${actionId} ${label}`.toLowerCase();
+ 208|  if (/(^|[:/_-])(start|stop)([:/_-]|$)/.test(text) || /启动|停止/.test(`${actionId} ${label}`)) return false;
+ 209|  return /spin|blink|fan|led|风扇|指示灯|叶轮/.test(text);
+ 210|}
+ 211|
+ 212|export function buildDeviceBinding(args: {
+ 213|  existingId?: string;
+ 214|  createId: () => string;
+ 215|  entity: SceneEntity;
+ 216|  device: Device;
+ 217|  signals: BindableSignal[];
+ 218|  points: DevicePoint[];
+ 219|  commands: CommandDef[];
+ 220|  devices: Device[];
+ 221|}): DeviceBinding {
+ 222|  const { entity, device, signals, points, commands, devices } = args;
+ 223|  const telemetryMappings: TelemetryMapping[] = signals
+ 224|    .filter((s) => s.kind === "telemetry" || s.kind === "state")
+ 225|    .map((s) => {
+ 226|      const point = suggestPoint(s.name, points) ?? suggestPoint(s.label, points);
+ 227|      return {
+ 228|        field: s.name,
+ 229|        telemetryKey: point?.key ?? "",
+ 230|        label: s.label,
+ 231|        unit: s.unit ?? point?.unit,
+ 232|        displayType: s.valueType,
+ 233|      };
+ 234|    });
+ 235|  const actionMappings: ActionMapping[] = signals
+ 236|    .filter((s) => s.kind === "action")
+ 237|    .map((s) => {
+ 238|      const visual = isVisualEffectAction(s.name, s.label);
+ 239|      const suggested = visual
+ 240|        ? undefined
+ 241|        : suggestCommandForAction(s.name, s.label, commands, {
+ 242|            entityName: entity.name,
+ 243|            boundDevice: device,
+ 244|            devices,
+ 245|          });
+ 246|      const drive = suggestPoint("运行状态", points) ?? suggestPoint("running", points);
+ 247|      const booleanLike = drive?.displayType === "boolean";
+ 248|      return {
+ 249|        actionId: s.name,
+ 250|        label: s.label,
+ 251|        clip: s.clip,
+ 252|        commandId: suggested?.command.id,
+ 253|        commandParams: suggested?.params,
+ 254|        telemetryKey: drive?.key,
+ 255|        whenValue: booleanLike ? true : undefined,
+ 256|      };
+ 257|    });
+ 258|  const statusPoint = suggestPoint("运行状态", points) ?? suggestPoint("running", points);
+ 259|  const booleanLike = statusPoint?.displayType === "boolean";
+ 260|  ensureCommandAction(
+ 261|    actionMappings,
+ 262|    "start",
+ 263|    "启动",
+ 264|    commands,
+ 265|    { entityName: entity.name, boundDevice: device, devices },
+ 266|    statusPoint?.key,
+ 267|    booleanLike ? true : undefined,
+ 268|  );
+ 269|  ensureCommandAction(
+ 270|    actionMappings,
+ 271|    "stop",
+ 272|    "停止",
+ 273|    commands,
+ 274|    { entityName: entity.name, boundDevice: device, devices },
+ 275|    statusPoint?.key,
+ 276|    booleanLike ? false : undefined,
+ 277|  );
+ 278|  return {
+ 279|    id: args.existingId ?? args.createId(),
+ 280|    sceneEntityId: entity.id,
+ 281|    deviceId: device.id,
+ 282|    deviceName: device.name,
+ 283|    telemetryMappings,
+ 284|    actionMappings,
+ 285|    statusMapping: statusPoint
+ 286|      ? {
+ 287|          telemetryKey: statusPoint.key,
+ 288|          rules: [
+ 289|            { operator: "eq", value: false, state: "warning" },
+ 290|            { operator: "eq", value: "停止", state: "warning" },
+ 291|            { operator: "eq", value: true, state: "normal" },
+ 292|            { operator: "eq", value: "运行", state: "normal" },
+ 293|          ],
+ 294|        }
+ 295|      : undefined,
+ 296|  };
+ 297|}
+ 298|
+ 299|function ensureCommandAction(
+ 300|  actionMappings: ActionMapping[],
+ 301|  actionId: string,
+ 302|  label: string,
+ 303|  commands: CommandDef[],
+ 304|  context: { entityName: string; boundDevice: Device; devices: Device[] },
+ 305|  telemetryKey?: string,
+ 306|  whenValue?: string | number | boolean,
+ 307|): void {
+ 308|  const exists = actionMappings.some(
+ 309|    (item) => item.actionId === actionId || item.commandId === actionId || item.label === label,
+ 310|  );
+ 311|  if (exists) return;
+ 312|  const suggested = suggestCommandForAction(actionId, label, commands, context);
+ 313|  if (!suggested) return;
+ 314|  actionMappings.push({
+ 315|    actionId,
+ 316|    label,
+ 317|    commandId: suggested.command.id,
+ 318|    commandParams: suggested.params,
+ 319|    telemetryKey,
+ 320|    whenValue,
+ 321|  });
+ 322|}
+ 323|
+ 324|export function signalsForEntity(signals: BindableSignal[], entity: SceneEntity): BindableSignal[] {
+ 325|  return signals.filter((b) => b.entityNode === entity.nodeName || b.entityNode === entity.id);
+ 326|}
+ 327|
+ 328|export type MatchBindingPlan = {
+ 329|  entity: SceneEntity;
+ 330|  device: Device;
+ 331|  signals: BindableSignal[];
+ 332|};
+ 333|
+ 334|export function planNameMatches(args: {
+ 335|  entities: SceneEntity[];
+ 336|  devices: Device[];
+ 337|  bindables: BindableSignal[];
+ 338|  existing?: DeviceBinding[];
+ 339|  overwrite?: boolean;
+ 340|}): { plans: MatchBindingPlan[]; skippedBound: number; unmatched: number } {
+ 341|  const existingByEntity = new Map((args.existing ?? []).map((b) => [b.sceneEntityId, b]));
+ 342|  const plans: MatchBindingPlan[] = [];
+ 343|  let skippedBound = 0;
+ 344|  let unmatched = 0;
+ 345|  for (const entity of args.entities) {
+ 346|    const device = pickDeviceForEntity(entity.name, args.devices);
+ 347|    const existing = existingByEntity.get(entity.id) ?? existingByEntity.get(entity.nodeName ?? "");
+ 348|    if (!device) {
+ 349|      unmatched += 1;
+ 350|      continue;
+ 351|    }
+ 352|    if (existing && existing.deviceId !== device.id && !args.overwrite) {
+ 353|      skippedBound += 1;
+ 354|      continue;
+ 355|    }
+ 356|    plans.push({
+ 357|      entity,
+ 358|      device,
+ 359|      signals: signalsForEntity(args.bindables, entity),
+ 360|    });
+ 361|  }
+ 362|  return { plans, skippedBound, unmatched };
+ 363|}
+
+================================================================================
+FILE apps/web/src/utils/bind-by-name.test.ts LINES 173
+================================================================================
+   1|import { describe, expect, it } from "vitest";
+   2|import type { CommandDef, Device, SceneEntity } from "@idt/shared-types";
+   3|import {
+   4|  buildDeviceBinding,
+   5|  pickDeviceForEntity,
+   6|  planNameMatches,
+   7|  scoreNameMatch,
+   8|  suggestCommandForAction,
+   9|} from "./bind-by-name";
+  10|
+  11|function device(name: string, type = "模块机"): Device {
+  12|  return {
+  13|    id: name,
+  14|    name,
+  15|    type,
+  16|    points: [],
+  17|    source: "guard",
+  18|    createdAt: "",
+  19|    updatedAt: "",
+  20|  };
+  21|}
+  22|
+  23|function entity(name: string, node = name): SceneEntity {
+  24|  return {
+  25|    id: node,
+  26|    name,
+  27|    nodeName: node,
+  28|    transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
+  29|    visible: true,
+  30|  };
+  31|}
+  32|
+  33|const chiller1 = device("天骄-模块机-1#·生产园区");
+  34|const chiller2 = device("天骄-模块机-2#·生产园区");
+  35|const gateway = device("天骄-PLC网关·生产园区", "网关");
+  36|const coldPump = device("天骄-冷冻泵-1#·生产园区", "泵");
+  37|const coolPump = device("天骄-冷却泵-1#·生产园区", "泵");
+  38|
+  39|describe("scoreNameMatch / pickDeviceForEntity", () => {
+  40|  it("把模块机（1#）匹配到同编号模块机，而不是 2# 或网关", () => {
+  41|    expect(scoreNameMatch("模块机（1#）", chiller1.name)).toBeGreaterThanOrEqual(80);
+  42|    expect(pickDeviceForEntity("模块机（1#）", [chiller1, chiller2, gateway])).toEqual(chiller1);
+  43|    expect(pickDeviceForEntity("模块机（2#）", [chiller1, chiller2, gateway])).toEqual(chiller2);
+  44|    expect(pickDeviceForEntity("模块机（1#）", [gateway])).toBeUndefined();
+  45|  });
+  46|
+  47|  it("控制面板和屏幕沿用同一台设备的名称匹配", () => {
+  48|    expect(pickDeviceForEntity("模块机（1#） 控制面板", [chiller1, chiller2, gateway])).toEqual(chiller1);
+  49|    expect(pickDeviceForEntity("模块机（1#） 屏幕", [chiller1, chiller2])).toEqual(chiller1);
+  50|  });
+  51|
+  52|  it("名称过宽且多台同分时不自动绑定", () => {
+  53|    expect(pickDeviceForEntity("泵（1#）", [coldPump, coolPump])).toBeUndefined();
+  54|    expect(pickDeviceForEntity("冷冻泵（1#）", [coldPump, coolPump])).toEqual(coldPump);
+  55|  });
+  56|
+  57|  it("不按名称匹配平台虚拟设备", () => {
+  58|    const virtualOnly = { ...chiller1, deviceVirtual: "virtual" as const };
+  59|    expect(pickDeviceForEntity("模块机（1#）", [virtualOnly])).toBeUndefined();
+  60|    expect(pickDeviceForEntity("模块机（1#）", [virtualOnly, chiller1])).toEqual(chiller1);
+  61|  });
+  62|});
+  63|
+  64|describe("suggestCommandForAction", () => {
+  65|  const chillerCmds: CommandDef[] = [
+  66|    { id: "start", label: "启动" },
+  67|    { id: "stop", label: "停止" },
+  68|  ];
+  69|  const gatewayCmds: CommandDef[] = [
+  70|    { id: "startAll", label: "全部启动" },
+  71|    { id: "stopAll", label: "全部停止" },
+  72|    { id: "start:天骄-模块机-1#·生产园区", label: "启动 模块机 1#" },
+  73|    { id: "stop:天骄-模块机-1#·生产园区", label: "停止 模块机 1#" },
+  74|    { id: "start:天骄-模块机-2#·生产园区", label: "启动 模块机 2#" },
+  75|    { id: "stop:天骄-模块机-2#·生产园区", label: "停止 模块机 2#" },
+  76|  ];
+  77|  const gatewayPlain: CommandDef[] = [
+  78|    { id: "start", label: "启动", params: [{ name: "target", type: "text" }] },
+  79|    { id: "stop", label: "停止", params: [{ name: "target", type: "text" }] },
+  80|  ];
+  81|  const devices = [chiller1, chiller2, gateway];
+  82|
+  83|  it("模块机上的启动/停止映射到 start/stop，不会落到 startAll", () => {
+  84|    expect(suggestCommandForAction("start", "启动", chillerCmds)?.command.id).toBe("start");
+  85|    expect(suggestCommandForAction("stop", "停止", chillerCmds)?.command.id).toBe("stop");
+  86|    expect(
+  87|      suggestCommandForAction("start", "启动", gatewayCmds, { entityName: "模块机（1#）", devices })?.command.id,
+  88|    ).toBe("start:天骄-模块机-1#·生产园区");
+  89|    expect(suggestCommandForAction("start", "启动", [{ id: "startAll", label: "全部启动" }])).toBeUndefined();
+  90|  });
+  91|
+  92|  it("网关只有 start/stop 且带 target 参数时，补上匹配到的设备名", () => {
+  93|    const suggested = suggestCommandForAction("start", "启动", gatewayPlain, {
+  94|      entityName: "模块机（1#） 控制面板",
+  95|      boundDevice: gateway,
+  96|      devices,
+  97|    });
+  98|    expect(suggested?.command.id).toBe("start");
+  99|    expect(suggested?.params).toEqual({ target: "天骄-模块机-1#·生产园区" });
+ 100|  });
+ 101|});
+ 102|
+ 103|describe("planNameMatches", () => {
+ 104|  it("为设备和控制面板一起生成匹配计划，并跳过已绑定到其他设备的对象", () => {
+ 105|    const entities = [
+ 106|      entity("模块机（1#）", "1"),
+ 107|      entity("模块机（1#） 控制面板", "1_control-panel"),
+ 108|      entity("模块机（2#）", "2"),
+ 109|    ];
+ 110|    const { plans, unmatched } = planNameMatches({
+ 111|      entities,
+ 112|      devices: [chiller1, chiller2, gateway],
+ 113|      bindables: [],
+ 114|    });
+ 115|    expect(plans.map((p) => [p.entity.id, p.device.id])).toEqual([
+ 116|      ["1", chiller1.id],
+ 117|      ["1_control-panel", chiller1.id],
+ 118|      ["2", chiller2.id],
+ 119|    ]);
+ 120|    expect(unmatched).toBe(0);
+ 121|
+ 122|    const skipped = planNameMatches({
+ 123|      entities,
+ 124|      devices: [chiller1, chiller2],
+ 125|      bindables: [],
+ 126|      existing: [
+ 127|        {
+ 128|          id: "bind-1",
+ 129|          sceneEntityId: "1",
+ 130|          deviceId: "other",
+ 131|          deviceName: "other",
+ 132|          telemetryMappings: [],
+ 133|          actionMappings: [],
+ 134|        },
+ 135|      ],
+ 136|    });
+ 137|    expect(skipped.skippedBound).toBe(1);
+ 138|    expect(skipped.plans).toHaveLength(2);
+ 139|  });
+ 140|});
+ 141|
+ 142|describe("buildDeviceBinding", () => {
+ 143|  it("即使模型动作只有风扇和指示灯，也会补上平台的启动/停止指令", () => {
+ 144|    const binding = buildDeviceBinding({
+ 145|      createId: () => "bind-1",
+ 146|      entity: entity("模块机（1#）", "1"),
+ 147|      device: {
+ 148|        ...chiller1,
+ 149|        points: [
+ 150|          { key: "temperature", label: "温度", unit: "℃", displayType: "number" },
+ 151|          { key: "running", label: "运行状态", displayType: "text" },
+ 152|        ],
+ 153|      },
+ 154|      signals: [
+ 155|        { id: "1-temp", entityNode: "1", entityName: "模块机（1#）", entityKind: "device", kind: "telemetry", name: "温度", label: "温度", unit: "℃", valueType: "number" },
+ 156|        { id: "1-run", entityNode: "1", entityName: "模块机（1#）", entityKind: "device", kind: "state", name: "运行状态", label: "运行状态", valueType: "text" },
+ 157|        { id: "1-fan", entityNode: "1", entityName: "模块机（1#）", entityKind: "device", kind: "action", name: "spin:fan", label: "风扇转动", clip: "1_spin_fan", valueType: "boolean" },
+ 158|      ],
+ 159|      points: [
+ 160|        { key: "temperature", label: "温度", unit: "℃", displayType: "number" },
+ 161|        { key: "running", label: "运行状态", displayType: "text" },
+ 162|      ],
+ 163|      commands: [
+ 164|        { id: "start", label: "启动（演示指令）" },
+ 165|        { id: "stop", label: "停止（演示指令）" },
+ 166|      ],
+ 167|      devices: [chiller1],
+ 168|    });
+ 169|    expect(binding.actionMappings.some((m) => m.actionId === "spin:fan" && !m.commandId)).toBe(true);
+ 170|    expect(binding.actionMappings.find((m) => m.actionId === "start")?.commandId).toBe("start");
+ 171|    expect(binding.actionMappings.find((m) => m.actionId === "stop")?.commandId).toBe("stop");
+ 172|  });
+ 173|});
+
+================================================================================
+FILE apps/web/src/utils/device-plates.test.ts LINES 105
+================================================================================
+   1|import { describe, expect, it } from "vitest";
+   2|import type { DeviceBinding, HmiDevice, TelemetryRecord } from "@idt/shared-types";
+   3|import { buildDevicePlates, formatTelemetryText, isTruthyState } from "./device-plates";
+   4|
+   5|function binding(partial: Partial<DeviceBinding> & Pick<DeviceBinding, "sceneEntityId" | "deviceId">): DeviceBinding {
+   6|  return {
+   7|    id: partial.id ?? "b1",
+   8|    sceneEntityId: partial.sceneEntityId,
+   9|    deviceId: partial.deviceId,
+  10|    deviceName: partial.deviceName ?? "1#模块机",
+  11|    telemetryMappings: partial.telemetryMappings ?? [],
+  12|    actionMappings: partial.actionMappings ?? [],
+  13|    statusMapping: partial.statusMapping,
+  14|  };
+  15|}
+  16|
+  17|const device: HmiDevice = {
+  18|  node: "1",
+  19|  name: "模块机",
+  20|  tag: "1#",
+  21|  actions: [],
+  22|  data: [{ name: "温度", val: "25", unit: "℃" }],
+  23|};
+  24|
+  25|describe("formatTelemetryText", () => {
+  26|  it("布尔显示运行或停止，数值带单位", () => {
+  27|    expect(formatTelemetryText(true, "boolean")).toBe("运行");
+  28|    expect(formatTelemetryText(false, "boolean")).toBe("停止");
+  29|    expect(formatTelemetryText(23.46, "number", "℃")).toBe("23.5 ℃");
+  30|    expect(formatTelemetryText(80, "number", "%")).toBe("80 %");
+  31|    expect(formatTelemetryText(undefined, "number", "℃")).toBe("");
+  32|  });
+  33|});
+  34|
+  35|describe("buildDevicePlates", () => {
+  36|  it("未连接只显示名称和未连接，不用 GLB 里的示例值冒充实时数据", () => {
+  37|    const plates = buildDevicePlates({ devices: [device], bindings: [], latest: {} });
+  38|    expect(plates).toHaveLength(1);
+  39|    expect(plates[0]?.title).toContain("模块机");
+  40|    expect(plates[0]?.bound).toBe(false);
+  41|    expect(plates[0]?.lines.some((l) => l.text === "25 ℃" || l.text === "25")).toBe(false);
+  42|    expect(plates[0]?.lines[0]?.text).toBe("未连接");
+  43|  });
+  44|
+  45|  it("已连接但没有平台值时显示暂无数据，不写死假数", () => {
+  46|    const plates = buildDevicePlates({
+  47|      devices: [device],
+  48|      bindings: [
+  49|        binding({
+  50|          sceneEntityId: "1",
+  51|          deviceId: "dev-1",
+  52|          telemetryMappings: [
+  53|            { field: "温度", telemetryKey: "temperature", label: "温度", unit: "℃", displayType: "number" },
+  54|          ],
+  55|        }),
+  56|      ],
+  57|      latest: {},
+  58|    });
+  59|    expect(plates[0]?.bound).toBe(true);
+  60|    expect(plates[0]?.lines[0]).toEqual({ label: "温度", text: "暂无数据", missing: true });
+  61|  });
+  62|
+  63|  it("用绑定测点的实时值填充铭牌", () => {
+  64|    const latest = new Map<string, TelemetryRecord>([
+  65|      [
+  66|        "dev-1:temperature",
+  67|        { deviceId: "dev-1", key: "temperature", value: 26.2, timestamp: 1, source: "guard" },
+  68|      ],
+  69|      [
+  70|        "dev-1:running",
+  71|        { deviceId: "dev-1", key: "running", value: true, timestamp: 1, source: "guard" },
+  72|      ],
+  73|    ]);
+  74|    const plates = buildDevicePlates({
+  75|      devices: [device],
+  76|      bindings: [
+  77|        binding({
+  78|          sceneEntityId: "1",
+  79|          deviceId: "dev-1",
+  80|          telemetryMappings: [
+  81|            { field: "温度", telemetryKey: "temperature", label: "温度", unit: "℃", displayType: "number" },
+  82|            { field: "运行状态", telemetryKey: "running", label: "运行状态", displayType: "boolean" },
+  83|          ],
+  84|        }),
+  85|      ],
+  86|      latest,
+  87|    });
+  88|    expect(plates[0]?.lines.map((l) => l.text)).toContain("26.2 ℃");
+  89|    expect(plates[0]?.lines.map((l) => l.text)).toContain("运行");
+  90|    expect(plates[0]?.running).toBe(true);
+  91|    expect(isTruthyState(true)).toBe(true);
+  92|  });
+  93|
+  94|  it("没有测点和动作的三通不生成铭牌，避免挡住主机", () => {
+  95|    const plates = buildDevicePlates({
+  96|      devices: [
+  97|        device,
+  98|        { node: "三通", name: "三通", actions: [], data: [] },
+  99|      ],
+ 100|      bindings: [],
+ 101|      latest: {},
+ 102|    });
+ 103|    expect(plates.map((item) => item.node)).toEqual(["1"]);
+ 104|  });
+ 105|});
+
+================================================================================
+FILE apps/web/src/utils/device-virtual.test.ts LINES 56
+================================================================================
+   1|import { describe, expect, it } from "vitest";
+   2|import {
+   3|  isRealtimePlatformDevice,
+   4|  isVirtualAdditionalInfo,
+   5|  isVirtualDeviceVirtualValue,
+   6|  isVirtualPlatformDevice,
+   7|  readDeviceVirtualFlag,
+   8|} from "@idt/data-adapter";
+   9|
+  10|describe("isVirtualDeviceVirtualValue 对齐 MeteringMath.isVirtual", () => {
+  11|  it("把 virtual / true / 1 视为虚拟设备", () => {
+  12|    expect(isVirtualDeviceVirtualValue("virtual")).toBe(true);
+  13|    expect(isVirtualDeviceVirtualValue("VIRTUAL")).toBe(true);
+  14|    expect(isVirtualDeviceVirtualValue(" true ")).toBe(true);
+  15|    expect(isVirtualDeviceVirtualValue("1")).toBe(true);
+  16|    expect(isVirtualDeviceVirtualValue(true)).toBe(true);
+  17|    expect(isVirtualDeviceVirtualValue(1)).toBe(true);
+  18|  });
+  19|
+  20|  it("把 real / 缺失 / false / 0 视为实时设备", () => {
+  21|    expect(isVirtualDeviceVirtualValue("real")).toBe(false);
+  22|    expect(isVirtualDeviceVirtualValue("REAL")).toBe(false);
+  23|    expect(isVirtualDeviceVirtualValue(undefined)).toBe(false);
+  24|    expect(isVirtualDeviceVirtualValue(null)).toBe(false);
+  25|    expect(isVirtualDeviceVirtualValue("")).toBe(false);
+  26|    expect(isVirtualDeviceVirtualValue(false)).toBe(false);
+  27|    expect(isVirtualDeviceVirtualValue(0)).toBe(false);
+  28|    expect(isVirtualDeviceVirtualValue("other")).toBe(false);
+  29|  });
+  30|});
+  31|
+  32|describe("additionalInfo.deviceVirtual", () => {
+  33|  it("从对象或 JSON 字符串读取标志，缺失则视为实时", () => {
+  34|    expect(readDeviceVirtualFlag({ deviceVirtual: "virtual" })).toBe("virtual");
+  35|    expect(readDeviceVirtualFlag('{"deviceVirtual":"virtual"}')).toBe("virtual");
+  36|    expect(isVirtualAdditionalInfo({ deviceVirtual: "virtual" })).toBe(true);
+  37|    expect(isVirtualAdditionalInfo({ deviceVirtual: "real" })).toBe(false);
+  38|    expect(isVirtualAdditionalInfo({})).toBe(false);
+  39|    expect(isVirtualAdditionalInfo(undefined)).toBe(false);
+  40|    expect(isVirtualAdditionalInfo(null)).toBe(false);
+  41|  });
+  42|});
+  43|
+  44|describe("isVirtualPlatformDevice", () => {
+  45|  it("不把 Mock 演示设备当成平台虚拟设备", () => {
+  46|    expect(isVirtualPlatformDevice({ source: "mock", deviceVirtual: "virtual" })).toBe(false);
+  47|    expect(isRealtimePlatformDevice({ source: "mock" })).toBe(true);
+  48|  });
+  49|
+  50|  it("按标志过滤 guard 设备，存量无属性视为实时", () => {
+  51|    expect(isVirtualPlatformDevice({ source: "guard", deviceVirtual: "virtual" })).toBe(true);
+  52|    expect(isVirtualPlatformDevice({ source: "guard", additionalInfo: { deviceVirtual: "virtual" } })).toBe(true);
+  53|    expect(isVirtualPlatformDevice({ source: "guard" })).toBe(false);
+  54|    expect(isRealtimePlatformDevice({ source: "guard", deviceVirtual: "real" })).toBe(true);
+  55|  });
+  56|});
+
+================================================================================
+FILE apps/web/src/engine/react/DeviceLabels.tsx LINES 82
+================================================================================
+   1|import { useEffect, useState } from "react";
+   2|import { EngineManager } from "../core/EngineManager";
+   3|import type { DevicePlate } from "../../utils/device-plates";
+   4|import styles from "./EngineViewport.module.css";
+   5|
+   6|export type DeviceLabelItem = DevicePlate;
+   7|
+   8|/** 场内设备铭牌：头顶名称 + 绑定测点的实时数据，不用写死假数 */
+   9|export function DeviceLabels({
+  10|  items,
+  11|  selectedNode,
+  12|  onSelect,
+  13|}: {
+  14|  items: DeviceLabelItem[];
+  15|  selectedNode?: string | null;
+  16|  onSelect?: (node: string) => void;
+  17|}) {
+  18|  const [placed, setPlaced] = useState<Array<DeviceLabelItem & { x: number; y: number }>>([]);
+  19|
+  20|  useEffect(() => {
+  21|    if (items.length === 0) {
+  22|      setPlaced([]);
+  23|      return;
+  24|    }
+  25|    let raf = 0;
+  26|    let last = 0;
+  27|    const tick = (now: number) => {
+  28|      raf = requestAnimationFrame(tick);
+  29|      if (now - last < 80) return;
+  30|      last = now;
+  31|      const next: Array<DeviceLabelItem & { x: number; y: number }> = [];
+  32|      for (const item of items) {
+  33|        const screen = EngineManager.instance.worldToScreen(item.node);
+  34|        if (screen?.visible) next.push({ ...item, x: screen.x, y: screen.y });
+  35|      }
+  36|      setPlaced(next);
+  37|    };
+  38|    raf = requestAnimationFrame(tick);
+  39|    return () => cancelAnimationFrame(raf);
+  40|  }, [items]);
+  41|
+  42|  return (
+  43|    <>
+  44|    <div
+  45|      data-testid="device-plates-meta"
+  46|      data-item-count={items.length}
+  47|      data-placed-count={placed.length}
+  48|      hidden
+  49|    />
+  50|    {placed.length === 0 ? null : (
+  51|    <div className={styles.labels} data-testid="device-plates">
+  52|      {placed.map((item) => (
+  53|        <button
+  54|          type="button"
+  55|          key={item.node}
+  56|          data-testid="device-plate"
+  57|          data-node={item.node}
+  58|          data-bound={item.bound ? "true" : "false"}
+  59|          data-running={item.running === null ? "" : item.running ? "true" : "false"}
+  60|          className={`${styles.tag} ${item.bound ? styles.tagBound : styles.tagMuted} ${selectedNode === item.node ? styles.tagSelected : ""}`}
+  61|          style={{ transform: `translate(${item.x}px, ${item.y}px) translate(-50%, calc(-100% - 8px))` }}
+  62|          onClick={() => onSelect?.(item.node)}
+  63|        >
+  64|          <div className={styles.tagTitle}>
+  65|            <span>{item.title}</span>
+  66|            {item.running === true ? <span className={styles.tagRun}>运行</span> : null}
+  67|            {item.running === false ? <span className={styles.tagStop}>停止</span> : null}
+  68|            {item.source === "demo" ? <span className={styles.tagDemo}>演示</span> : null}
+  69|          </div>
+  70|          {item.lines.map((line) => (
+  71|            <div key={line.label} className={`${styles.tagLine} ${line.missing ? styles.tagMissing : ""}`}>
+  72|              <span>{line.label}</span>
+  73|              <span>{line.text}</span>
+  74|            </div>
+  75|          ))}
+  76|        </button>
+  77|      ))}
+  78|    </div>
+  79|    )}
+  80|    </>
+  81|  );
+  82|}
+
+================================================================================
+FILE apps/web/src/engine/react/EngineViewport.tsx LINES 76
+================================================================================
+   1|
+   2|import { Application, Entity } from "@playcanvas/react";
+   3|import { Camera } from "@playcanvas/react/components";
+   4|import { OrbitControls } from "@playcanvas/react/scripts";
+   5|import { getProviderKind } from "@idt/data-adapter";
+   6|import type { DeviceBinding, ParsedHmiScene } from "@idt/shared-types";
+   7|import { useEffect, useState } from "react";
+   8|import { EngineManager } from "../core/EngineManager";
+   9|import { DEFAULT_ENGINE_CONFIG } from "../core/EngineConfig";
+  10|import { EngineBridge } from "./EngineBridge";
+  11|import { DeviceLabels, type DeviceLabelItem } from "./DeviceLabels";
+  12|import { SceneLights } from "./SceneLights";
+  13|import styles from "./EngineViewport.module.css";
+  14|
+  15|interface EngineViewportProps {
+  16|  modelUrl?: string;
+  17|  mode: "studio" | "runtime";
+  18|  gridEnabled?: boolean;
+  19|  selectedNode?: string | null;
+  20|  bindings?: DeviceBinding[];
+  21|  hmi?: ParsedHmiScene | null;
+  22|  emptyText?: string;
+  23|  dataLabel?: string;
+  24|  labels?: DeviceLabelItem[];
+  25|  onSelect?: (nodeName: string | null) => void;
+  26|  onLoaded?: (names: string[]) => void;
+  27|  onError?: (message: string) => void;
+  28|}
+  29|
+  30|export function EngineViewport(props: EngineViewportProps) {
+  31|  const { modelUrl, gridEnabled = true, emptyText = "把模型拖到这里，或点右上角「导入模型」", labels = [] } = props;
+  32|  const [kind, setKind] = useState(getProviderKind);
+  33|
+  34|  useEffect(() => {
+  35|    const onChange = () => setKind(getProviderKind());
+  36|    window.addEventListener("idt-provider-changed", onChange);
+  37|    return () => window.removeEventListener("idt-provider-changed", onChange);
+  38|  }, []);
+  39|
+  40|  return (
+  41|    <div className={styles.wrap}>
+  42|      {!modelUrl ? <div className={styles.hint}>{emptyText}</div> : null}
+  43|      {modelUrl ? (
+  44|        <div className={`${styles.badge} idt-demo-tag`}>
+  45|          {props.dataLabel ?? (kind === "guard" ? "后端数据" : "演示数据")}
+  46|        </div>
+  47|      ) : null}
+  48|      <Application fillMode="NONE" resolutionMode="AUTO" graphicsDeviceOptions={{ antialias: true, powerPreference: "high-performance" }}>
+  49|        <SceneLights gridEnabled={gridEnabled} />
+  50|        <Entity name="camera" position={DEFAULT_ENGINE_CONFIG.cameraPosition}>
+  51|          <Camera clearColor={DEFAULT_ENGINE_CONFIG.clearColor} fov={DEFAULT_ENGINE_CONFIG.fov} />
+  52|          {/* 默认 distanceMin=18 会把整排总览夹成近景，这里放宽夹紧范围，由 EngineManager 对齐机位 */}
+  53|          <OrbitControls distanceMin={1} distanceMax={4000} pitchAngleMax={90} pitchAngleMin={-5} frameOnStart={false} />
+  54|        </Entity>
+  55|        <EngineBridge {...props} />
+  56|      </Application>
+  57|      {modelUrl ? (
+  58|        <>
+  59|          <DeviceLabels
+  60|            items={labels}
+  61|            selectedNode={props.selectedNode}
+  62|            onSelect={(node) => props.onSelect?.(node)}
+  63|          />
+  64|          <button
+  65|            type="button"
+  66|            className={styles.overviewBtn}
+  67|            data-testid="camera-overview"
+  68|            onClick={() => EngineManager.instance.refitCamera()}
+  69|          >
+  70|            总览
+  71|          </button>
+  72|        </>
+  73|      ) : null}
+  74|    </div>
+  75|  );
+  76|}
+
+================================================================================
+FILE apps/web/src/engine/react/EngineViewport.module.css LINES 184
+================================================================================
+   1|
+   2|.wrap {
+   3|  position: absolute;
+   4|  inset: 0;
+   5|  width: 100%;
+   6|  height: 100%;
+   7|  background: var(--idt-viewport);
+   8|  overflow: hidden;
+   9|}
+  10|
+  11|.wrap :global(canvas.pc-app),
+  12|.wrap canvas {
+  13|  width: 100% !important;
+  14|  height: 100% !important;
+  15|  display: block;
+  16|}
+  17|
+  18|.hint {
+  19|  position: absolute;
+  20|  inset: 0;
+  21|  display: flex;
+  22|  align-items: center;
+  23|  justify-content: center;
+  24|  color: var(--idt-muted);
+  25|  pointer-events: none;
+  26|  font-size: 13px;
+  27|}
+  28|
+  29|.badge {
+  30|  position: absolute;
+  31|  right: 12px;
+  32|  top: 12px;
+  33|  left: auto;
+  34|  z-index: 2;
+  35|  pointer-events: none;
+  36|}
+  37|
+  38|.labels {
+  39|  position: absolute;
+  40|  inset: 0;
+  41|  pointer-events: none;
+  42|  z-index: 2;
+  43|  overflow: hidden;
+  44|}
+  45|
+  46|.tag {
+  47|  pointer-events: auto;
+  48|  position: absolute;
+  49|  left: 0;
+  50|  top: 0;
+  51|  min-width: 148px;
+  52|  max-width: 220px;
+  53|  margin: 0;
+  54|  padding: 7px 9px 6px;
+  55|  border: 0;
+  56|  border-radius: 4px;
+  57|  background: rgba(31, 35, 41, 0.88);
+  58|  color: #ffffff;
+  59|  text-align: left;
+  60|  font: inherit;
+  61|  font-size: 12px;
+  62|  line-height: 1.35;
+  63|  letter-spacing: 0.01em;
+  64|  cursor: pointer;
+  65|  box-shadow: 0 2px 8px rgba(31, 35, 41, 0.2);
+  66|  border-left: 3px solid #5f6e84;
+  67|}
+  68|
+  69|.tagBound {
+  70|  background: rgba(31, 35, 41, 0.9);
+  71|  border-left-color: #19b37d;
+  72|}
+  73|
+  74|.tagMuted {
+  75|  background: rgba(31, 35, 41, 0.72);
+  76|}
+  77|
+  78|.tagSelected {
+  79|  outline: 1px solid #2f6bff;
+  80|  box-shadow: 0 0 0 1px rgba(47, 107, 255, 0.35), 0 4px 12px rgba(31, 35, 41, 0.28);
+  81|}
+  82|
+  83|.overviewBtn {
+  84|  position: absolute;
+  85|  right: 12px;
+  86|  bottom: 16px;
+  87|  z-index: 3;
+  88|  height: 28px;
+  89|  padding: 0 12px;
+  90|  border: 1px solid #dce3ed;
+  91|  border-radius: 8px;
+  92|  background: rgba(255, 255, 255, 0.94);
+  93|  color: #1f2329;
+  94|  font: inherit;
+  95|  font-size: 12px;
+  96|  cursor: pointer;
+  97|  box-shadow: 0 4px 12px rgba(31, 35, 41, 0.08);
+  98|}
+  99|
+ 100|.overviewBtn:hover {
+ 101|  border-color: #1657e8;
+ 102|  color: #1657e8;
+ 103|}
+ 104|
+ 105|.tagTitle {
+ 106|  display: flex;
+ 107|  align-items: center;
+ 108|  gap: 6px;
+ 109|  font-weight: 600;
+ 110|  white-space: nowrap;
+ 111|  overflow: hidden;
+ 112|  text-overflow: ellipsis;
+ 113|}
+ 114|
+ 115|.tagTitle > span:first-child {
+ 116|  overflow: hidden;
+ 117|  text-overflow: ellipsis;
+ 118|}
+ 119|
+ 120|.tagRun,
+ 121|.tagStop,
+ 122|.tagDemo {
+ 123|  flex: none;
+ 124|  padding: 0 5px;
+ 125|  border-radius: 999px;
+ 126|  font-size: 10px;
+ 127|  font-weight: 500;
+ 128|}
+ 129|
+ 130|.tagRun {
+ 131|  background: #19b37d;
+ 132|  color: #fff;
+ 133|}
+ 134|
+ 135|.tagStop {
+ 136|  background: #5f6e84;
+ 137|  color: #fff;
+ 138|}
+ 139|
+ 140|.tagDemo {
+ 141|  background: #e8930c;
+ 142|  color: #fff;
+ 143|}
+ 144|
+ 145|.tagLine {
+ 146|  display: flex;
+ 147|  justify-content: space-between;
+ 148|  gap: 10px;
+ 149|  margin-top: 2px;
+ 150|  color: #dce3ed;
+ 151|  font-variant-numeric: tabular-nums;
+ 152|}
+ 153|
+ 154|.tagMissing {
+ 155|  color: #9aa7b8;
+ 156|}
+ 157|
+ 158|
+ 159|.guide {
+ 160|  position: absolute;
+ 161|  left: 12px;
+ 162|  top: 12px;
+ 163|  z-index: 3;
+ 164|  display: flex;
+ 165|  flex-wrap: wrap;
+ 166|  gap: 6px;
+ 167|  pointer-events: none;
+ 168|  max-width: calc(100% - 24px);
+ 169|}
+ 170|
+ 171|.guideStep {
+ 172|  padding: 4px 8px;
+ 173|  border-radius: 999px;
+ 174|  background: rgba(255, 255, 255, 0.92);
+ 175|  border: 1px solid #dce3ed;
+ 176|  color: #1f2329;
+ 177|  font-size: 12px;
+ 178|  line-height: 1.3;
+ 179|  box-shadow: 0 4px 12px rgba(31, 35, 41, 0.06);
+ 180|}
+ 181|
+ 182|.guideStepMuted {
+ 183|  color: #5f6e84;
+ 184|}
+
+================================================================================
+FILE apps/web/src/engine/react/EngineBridge.tsx LINES 115
+================================================================================
+   1|
+   2|import { useApp, useAppEvent } from "@playcanvas/react/hooks";
+   3|import { useEffect, useRef } from "react";
+   4|import type { DeviceBinding, ParsedHmiScene } from "@idt/shared-types";
+   5|import { EngineManager } from "../core/EngineManager";
+   6|import { pickEntityAt } from "../interaction/PickingManager";
+   7|import { applyBindingsToScene } from "../animation/DeviceStateAnimator";
+   8|import { telemetryRuntime } from "../../stores/telemetry.store";
+   9|
+  10|interface EngineBridgeProps {
+  11|  modelUrl?: string;
+  12|  mode: "studio" | "runtime";
+  13|  gridEnabled?: boolean;
+  14|  selectedNode?: string | null;
+  15|  bindings?: DeviceBinding[];
+  16|  hmi?: ParsedHmiScene | null;
+  17|  onSelect?: (nodeName: string | null) => void;
+  18|  onLoaded?: (names: string[]) => void;
+  19|  onError?: (message: string) => void;
+  20|}
+  21|
+  22|export function EngineBridge(props: EngineBridgeProps) {
+  23|  const app = useApp();
+  24|  const loading = useRef(false);
+  25|  const sizedOnce = useRef(false);
+  26|
+  27|  useEffect(() => {
+  28|    EngineManager.instance.register(app);
+  29|    const canvas = app.graphicsDevice.canvas as HTMLCanvasElement;
+  30|    const host = canvas.parentElement;
+  31|    let lastW = 0;
+  32|    let lastH = 0;
+  33|    sizedOnce.current = false;
+  34|    const apply = () => {
+  35|      if (!host) return;
+  36|      const w = host.clientWidth;
+  37|      const h = host.clientHeight;
+  38|      if (w === lastW && h === lastH) return;
+  39|      const firstRealSize = !sizedOnce.current && w > 1 && h > 1;
+  40|      lastW = w;
+  41|      lastH = h;
+  42|      EngineManager.instance.resizeToContainer(host);
+  43|      // 只在画布第一次拿到真实尺寸时对准总览，避免用户拖视角后又被 resize 拉回去
+  44|      if (firstRealSize) {
+  45|        sizedOnce.current = true;
+  46|        EngineManager.instance.scheduleOverviewFit();
+  47|      } else {
+  48|        EngineManager.instance.resizeToContainer(host);
+  49|      }
+  50|    };
+  51|    apply();
+  52|    const ro = typeof ResizeObserver !== "undefined" && host ? new ResizeObserver(apply) : null;
+  53|    if (host && ro) ro.observe(host);
+  54|    window.addEventListener("resize", apply);
+  55|    return () => {
+  56|      ro?.disconnect();
+  57|      window.removeEventListener("resize", apply);
+  58|      EngineManager.instance.unregister(app);
+  59|    };
+  60|  }, [app]);
+  61|
+  62|  useEffect(() => {
+  63|    if (!props.modelUrl) {
+  64|      EngineManager.instance.disposeModel();
+  65|      props.onLoaded?.([]);
+  66|      return;
+  67|    }
+  68|    let cancelled = false;
+  69|    loading.current = true;
+  70|    EngineManager.instance
+  71|      .loadGlb(props.modelUrl)
+  72|      .then((model) => {
+  73|        if (cancelled) return;
+  74|        props.onLoaded?.([...model.byName.keys()]);
+  75|        EngineManager.instance.scheduleOverviewFit();
+  76|      })
+  77|      .catch((error: unknown) => {
+  78|        if (cancelled) return;
+  79|        props.onError?.(error instanceof Error ? error.message : "模型加载失败");
+  80|      })
+  81|      .finally(() => {
+  82|        loading.current = false;
+  83|      });
+  84|    return () => {
+  85|      cancelled = true;
+  86|    };
+  87|    // 只在 url 变化时重新加载
+  88|    // eslint-disable-next-line react-hooks/exhaustive-deps
+  89|  }, [props.modelUrl, app]);
+  90|
+  91|  useEffect(() => {
+  92|    // 工作室不提供移动/旋转/缩放：产品是把平台测点绑到现成模型上，不改 GLB 里的位置和变量。
+  93|    EngineManager.instance.highlight(props.selectedNode ?? null);
+  94|  }, [app, props.selectedNode]);
+  95|
+  96|  useEffect(() => {
+  97|    const canvas = app.graphicsDevice.canvas as HTMLCanvasElement;
+  98|    const onClick = async (event: MouseEvent) => {
+  99|      if (loading.current) return;
+ 100|      const entity = await pickEntityAt(event.clientX, event.clientY);
+ 101|      props.onSelect?.(entity?.name ?? null);
+ 102|    };
+ 103|    canvas.addEventListener("pointerdown", onClick);
+ 104|    return () => canvas.removeEventListener("pointerdown", onClick);
+ 105|  }, [app, props]);
+ 106|
+ 107|  useAppEvent("update", (dt: number) => {
+ 108|    EngineManager.instance.tickAnimations(dt);
+ 109|    if (props.mode === "runtime" || props.bindings?.length) {
+ 110|      applyBindingsToScene(props.hmi ?? null, props.bindings ?? [], telemetryRuntime.latest);
+ 111|    }
+ 112|  });
+ 113|
+ 114|  return null;
+ 115|}
+
+================================================================================
+FILE apps/web/src/engine/animation/DeviceStateAnimator.ts LINES 90
+================================================================================
+   1|import type { ActionMapping, DeviceBinding, ParsedHmiScene, TelemetryRecord } from "@idt/shared-types";
+   2|import { evalStatus } from "../../utils/status";
+   3|import { STATUS_COLOR } from "../../utils/status";
+   4|import { bindingRunningState, isTruthyState, readLatest } from "../../utils/device-plates";
+   5|import { EngineManager } from "../core/EngineManager";
+   6|
+   7|export function isVisualDriveAction(actionId: string, label = ""): boolean {
+   8|  const text = `${actionId} ${label}`.toLowerCase();
+   9|  if (/(^|[:/_-])(start|stop)([:/_-]|$)/.test(text) || /启动|停止/.test(text)) return false;
+  10|  return /spin|blink|fan|led|风扇|指示灯|叶轮/.test(text);
+  11|}
+  12|
+  13|export function applyBindingsToScene(
+  14|  hmi: ParsedHmiScene | null,
+  15|  bindings: DeviceBinding[],
+  16|  latest: Map<string, TelemetryRecord>,
+  17|): void {
+  18|  const engine = EngineManager.instance;
+  19|
+  20|  for (const binding of bindings) {
+  21|    const entity = binding.sceneEntityId;
+  22|    const status = evalStatus(binding, latest);
+  23|    engine.tintStatus(entity, STATUS_COLOR[status]);
+  24|
+  25|    for (const action of binding.actionMappings) {
+  26|      if (!isVisualDriveAction(action.actionId, action.label)) continue;
+  27|      const shouldPlay = resolveAction(binding, action, latest);
+  28|      if (action.clip) engine.playNamedAnimation(action.clip, shouldPlay);
+  29|      if (action.actionId.includes("spin") || action.label.includes("风扇")) {
+  30|        engine.setSpin(entity, shouldPlay);
+  31|      }
+  32|      if (action.actionId.includes("blink") || action.label.includes("指示灯")) {
+  33|        engine.setIndicator(entity, shouldPlay);
+  34|      }
+  35|    }
+  36|
+  37|    // 只要有运行状态，就驱动 GLB 自带的风扇/指示灯，不依赖「动作映射必须为空」
+  38|    const signalDevice = hmi?.devices.find((d) => d.node === entity);
+  39|    if (signalDevice) {
+  40|      const running = isRunning(binding, latest);
+  41|      for (const action of signalDevice.actions) {
+  42|        if (action.id.includes("spin") || action.label.includes("风扇")) {
+  43|          engine.setSpin(entity, running);
+  44|          if (action.clip) engine.playNamedAnimation(action.clip, running);
+  45|        }
+  46|        if (action.id.includes("blink") || action.label.includes("指示灯")) {
+  47|          engine.setIndicator(entity, running);
+  48|          if (action.clip) engine.playNamedAnimation(action.clip, running);
+  49|        }
+  50|      }
+  51|    }
+  52|
+  53|    const valve = hmi?.valves.find((v) => v.node === entity);
+  54|    if (valve) {
+  55|      const open = isOpen(binding, latest);
+  56|      if (valve.clips?.open) engine.playNamedAnimation(valve.clips.open, open);
+  57|      if (valve.clips?.close) engine.playNamedAnimation(valve.clips.close, !open);
+  58|    }
+  59|  }
+  60|}
+  61|
+  62|export function isRunning(binding: DeviceBinding, latest: Map<string, TelemetryRecord>): boolean {
+  63|  return bindingRunningState(binding, latest) === true;
+  64|}
+  65|
+  66|function isOpen(binding: DeviceBinding, latest: Map<string, TelemetryRecord>): boolean {
+  67|  const keys = [
+  68|    ...binding.telemetryMappings
+  69|      .filter((m) => /开关|开度|open/.test(`${m.label} ${m.field} ${m.telemetryKey}`))
+  70|      .flatMap((m) => [m.telemetryKey, m.field]),
+  71|    "open",
+  72|    "opening",
+  73|  ];
+  74|  const row = readLatest(latest, binding.deviceId, keys);
+  75|  if (!row) return true;
+  76|  if (typeof row.value === "number") return row.value > 0;
+  77|  return isTruthyState(row.value);
+  78|}
+  79|
+  80|function resolveAction(
+  81|  binding: DeviceBinding,
+  82|  action: ActionMapping,
+  83|  latest: Map<string, TelemetryRecord>,
+  84|): boolean {
+  85|  if (!action.telemetryKey) return isRunning(binding, latest);
+  86|  const row = readLatest(latest, binding.deviceId, [action.telemetryKey]);
+  87|  if (!row) return false;
+  88|  if (action.whenValue === undefined) return isTruthyState(row.value);
+  89|  return String(row.value) === String(action.whenValue);
+  90|}
+
+================================================================================
+FILE apps/web/src/engine/animation/visual-nodes.ts LINES 20
+================================================================================
+   1|/** 从 GLB 节点名里挑出真正该转、该亮的部件，避免把整台机柜转起来。 */
+   2|
+   3|const SPIN_ROOT = /spin[_-]?fan/i;
+   4|const SPIN_PART = /spin[_-]?fan|fan[_-]?hub|fan[_-]?blade|叶轮|风叶/i;
+   5|const SPIN_EXCLUDE = /recess|rim|panel|cabinet|mounted|screen|control/i;
+   6|
+   7|const LED_PREFERRED = /blink[_-]?led|status[_-]?led|指示灯/i;
+   8|const LED_FALLBACK = /(?:^|[_-])(led|lamp)(?:$|[_-])|指示/i;
+   9|
+  10|export function pickSpinNodeNames(names: string[]): string[] {
+  11|  const parts = names.filter((name) => SPIN_PART.test(name) && !SPIN_EXCLUDE.test(name));
+  12|  const roots = parts.filter((name) => SPIN_ROOT.test(name));
+  13|  return roots.length ? roots : parts;
+  14|}
+  15|
+  16|export function pickIndicatorNodeNames(names: string[]): string[] {
+  17|  const preferred = names.filter((name) => LED_PREFERRED.test(name));
+  18|  if (preferred.length) return preferred;
+  19|  return names.filter((name) => LED_FALLBACK.test(name) && !/panel|highlight|screen/i.test(name));
+  20|}
+
+================================================================================
+FILE apps/web/src/engine/interaction/PickingManager.ts LINES 55
+================================================================================
+   1|
+   2|import { Picker, type CameraComponent, type Entity, type MeshInstance } from "playcanvas";
+   3|import { EngineManager } from "../core/EngineManager";
+   4|
+   5|export async function pickEntityAt(clientX: number, clientY: number): Promise<Entity | null> {
+   6|  const app = EngineManager.instance.app;
+   7|  if (!app) return null;
+   8|  const canvas = app.graphicsDevice.canvas as HTMLCanvasElement;
+   9|  const rect = canvas.getBoundingClientRect();
+  10|  const x = Math.floor(((clientX - rect.left) / rect.width) * canvas.width);
+  11|  const y = Math.floor(((clientY - rect.top) / rect.height) * canvas.height);
+  12|
+  13|  const cameras = app.root.findComponents("camera") as CameraComponent[];
+  14|  const camera = cameras[0];
+  15|  if (!camera) return null;
+  16|
+  17|  const picker = new Picker(app, canvas.width, canvas.height);
+  18|  try {
+  19|    const worldLayer = app.scene.layers.getLayerByName("World");
+  20|    const layers = worldLayer ? [worldLayer] : undefined;
+  21|    await picker.prepare(camera, app.scene, layers);
+  22|    const selection = picker.getSelection(x, y) as MeshInstance[];
+  23|    const mesh = selection[0];
+  24|    if (!mesh) return null;
+  25|    const node = (mesh as unknown as { node?: Entity; entity?: Entity }).node
+  26|      ?? (mesh as unknown as { entity?: Entity }).entity;
+  27|    if (!node) return null;
+  28|    return climbToNamed(node);
+  29|  } finally {
+  30|    picker.destroy();
+  31|  }
+  32|}
+  33|
+  34|function climbToNamed(entity: Entity): Entity {
+  35|  const root = EngineManager.instance.model?.root;
+  36|  let current: Entity | null = entity;
+  37|  let lastNamed = entity;
+  38|  while (current && current !== root) {
+  39|    if (current.name && EngineManager.instance.findEntity(current.name) === current) {
+  40|      lastNamed = current;
+  41|      // 优先返回已登记的设备节点（较短的上层名字可能更接近 HMI node）
+  42|      break;
+  43|    }
+  44|    current = current.parent as Entity | null;
+  45|  }
+  46|  // 再往上找一层已登记节点，避免点到零件
+  47|  current = lastNamed.parent as Entity | null;
+  48|  while (current && current !== root) {
+  49|    if (current.name && EngineManager.instance.findEntity(current.name)) {
+  50|      return current;
+  51|    }
+  52|    current = current.parent as Entity | null;
+  53|  }
+  54|  return lastNamed;
+  55|}
+
+================================================================================
+FILE apps/web/src/engine/interaction/TransformManager.ts LINES 24
+================================================================================
+   1|import type { Entity, Application } from "playcanvas";
+   2|import type { TransformTool } from "../../stores/editor.store";
+   3|
+   4|/**
+   5| * 变换编辑已收口：产品不是场景编辑器，不再把 gizmo 挂到 GLB 节点上。
+   6| * 保留此类以免旧引用中断，方法都是空操作。
+   7| */
+   8|export class TransformManager {
+   9|  attach(
+  10|    _app: Application,
+  11|    _entity: Entity | null,
+  12|    _tool: TransformTool,
+  13|    _coord: "local" | "world",
+  14|    _onChange?: (nodeName: string) => void,
+  15|  ): void {}
+  16|
+  17|  applyTool(_tool: TransformTool, _coord: "local" | "world"): void {}
+  18|
+  19|  setSnap(_enabled: boolean, _size: number): void {}
+  20|
+  21|  detach(): void {}
+  22|
+  23|  destroy(): void {}
+  24|}
+
+================================================================================
+FILE apps/web/src/services/device/deviceService.ts LINES 174
+================================================================================
+   1|
+   2|import type { Device, DevicePoint, HmiDevice, ParsedHmiScene } from "@idt/shared-types";
+   3|import { db } from "../storage/db";
+   4|import { createId } from "../../utils/id";
+   5|import { getDataProvider, getMockController, getProviderKind, isRealtimePlatformDevice, profileByType } from "@idt/data-adapter";
+   6|
+   7|function inferType(point: DevicePoint): DevicePoint["displayType"] {
+   8|  return point.displayType;
+   9|}
+  10|
+  11|export async function listDevices(options?: { topologyId?: string }): Promise<Device[]> {
+  12|  if (getProviderKind() === "guard") {
+  13|    if (options?.topologyId) {
+  14|      try {
+  15|        const { getTopologyApi } = await import("@idt/data-adapter");
+  16|        const nodes = await getTopologyApi().listDeviceNodes(options.topologyId);
+  17|        const allowed = await getDataProvider().getDevices();
+  18|        const byId = new Map(allowed.map((item) => [item.id, item]));
+  19|        const listed = nodes
+  20|          .map((node) => byId.get(node.entityId || node.id))
+  21|          .filter((item): item is NonNullable<typeof item> => Boolean(item))
+  22|          .filter(isRealtimePlatformDevice);
+  23|        if (listed.length) return listed;
+  24|      } catch (error) {
+  25|        console.warn("按拓扑读取设备失败，回退到平台设备列表", error);
+  26|      }
+  27|    }
+  28|    return (await getDataProvider().getDevices()).filter(isRealtimePlatformDevice);
+  29|  }
+  30|  const rows = await db.devices.toArray();
+  31|  getMockController().seedDevices(rows);
+  32|  return rows;
+  33|}
+  34|
+  35|export async function getDevice(id: string): Promise<Device | undefined> {
+  36|  if (getProviderKind() === "guard") {
+  37|    return (await getDataProvider().getDevices()).find((item) => item.id === id);
+  38|  }
+  39|  return db.devices.get(id);
+  40|}
+  41|
+  42|export async function saveDevice(device: Device): Promise<Device> {
+  43|  if (getProviderKind() === "guard") {
+  44|    throw new Error("已连接后端，请在平台里修改设备");
+  45|  }
+  46|  const next = { ...device, updatedAt: new Date().toISOString() };
+  47|  await db.devices.put(next);
+  48|  getMockController().upsertRuntime(next);
+  49|  return next;
+  50|}
+  51|
+  52|export async function createDevice(input: {
+  53|  name: string;
+  54|  type: string;
+  55|  points?: DevicePoint[];
+  56|}): Promise<Device> {
+  57|  const now = new Date().toISOString();
+  58|  const profile = profileByType(input.type);
+  59|  const points = input.points ?? profile.points.map((p) => ({
+  60|    key: p.key,
+  61|    label: p.label,
+  62|    unit: p.unit,
+  63|    displayType: p.displayType,
+  64|  }));
+  65|  const device: Device = {
+  66|    id: createId("device"),
+  67|    name: input.name,
+  68|    type: input.type,
+  69|    points,
+  70|    source: "mock",
+  71|    createdAt: now,
+  72|    updatedAt: now,
+  73|  };
+  74|  return saveDevice(device);
+  75|}
+  76|
+  77|export async function deleteDevice(id: string): Promise<void> {
+  78|  if (getProviderKind() === "guard") {
+  79|    throw new Error("已连接后端，请在平台里删除设备");
+  80|  }
+  81|  await db.devices.delete(id);
+  82|  getMockController().removeDevice(id);
+  83|}
+  84|
+  85|export function pointsFromHmiDevice(device: HmiDevice): DevicePoint[] {
+  86|  const points: DevicePoint[] = device.data.map((d) => ({
+  87|    key: slugKey(d.name),
+  88|    label: d.name,
+  89|    unit: d.unit,
+  90|    displayType: inferDisplay(d.name, d.unit, d.val),
+  91|  }));
+  92|  return points;
+  93|}
+  94|
+  95|export async function createDevicesFromHmi(hmi: ParsedHmiScene): Promise<Device[]> {
+  96|  const existing = await db.devices.toArray();
+  97|  const created: Device[] = [];
+  98|  const candidates = [
+  99|    ...hmi.devices.filter((d) => d.data.length > 0 || d.actions.length > 0),
+ 100|    ...hmi.valves.map((v) => ({
+ 101|      node: v.node,
+ 102|      name: v.typeLabel ? `${v.node} ${v.typeLabel}` : v.node,
+ 103|      tag: undefined,
+ 104|      model: v.type,
+ 105|      modelName: v.typeLabel,
+ 106|      actions: [
+ 107|        ...(v.clips?.open ? [{ id: "open", label: "打开阀门", clip: v.clips.open }] : []),
+ 108|        ...(v.clips?.close ? [{ id: "close", label: "关闭阀门", clip: v.clips.close }] : []),
+ 109|      ],
+ 110|      data: [{ name: "开关", val: v.open ? "开" : "关" }],
+ 111|    })),
+ 112|    ...hmi.instruments.map((i) => ({
+ 113|      node: i.node,
+ 114|      name: i.typeLabel ? `${i.node} ${i.typeLabel}` : i.node,
+ 115|      tag: undefined,
+ 116|      model: i.type,
+ 117|      modelName: i.typeLabel,
+ 118|      actions: [
+ 119|        ...(i.clips?.on ? [{ id: "on", label: "开启", clip: i.clips.on }] : []),
+ 120|        ...(i.clips?.off ? [{ id: "off", label: "关闭", clip: i.clips.off }] : []),
+ 121|      ],
+ 122|      data: [] as { name: string; unit?: string; val?: string }[],
+ 123|    })),
+ 124|  ];
+ 125|
+ 126|  for (const item of candidates) {
+ 127|    const name = "tag" in item && item.tag ? `${item.name}（${item.tag}）` : item.name;
+ 128|    if (existing.some((d) => d.name === name) || created.some((d) => d.name === name)) continue;
+ 129|    const type = inferDeviceType(item);
+ 130|    const points = pointsFromHmiDevice(item as HmiDevice);
+ 131|    if (points.length === 0 && item.actions.length > 0) {
+ 132|      points.push({ key: "running", label: "运行状态", displayType: "text" });
+ 133|    }
+ 134|    created.push(await createDevice({ name, type, points }));
+ 135|  }
+ 136|  return created;
+ 137|}
+ 138|
+ 139|function inferDeviceType(item: { modelName?: string; name: string }): string {
+ 140|  const text = `${item.modelName ?? ""} ${item.name}`;
+ 141|  if (text.includes("泵")) return "pump";
+ 142|  if (text.includes("变压")) return "transformer";
+ 143|  if (text.includes("电表")) return "meter";
+ 144|  if (text.includes("空压")) return "compressor";
+ 145|  return "generic";
+ 146|}
+ 147|
+ 148|function inferDisplay(name: string, unit?: string, val?: string): DevicePoint["displayType"] {
+ 149|  if (unit && unit !== "") {
+ 150|    if (name.includes("状态")) return "text";
+ 151|    return "number";
+ 152|  }
+ 153|  if (val !== undefined && val !== "" && !Number.isNaN(Number(val))) return "number";
+ 154|  if (name.includes("状态") || name.includes("开关")) return "text";
+ 155|  return "text";
+ 156|}
+ 157|
+ 158|export function slugKey(label: string): string {
+ 159|  const map: Record<string, string> = {
+ 160|    温度: "temperature",
+ 161|    功率: "power",
+ 162|    开度: "opening",
+ 163|    运行状态: "running",
+ 164|    电压: "voltage",
+ 165|    电流: "current",
+ 166|    频率: "frequency",
+ 167|    压力: "pressure",
+ 168|    开关: "open",
+ 169|  };
+ 170|  if (map[label]) return map[label];
+ 171|  return `p_${Array.from(label).reduce((n, c) => n + c.charCodeAt(0), 0).toString(16)}`;
+ 172|}
+ 173|
+ 174|void inferType;
+
+================================================================================
+FILE packages/shared-types/src/device.ts LINES 91
+================================================================================
+   1|export type TelemetryDisplayType = "number" | "boolean" | "text";
+   2|
+   3|export type DeviceStatus = "normal" | "warning" | "alarm" | "offline";
+   4|
+   5|export interface DevicePoint {
+   6|  key: string;
+   7|  label: string;
+   8|  unit?: string;
+   9|  displayType: TelemetryDisplayType;
+  10|}
+  11|
+  12|export interface Device {
+  13|  id: string;
+  14|  name: string;
+  15|  type: string;
+  16|  points: DevicePoint[];
+  17|  /** 第一阶段全部为演示数据，不可标成现场采集 */
+  18|  source: "mock" | "guard";
+  19|  /**
+  20|   * 平台 additionalInfo.deviceVirtual。
+  21|   * "real" 或缺失 = 实时设备；"virtual" = 虚拟设备（仅手动上报）。
+  22|   */
+  23|  deviceVirtual?: string | boolean | number;
+  24|  createdAt: string;
+  25|  updatedAt: string;
+  26|}
+  27|
+  28|export interface TelemetryMapping {
+  29|  field: string;
+  30|  telemetryKey: string;
+  31|  label: string;
+  32|  unit?: string;
+  33|  displayType: TelemetryDisplayType;
+  34|}
+  35|
+  36|export interface StatusRule {
+  37|  operator: "eq" | "gt" | "gte" | "lt" | "lte";
+  38|  value: number | string | boolean;
+  39|  state: DeviceStatus;
+  40|}
+  41|
+  42|export interface StatusMapping {
+  43|  telemetryKey: string;
+  44|  rules: StatusRule[];
+  45|}
+  46|
+  47|export interface ActionMapping {
+  48|  /** 来自 GLB 的动作 id，例如 spin:fan */
+  49|  actionId: string;
+  50|  label: string;
+  51|  clip?: string;
+  52|  /** 用哪个遥测键驱动该动作（例如运行状态） */
+  53|  telemetryKey?: string;
+  54|  /** 为真时播放动作；文本测点可填“运行” */
+  55|  whenValue?: string | number | boolean;
+  56|  /** 绑定到后端/网关指令 id，第一阶段走 Mock 指令 */
+  57|  commandId?: string;
+  58|  /** 下发指令时附带的参数，例如网关 start/stop 的 target */
+  59|  commandParams?: Record<string, unknown>;
+  60|}
+  61|
+  62|export interface DeviceBinding {
+  63|  id: string;
+  64|  sceneEntityId: string;
+  65|  deviceId: string;
+  66|  deviceName: string;
+  67|  telemetryMappings: TelemetryMapping[];
+  68|  actionMappings: ActionMapping[];
+  69|  statusMapping?: StatusMapping;
+  70|}
+  71|
+  72|export interface TelemetryRecord {
+  73|  deviceId: string;
+  74|  key: string;
+  75|  value: number | string | boolean;
+  76|  unit?: string;
+  77|  timestamp: number;
+  78|  /** 固定为演示数据来源标记 */
+  79|  source: "mock" | "guard";
+  80|}
+  81|
+  82|export interface AlarmRecord {
+  83|  id: string;
+  84|  deviceId: string;
+  85|  deviceName: string;
+  86|  level: "warning" | "alarm";
+  87|  message: string;
+  88|  timestamp: number;
+  89|  active: boolean;
+  90|  source: "mock" | "guard";
+  91|}
+
+================================================================================
+FILE apps/web/src/hooks/demo-command-state.ts LINES 42
+================================================================================
+   1|/**
+   2| * 演示模式下启停的本地运行状态。
+   3| * 数值仍由演示测点生成，但运行/停止必须能被指令改写，不能写死为始终运行。
+   4| */
+   5|
+   6|const running = new Map<string, boolean>();
+   7|
+   8|export function getDemoRunning(deviceId: string, fallback = true): boolean {
+   9|  return running.get(deviceId) ?? fallback;
+  10|}
+  11|
+  12|export function setDemoRunning(deviceId: string, value: boolean): void {
+  13|  running.set(deviceId, value);
+  14|}
+  15|
+  16|export function clearDemoRunning(): void {
+  17|  running.clear();
+  18|}
+  19|
+  20|export function isStartCommand(commandId: string, label = ""): boolean {
+  21|  const id = commandId.toLowerCase();
+  22|  if (id === "startall") return false;
+  23|  return id === "start" || id.startsWith("start:") || id.startsWith("start/") || /启动/.test(label);
+  24|}
+  25|
+  26|export function isStopCommand(commandId: string, label = ""): boolean {
+  27|  const id = commandId.toLowerCase();
+  28|  if (id === "stopall") return false;
+  29|  return id === "stop" || id.startsWith("stop:") || id.startsWith("stop/") || /停止/.test(label);
+  30|}
+  31|
+  32|export function applyDemoCommand(deviceId: string, commandId: string, label = ""): boolean | null {
+  33|  if (isStartCommand(commandId, label)) {
+  34|    setDemoRunning(deviceId, true);
+  35|    return true;
+  36|  }
+  37|  if (isStopCommand(commandId, label)) {
+  38|    setDemoRunning(deviceId, false);
+  39|    return false;
+  40|  }
+  41|  return null;
+  42|}
+
+================================================================================
+FILE apps/web/src/hooks/useTelemetryFeed.ts LINES 31
+================================================================================
+   1|
+   2|import { useEffect } from "react";
+   3|import { getDataProvider, getProviderKind, isRealtimePlatformDevice } from "@idt/data-adapter";
+   4|import { useDeviceStore } from "../stores/device.store";
+   5|import { useTelemetryStore } from "../stores/telemetry.store";
+   6|
+   7|/** 订阅接口而不是 Mock 内部方法。UI 更新已在 store 层合并，3D 走 telemetryRuntime。
+   8| *  已有绑定若指向平台虚拟设备，不把它当作实时采集来订阅。
+   9| */
+  10|export function useTelemetryFeed(deviceIds: string[]): void {
+  11|  const apply = useTelemetryStore((s) => s.apply);
+  12|  const setAlarms = useTelemetryStore((s) => s.setAlarms);
+  13|  const devices = useDeviceStore((s) => s.devices);
+  14|  const loading = useDeviceStore((s) => s.loading);
+  15|
+  16|  useEffect(() => {
+  17|    const kind = getProviderKind();
+  18|    if (kind === "guard" && loading && devices.length === 0) return;
+  19|    const allowed = kind === "guard" ? new Set(devices.filter(isRealtimePlatformDevice).map((item) => item.id)) : null;
+  20|    const ids = allowed ? deviceIds.filter((id) => allowed.has(id)) : deviceIds;
+  21|    const provider = getDataProvider();
+  22|    const stop = provider.subscribeTelemetry(ids, (row) => {
+  23|      apply(row);
+  24|    });
+  25|    const stopAlarms = provider.subscribeAlarms?.(setAlarms);
+  26|    return () => {
+  27|      stop();
+  28|      stopAlarms?.();
+  29|    };
+  30|  }, [deviceIds.join("|"), apply, setAlarms, devices, loading]);
+  31|}
+
+================================================================================
+FILE apps/web/src/features/scene-runtime/RuntimeShell.tsx LINES 120
+================================================================================
+   1|
+   2|import { useEffect, useMemo, useState } from "react";
+   3|import { useNavigate } from "react-router-dom";
+   4|import { parseHmiGlb } from "@idt/engine-adapter";
+   5|import { EngineViewport } from "../../engine/react/EngineViewport";
+   6|import { getAsset, readAssetBuffer, resolveAssetUrl } from "../../services/asset/assetService";
+   7|import { useAppStore } from "../../stores/app.store";
+   8|import { useDeviceStore } from "../../stores/device.store";
+   9|import { useSceneStore } from "../../stores/scene.store";
+  10|import { useSelectionStore } from "../../stores/selection.store";
+  11|import { useTelemetryFeed } from "../../hooks/useTelemetryFeed";
+  12|import { AlarmList } from "../alarm/AlarmList";
+  13|import { TelemetryPanel } from "../telemetry/TelemetryPanel";
+  14|import { ActionCommandBar } from "../scene-editor/ActionCommandBar";
+  15|import { getProviderKind } from "@idt/data-adapter";
+  16|import { bindingsForNode, resolveSceneEntity } from "../../utils/scene-entity";
+  17|import { routes } from "../../constants/routes";
+  18|import { buildDevicePlates } from "../../utils/device-plates";
+  19|import { useTelemetryStore } from "../../stores/telemetry.store";
+  20|import { useDemoTelemetry, useTelemetrySource } from "../../hooks/useTelemetrySource";
+  21|import { Button, Segmented, Space } from "antd";
+  22|import styles from "./RuntimeShell.module.css";
+  23|
+  24|export function RuntimeShell() {
+  25|  const nav = useNavigate();
+  26|  const document = useSceneStore((s) => s.document);
+  27|  const hmi = useSceneStore((s) => s.hmi);
+  28|  const setHmi = useSceneStore((s) => s.setHmi);
+  29|  const devices = useDeviceStore((s) => s.devices);
+  30|  const refresh = useDeviceStore((s) => s.refresh);
+  31|  const ready = useAppStore((s) => s.ready);
+  32|  const selectedNode = useSelectionStore((s) => s.nodeName);
+  33|  const select = useSelectionStore((s) => s.select);
+  34|  const [modelUrl, setModelUrl] = useState<string>();
+  35|  const [fullscreen, setFullscreen] = useState(false);
+  36|
+  37|  useEffect(() => { if (ready) void refresh(); }, [ready, refresh]);
+  38|
+  39|  useEffect(() => {
+  40|    const id = document?.rootAssetId;
+  41|    if (!id) { setModelUrl(undefined); return; }
+  42|    let cancelled = false;
+  43|    (async () => {
+  44|      const asset = await getAsset(id);
+  45|      if (!asset || cancelled) return;
+  46|      setModelUrl(await resolveAssetUrl(asset));
+  47|      const parsed = parseHmiGlb(await readAssetBuffer(id));
+  48|      if (!cancelled) setHmi(parsed);
+  49|    })();
+  50|    return () => { cancelled = true; };
+  51|  }, [document?.rootAssetId, setHmi]);
+  52|
+  53|  const [telemetrySource, setTelemetrySource] = useTelemetrySource();
+  54|  const latest = useTelemetryStore((s) => s.latest);
+  55|  const deviceIds = useMemo(() => document?.bindings.map((b) => b.deviceId) ?? [], [document]);
+  56|  useTelemetryFeed(telemetrySource === "live" ? deviceIds : []);
+  57|  useDemoTelemetry(document?.bindings ?? [], telemetrySource === "demo");
+  58|
+  59|  if (!document) return null;
+  60|
+  61|  const binding = bindingsForNode(document, selectedNode)[0];
+  62|  const device = devices.find((d) => d.id === binding?.deviceId);
+  63|  const dataLabel = telemetrySource === "demo"
+  64|    ? "演示数据"
+  65|    : getProviderKind() === "guard" ? "后端数据" : "演示数据";
+  66|  const labels = buildDevicePlates({
+  67|    devices: hmi?.devices ?? [],
+  68|    bindings: document.bindings,
+  69|    latest,
+  70|    source: telemetrySource,
+  71|  });
+  72|
+  73|  return (
+  74|    <div className={styles.shell}>
+  75|      <div className={styles.bar}>
+  76|        <span className={styles.title}>{document.scene.name}</span>
+  77|        <span className="idt-demo-tag">{dataLabel}</span>
+  78|        <span className={styles.grow} />
+  79|        <Segmented
+  80|          size="small"
+  81|          value={telemetrySource}
+  82|          onChange={(v) => setTelemetrySource(v as typeof telemetrySource)}
+  83|          options={[
+  84|            { label: "后端测点", value: "live" },
+  85|            { label: "演示数据", value: "demo" },
+  86|          ]}
+  87|        />
+  88|        <Space>
+  89|          <Button onClick={() => nav(routes.studioEditor(document.scene.id))}>返回工作室</Button>
+  90|          <Button onClick={() => setFullscreen((v) => !v)}>{fullscreen ? "退出全屏布局" : "全屏展示"}</Button>
+  91|          <Button onClick={() => void window.document.documentElement.requestFullscreen?.()}>浏览器全屏</Button>
+  92|        </Space>
+  93|      </div>
+  94|      <div className={`${styles.body} ${fullscreen ? styles.full : ""}`}>
+  95|        <div className={styles.view}>
+  96|          <EngineViewport
+  97|            mode="runtime"
+  98|            modelUrl={modelUrl}
+  99|            gridEnabled={false}
+ 100|            selectedNode={selectedNode}
+ 101|            bindings={document.bindings}
+ 102|            hmi={hmi}
+ 103|            emptyText="该场景还没有导入模型"
+ 104|            labels={labels}
+ 105|            dataLabel={dataLabel}
+ 106|            onSelect={(name) => {
+ 107|              const entity = resolveSceneEntity(document, name);
+ 108|              select(entity?.id ?? name, entity?.nodeName ?? name);
+ 109|            }}
+ 110|          />
+ 111|          <ActionCommandBar document={document} nodeName={selectedNode} />
+ 112|        </div>
+ 113|        <aside className={styles.side}>
+ 114|          <TelemetryPanel device={device} binding={binding} />
+ 115|          <AlarmList />
+ 116|        </aside>
+ 117|      </div>
+ 118|    </div>
+ 119|  );
+ 120|}
+
+================================================================================
+FILE apps/web/src/utils/scene-entity.ts LINES 41
+================================================================================
+   1|import type { DeviceBinding, SceneDocument, SceneEntity } from "@idt/shared-types";
+   2|
+   3|export function isNodeDescendant(child: string, parent?: string): boolean {
+   4|  if (!child || !parent) return false;
+   5|  if (child === parent) return true;
+   6|  return child.startsWith(`${parent}_`) || child.startsWith(`${parent}-`);
+   7|}
+   8|
+   9|export function resolveSceneEntity(
+  10|  document: SceneDocument | null | undefined,
+  11|  nodeName: string | null,
+  12|): SceneEntity | undefined {
+  13|  if (!document || !nodeName) return undefined;
+  14|  const exact = document.entities.find((entity) => entity.nodeName === nodeName || entity.id === nodeName);
+  15|  if (exact) return exact;
+  16|  const matches = document.entities.filter(
+  17|    (entity) => isNodeDescendant(nodeName, entity.nodeName) || isNodeDescendant(nodeName, entity.id),
+  18|  );
+  19|  matches.sort((a, b) => (b.nodeName ?? "").length - (a.nodeName ?? "").length);
+  20|  return matches[0];
+  21|}
+  22|
+  23|export function bindingsForNode(
+  24|  document: SceneDocument | null | undefined,
+  25|  nodeName: string | null,
+  26|): DeviceBinding[] {
+  27|  if (!document || !nodeName) return [];
+  28|  const ids = new Set<string>([nodeName]);
+  29|  for (const entity of document.entities) {
+  30|    if (
+  31|      entity.nodeName === nodeName ||
+  32|      entity.id === nodeName ||
+  33|      isNodeDescendant(nodeName, entity.nodeName) ||
+  34|      isNodeDescendant(nodeName, entity.id)
+  35|    ) {
+  36|      ids.add(entity.id);
+  37|      if (entity.nodeName) ids.add(entity.nodeName);
+  38|    }
+  39|  }
+  40|  return document.bindings.filter((binding) => ids.has(binding.sceneEntityId));
+  41|}
+
+================================================================================
+FILE packages/config/src/theme.ts LINES 35
+================================================================================
+   1|
+   2|/** 视觉对齐 Savior 工业设计平台的中性浅色 + 蓝色强调，不使用其品牌名与标识。 */
+   3|export const themeTokens = {
+   4|  colorBg: "#edf1f7",
+   5|  colorSurface: "#ffffff",
+   6|  colorBorder: "#dce3ed",
+   7|  colorText: "#1f2329",
+   8|  colorMuted: "#5f6e84",
+   9|  colorPrimary: "#1657e8",
+  10|  colorPrimaryStrong: "#002c96",
+  11|  colorAccent: "#2f6bff",
+  12|  colorSuccess: "#19b37d",
+  13|  colorWarning: "#e8930c",
+  14|  colorDanger: "#e5484d",
+  15|  colorViewport: "#dce3ed",
+  16|  fontFamily:
+  17|    '"PingFang SC", "Noto Sans SC", "Microsoft YaHei", system-ui, -apple-system, sans-serif',
+  18|} as const;
+  19|
+  20|export const antdTheme = {
+  21|  token: {
+  22|    colorPrimary: themeTokens.colorPrimary,
+  23|    colorSuccess: themeTokens.colorSuccess,
+  24|    colorWarning: themeTokens.colorWarning,
+  25|    colorError: themeTokens.colorDanger,
+  26|    colorText: themeTokens.colorText,
+  27|    colorTextSecondary: themeTokens.colorMuted,
+  28|    colorBorder: themeTokens.colorBorder,
+  29|    colorBgLayout: themeTokens.colorBg,
+  30|    colorBgContainer: themeTokens.colorSurface,
+  31|    borderRadius: 8,
+  32|    fontFamily: themeTokens.fontFamily,
+  33|    fontSize: 13,
+  34|  },
+  35|};

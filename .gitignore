@@ -20,16 +20,11 @@ test-results/
 *.swp
 
 # local secrets & machine-specific packs (never commit)
-150-server-skill/
 150-server-skill-20261121.zip
 逆向skill/
 逆向skill.zip
-_tmp-savehmi/
-_scaffold/
-_preview-tmp/
 
 # large local binaries used as fixtures (import on disk, do not commit)
 apps/web/public/models/*.glb
 apps/web/public/models/*.gltf
 apps/web/public/environments/*.hdr
-/_tmp-ngx-shots/

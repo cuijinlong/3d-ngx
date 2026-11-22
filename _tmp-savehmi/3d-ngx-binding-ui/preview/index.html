@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>3D-NGX 设备绑定台示意</title>
+  <style>
+    :root {
+      --text: #1f2329;
+      --muted: #5f6e84;
+      --primary: #1657e8;
+      --primary-hover: #2f6bff;
+      --success: #19b37d;
+      --danger: #e5484d;
+      --bg: #ffffff;
+      --wash: #edf1f7;
+      --line: #d8e0ea;
+      --shadow: 0 8px 24px rgba(31, 35, 41, 0.12);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font: 13px/1.5 "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+      color: var(--text);
+      background: #f4f6fa;
+    }
+    h1, h2, h3 { margin: 0; font-weight: 600; }
+    .page { padding: 28px 32px 48px; }
+    .page > h1 { font-size: 20px; margin-bottom: 6px; }
+    .lead { color: var(--muted); margin: 0 0 24px; max-width: 720px; }
+    .stage {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(320px, 400px));
+      gap: 28px 36px;
+      align-items: start;
+    }
+    .col h2 { font-size: 13px; color: var(--muted); font-weight: 500; margin-bottom: 10px; }
+    .studio {
+      background: #dce3ee;
+      border-radius: 10px;
+      height: 640px;
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+      position: relative;
+    }
+    .viewport {
+      background:
+        linear-gradient(180deg, #e8eef6 0%, #d5dee9 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .viewport .obj {
+      width: 88px; height: 88px;
+      border: 2px solid var(--primary);
+      border-radius: 6px;
+      background: rgba(22, 87, 232, 0.08);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--primary);
+      font-size: 11px;
+    }
+    .panel {
+      background: var(--bg);
+      border-left: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .panel-hd {
+      padding: 14px 16px 10px;
+      border-bottom: 1px solid var(--wash);
+    }
+    .panel-hd h3 { font-size: 14px; }
+    .entity { color: var(--muted); font-size: 12px; margin-top: 2px; }
+    .body { padding: 12px 16px 16px; overflow: auto; flex: 1; }
+    .sec { margin-bottom: 18px; }
+    .sec-title {
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .hint { color: var(--muted); font-size: 12px; }
+    .empty {
+      padding: 28px 8px 8px;
+      text-align: center;
+      color: var(--muted);
+    }
+    .empty p { margin: 0 0 14px; }
+    .seg {
+      display: flex;
+      background: var(--wash);
+      border-radius: 6px;
+      padding: 2px;
+      margin-bottom: 10px;
+    }
+    .seg button {
+      flex: 1;
+      border: 0;
+      background: transparent;
+      height: 28px;
+      border-radius: 4px;
+      color: var(--muted);
+      cursor: default;
+      font: inherit;
+    }
+    .seg button.on {
+      background: var(--bg);
+      color: var(--primary);
+      font-weight: 600;
+      box-shadow: 0 1px 2px rgba(31,35,41,.08);
+    }
+    .bind-row, .beh-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      min-height: 36px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 6px 8px 6px 10px;
+      background: var(--bg);
+    }
+    .beh-row {
+      border: 0;
+      border-bottom: 1px solid var(--wash);
+      border-radius: 0;
+      padding: 8px 0;
+    }
+    .beh-list { border-top: 1px solid var(--wash); }
+    .name { font-weight: 500; }
+    .summary { color: var(--muted); font-size: 12px; text-align: right; flex: 1; }
+    .icon-btn, .btn {
+      border: 0;
+      background: transparent;
+      color: var(--primary);
+      font: inherit;
+      cursor: default;
+      padding: 0 4px;
+    }
+    .btn-ghost {
+      border: 1px solid var(--line);
+      background: var(--bg);
+      color: var(--text);
+      height: 30px;
+      padding: 0 12px;
+      border-radius: 6px;
+    }
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+      height: 30px;
+      padding: 0 14px;
+      border-radius: 6px;
+      border: 0;
+      font: inherit;
+    }
+    .btn-danger { color: var(--danger); padding: 0; }
+    .foot { padding-top: 12px; }
+    .disabled { opacity: .45; pointer-events: none; }
+    .chip {
+      display: flex; align-items: center; gap: 6px;
+      flex: 1; min-width: 0;
+    }
+    .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); flex: none; }
+    .popover {
+      position: absolute;
+      right: 332px;
+      top: 210px;
+      width: 300px;
+      background: var(--bg);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--line);
+      padding: 12px 14px 14px;
+      z-index: 2;
+    }
+    .popover.alias { top: 118px; }
+    .pop-hd { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .pop-hd h3 { font-size: 13px; }
+    .field { margin-bottom: 10px; }
+    .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    .ctrl {
+      width: 100%;
+      height: 32px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 0 8px;
+      display: flex; align-items: center;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .req::after { content: " *"; color: var(--danger); }
+    .radios { display: flex; gap: 16px; align-items: center; height: 28px; }
+    .radios span { display: flex; align-items: center; gap: 6px; }
+    .radios i {
+      width: 14px; height: 14px; border-radius: 50%;
+      border: 2px solid var(--line); display: inline-block;
+    }
+    .radios .on i { border-color: var(--primary); box-shadow: inset 0 0 0 3px var(--primary); border-width: 2px; }
+    .tf { display: flex; gap: 0; }
+    .tf b {
+      flex: 1; text-align: center; height: 30px; line-height: 28px;
+      border: 1px solid var(--line); font-weight: 500; font-size: 12px;
+    }
+    .tf b:first-child { border-radius: 6px 0 0 6px; border-right: 0; background: #eef3ff; color: var(--primary); border-color: var(--primary); }
+    .tf b:last-child { border-radius: 0 6px 6px 0; color: var(--muted); }
+    .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+    .note { margin-top: 24px; color: var(--muted); font-size: 12px; max-width: 760px; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>3D-NGX 设备绑定台</h1>
+    <p class="lead">右侧栏示意，不是抽屉。逻辑对齐平台「目标设备 + 行为」，风格为 savehmi。左图是未选对象或未绑定，右图是已绑定实时设备并打开「运行中」编辑。</p>
+    <div class="stage">
+      <div class="col">
+        <h2>未选对象</h2>
+        <div class="studio">
+          <div class="viewport">场景视口</div>
+          <aside class="panel">
+            <div class="panel-hd">
+              <h3>设备绑定</h3>
+              <div class="entity">未选择对象</div>
+            </div>
+            <div class="body">
+              <div class="empty">
+                <p>在场景里点选要绑定的对象。<br />绑定只针对实时设备。</p>
+                <button class="btn-ghost">按名称自动连接</button>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+      <div class="col">
+        <h2>已选对象，尚未绑定</h2>
+        <div class="studio">
+          <div class="viewport"><div class="obj">泵 1</div></div>
+          <aside class="panel">
+            <div class="panel-hd">
+              <h3>设备绑定</h3>
+              <div class="entity">当前对象：Left motor pump</div>
+            </div>
+            <div class="body">
+              <section class="sec">
+                <div class="sec-title">目标设备</div>
+                <div class="seg">
+                  <button class="on">设备</button>
+                  <button>实体别名</button>
+                </div>
+                <div class="bind-row">
+                  <span class="hint">选择实时设备</span>
+                </div>
+                <p class="hint" style="margin:8px 0 0">只能绑定实时设备。虚拟设备用于手动上报，不会出现在这里。</p>
+              </section>
+              <section class="sec disabled">
+                <div class="sec-title">行为</div>
+                <p class="hint">先选择目标设备</p>
+              </section>
+            </div>
+          </aside>
+        </div>
+      </div>
+      <div class="col">
+        <h2>已绑定 · 实体别名 · 编辑运行中</h2>
+        <div class="studio">
+          <div class="viewport"><div class="obj">泵 1</div></div>
+          <aside class="panel">
+            <div class="panel-hd">
+              <h3>设备绑定</h3>
+              <div class="entity">当前对象：Left motor pump</div>
+            </div>
+            <div class="body">
+              <section class="sec">
+                <div class="sec-title">目标设备</div>
+                <div class="seg">
+                  <button>设备</button>
+                  <button class="on">实体别名</button>
+                </div>
+                <div class="bind-row">
+                  <div class="chip"><i class="dot"></i><span class="name">2#换热站控制器</span></div>
+                  <button class="icon-btn">清除</button>
+                  <button class="icon-btn">编辑</button>
+                </div>
+                <p class="hint" style="margin:8px 0 0">解析到实时设备 HX2-StationController</p>
+              </section>
+              <section class="sec">
+                <div class="sec-title">行为</div>
+                <div class="beh-list">
+                  <div class="beh-row" style="background:#f3f7ff">
+                    <span class="name">运行中</span>
+                    <span class="summary">使用时间序列「pump1_running」</span>
+                    <button class="icon-btn">编辑</button>
+                  </div>
+                  <div class="beh-row">
+                    <span class="name">警告状态</span>
+                    <span class="summary">False</span>
+                    <button class="icon-btn">编辑</button>
+                  </div>
+                  <div class="beh-row">
+                    <span class="name">严重状态</span>
+                    <span class="summary">False</span>
+                    <button class="icon-btn">编辑</button>
+                  </div>
+                  <div class="beh-row">
+                    <span class="name">严重状态动画</span>
+                    <span class="summary">False</span>
+                    <button class="icon-btn">编辑</button>
+                  </div>
+                  <div class="beh-row">
+                    <span class="name">离线</span>
+                    <span class="summary">使用设备在线状态</span>
+                    <button class="icon-btn">编辑</button>
+                  </div>
+                  <div class="beh-row">
+                    <span class="name">点击</span>
+                    <span class="summary">无操作</span>
+                    <button class="icon-btn">编辑</button>
+                  </div>
+                </div>
+              </section>
+              <section class="sec">
+                <div class="sec-title">测点显示</div>
+                <p class="hint">把设备测点接到该对象的模型接口，供界面读数。默认可折叠。</p>
+              </section>
+              <div class="foot"><button class="btn btn-danger">解绑</button></div>
+            </div>
+          </aside>
+          <div class="popover">
+            <div class="pop-hd"><h3>运行中</h3><span class="hint">×</span></div>
+            <div class="field">
+              <label>操作</label>
+              <div class="ctrl">获取时间序列</div>
+            </div>
+            <div class="field">
+              <label class="req">时间序列键</label>
+              <div class="ctrl">pump1_running</div>
+            </div>
+            <div class="field">
+              <label>操作结果转换器</label>
+              <div class="radios">
+                <span class="on"><i></i>无</span>
+                <span class="hint" style="color:#9aa7b8"><i></i>函数（V1 不做）</span>
+              </div>
+            </div>
+            <div class="field">
+              <label>当结果为「运行中」时</label>
+              <div class="ctrl" style="margin-bottom:6px">布尔值</div>
+              <div class="tf"><b>True</b><b>False</b></div>
+            </div>
+            <div class="actions">
+              <button class="btn-ghost">取消</button>
+              <button class="btn-primary">应用</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col">
+        <h2>编辑实体别名</h2>
+        <div class="studio">
+          <div class="viewport"><div class="obj">泵 1</div></div>
+          <aside class="panel">
+            <div class="panel-hd">
+              <h3>设备绑定</h3>
+              <div class="entity">当前对象：Left motor pump</div>
+            </div>
+            <div class="body">
+              <section class="sec">
+                <div class="sec-title">目标设备</div>
+                <div class="seg">
+                  <button>设备</button>
+                  <button class="on">实体别名</button>
+                </div>
+                <div class="bind-row" style="border-color:var(--primary)">
+                  <div class="chip"><i class="dot"></i><span class="name">2#换热站控制器</span></div>
+                  <button class="icon-btn">编辑</button>
+                </div>
+              </section>
+            </div>
+          </aside>
+          <div class="popover alias">
+            <div class="pop-hd"><h3>编辑别名</h3><span class="hint">×</span></div>
+            <div class="field">
+              <label class="req">别名名称</label>
+              <div class="ctrl">2#换热站控制器</div>
+            </div>
+            <div class="field">
+              <label class="req">设备</label>
+              <div class="ctrl">HX2-StationController</div>
+            </div>
+            <p class="hint">V1 只绑定一台实时设备，不做多实体过滤。</p>
+            <div class="actions">
+              <button class="btn-ghost">取消</button>
+              <button class="btn-primary">保存</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="note">这是静态示意，供对照还原。完整字段、不做清单和数据落法见上一级「3D-NGX-设备绑定方案.md」。点击在 3D-NGX 中是「无操作 / 下发命令 / 打开设备详情」，不要使用平台里的仪表板导航菜单。</p>
+  </div>
+</body>
+</html>

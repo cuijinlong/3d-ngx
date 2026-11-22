@@ -1,0 +1,20 @@
+# ===== 追加到本机 ~/.ssh/config（Windows: C:\Users\<你>\.ssh\config）=====
+# 150 中转机（公网直连）
+Host relay150 150
+    HostName 150.158.41.155
+    User root
+    ServerAliveInterval 30
+    ServerAliveCountMax 3
+
+# 可选：直连 124/49 不通时，经 150 中转一次
+Host gt124-via150
+    HostName 124.220.77.179
+    User root
+    ProxyJump relay150
+    ServerAliveInterval 30
+
+Host jinnuo49-via150
+    HostName 49.234.181.201
+    User root
+    ProxyJump relay150
+    ServerAliveInterval 30

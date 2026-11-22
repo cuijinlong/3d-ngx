@@ -1,0 +1,63 @@
+{
+  "ok": true,
+  "gateway": {
+    "needLogin": true,
+    "url": "http://127.0.0.1:8090/entities/gateways?stateId=gateway_details&entityId=07f4df20-e50d-11f1-9407-71dd197ec25f",
+    "titleHint": true,
+    "deviceNames": [
+      "天骄-PLC网关·生产园区",
+      "天骄-模块机-1#·生产园区\t风冷冷水机\t离线",
+      "天骄-模块机-2#·生产园区\t风冷冷水机\t离线",
+      "天骄-模块机-3#·生产园区\t风冷冷水机\t离线",
+      "天骄-模块机-4#·生产园区\t风冷冷水机\t离线",
+      "天骄-模块机-5#·生产园区\t风冷冷水机\t离线",
+      "天骄-模块机-6#·生产园区\t风冷冷水机\t离线",
+      "天骄-模块机-7#·生产园区\t风冷冷水机\t离线",
+      "天骄-模块机-8#·生产园区\t风冷冷水机\t离线",
+      "天骄-PLC控制柜-1·生产园区\tPLC控制柜\t离线",
+      "天骄-PLC控制柜-2·生产园区\tPLC控制柜\t离线"
+    ],
+    "count": 11,
+    "hasModule": true,
+    "emptyHint": false,
+    "devicesCard": null,
+    "pageHint": null,
+    "hasAllKinds": false
+  },
+  "editor": {
+    "url": "http://127.0.0.1:5173/studio/editor/scene_b471b867e581",
+    "hasImportModelBtn": true,
+    "hasAutoConnect": true,
+    "hasGuide": true,
+    "footerHasConnect": true,
+    "footerSaved": true,
+    "hasLabels": true,
+    "canvas": {
+      "w": 776,
+      "h": 3653,
+      "clientW": 776,
+      "clientH": 3653
+    },
+    "layout": {
+      "canvas": {
+        "w": 776,
+        "h": 3653,
+        "clientW": 776,
+        "clientH": 3653,
+        "rect": {}
+      },
+      "viewport": {},
+      "shell": {}
+    }
+  },
+  "shots": [
+    "/Users/cuijinlong/Documents/workspace/3d-ngx/_tmp-savehmi/ngx-upload/gb2-gateway-details.png",
+    "/Users/cuijinlong/Documents/workspace/3d-ngx/_tmp-savehmi/ngx-upload/gb2-editor-after-visual.png",
+    "/Users/cuijinlong/Documents/workspace/3d-ngx/_tmp-savehmi/ngx-upload/gb2-editor-viewport.png"
+  ],
+  "errors": [
+    "watchdog",
+    "TargetCloseError: Protocol error (Runtime.callFunctionOn): Target closed\n    at CallbackRegistry.clear (file:///private/tmp/ngx-tianjiao-upload/node_modules/puppeteer-core/lib/esm/puppeteer/common/CallbackRegistry.js:79:36)\n    at CdpCDPSession.onClosed (file:///private/tmp/ngx-tianjiao-upload/node_modules/puppeteer-core/lib/esm/puppeteer/cdp/CdpSession.js:112:25)\n    at Connection.onMessage (file:///private/tmp/ngx-tianjiao-upload/node_modules/puppeteer-core/lib/esm/puppeteer/cdp/Connection.js:145:25)\n    at WebSocket.<anonymous> (file:///private/tmp/ngx-tianjiao-upload/node_modules/puppeteer-core/lib/esm/puppeteer/node/NodeWebSocketTransport.js:37:32)\n    at callListener (/private/tmp/ngx-tianjiao-upload/node_modules/ws/lib/event-target.js:290:14)\n    at WebSocket.onMessage (/private/tmp/ngx-tianjiao-upload/node_modules/ws/lib/event-target.js:209:9)\n    at WebSocket.emit (node:events:524:28)\n    at Receiver.receiverOnMessage (/private/tmp/ngx-tianjiao-upload/node_modules/ws/lib/websocket.js:1282:20)\n    at Receiver.emit (node:events:524:28)\n    at Immediate.<anonymous> (/private/tmp/ngx-tianjiao-upload/node_modules/ws/lib/receiver.js:646:16)"
+  ],
+  "recapture": true
+}
