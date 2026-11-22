@@ -8,6 +8,7 @@ import {
   postLoginPath,
   resolveAccess,
   workbenchChrome,
+  shouldShowWidgetDraftMark,
 } from "./access";
 import { PLATFORM_NULL_CUSTOMER_ID, LAST_CUSTOMER_STORAGE_KEY } from "./customer-scope";
 
@@ -100,7 +101,9 @@ describe("login split and route access", () => {
     expect(customer.showWidgetDrag).toBe(false);
     expect(customer.showDemoTelemetryToggle).toBe(false);
     expect(customer.showReturnToStudio).toBe(false);
+    expect(customer.showWidgetDraftMark).toBe(false);
     expect(customer.showPlatformSettings).toBe(false);
+    expect(workbenchChrome("tenant").showWidgetDraftMark).toBe(true);
     expect(customer.showJumpConfig).toBe(false);
     expect(customer.showLogout).toBe(true);
     expect(customer.showThemeToggle).toBe(true);
@@ -114,5 +117,26 @@ describe("login split and route access", () => {
     expect(brandPath("customer")).toBe(routes.runtime);
     expect(brandPath("anonymous")).toBe(routes.login);
     expect(brandPath("tenant")).not.toContain(PLATFORM_NULL_CUSTOMER_ID);
+  });
+
+  it("never shows the widget draft mark to a customer, even if the overlay flag is left on", () => {
+    expect(shouldShowWidgetDraftMark({
+      role: "customer",
+      showDraftMark: true,
+      widgetsSource: "local-draft",
+      widgetCount: 2,
+    })).toBe(false);
+    expect(shouldShowWidgetDraftMark({
+      role: "tenant",
+      showDraftMark: true,
+      widgetsSource: "local-draft",
+      widgetCount: 2,
+    })).toBe(true);
+    expect(shouldShowWidgetDraftMark({
+      role: "tenant",
+      showDraftMark: false,
+      widgetsSource: "local-draft",
+      widgetCount: 2,
+    })).toBe(false);
   });
 });

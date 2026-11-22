@@ -19,7 +19,7 @@ import {
 } from "./scene-storage";
 import { DEFAULT_SCENE_DRAFT_STORAGE_KEY, readDefaultSceneDraft } from "./default-scene-draft";
 import { readSceneJumpDraft, SCENE_JUMP_DRAFT_STORAGE_KEY } from "./scene-jump-draft";
-import { readSceneWidgetDraft, SCENE_WIDGET_DRAFT_STORAGE_KEY } from "./scene-widget-draft";
+import { readSceneWidgetDraft, SCENE_WIDGET_DRAFT_STORAGE_KEY, widgetDraftKey } from "./scene-widget-draft";
 
 function memoryStorage(): Storage {
   const map = new Map<string, string>();
@@ -151,5 +151,30 @@ describe("scene storage client", () => {
     const published = await saveSceneWidgets({ requestJson: ok } as unknown as GuardClient, "topo-a", saved.document, storage);
     expect(published.source).toBe("platform");
     expect(readSceneWidgetDraft("topo-a", storage)).toBeNull();
+  });
+
+  it("writes a scene-keyed local widget draft when there is no topologyId, and resolve can read it back after refresh", async () => {
+    const storage = memoryStorage();
+    const layout = {
+      schemaVersion: "1.0.0" as const,
+      glassOpacity: 0.72,
+      widgets: [{ id: "w1", type: "metric-card", x: 30, y: 74, w: 16, h: 12 }],
+    };
+    const requestJson = vi.fn(async () => {
+      throw new Error("should not call the platform without a topologyId");
+    });
+    const saved = await saveSceneWidgets({ requestJson } as unknown as GuardClient, null, layout, storage, "scene-local");
+    expect(saved.source).toBe("local-draft");
+    expect(requestJson).not.toHaveBeenCalled();
+    expect(widgetDraftKey({ sceneId: "scene-local" })).toBe("scene:scene-local");
+    expect(readSceneWidgetDraft({ sceneId: "scene-local" }, storage)?.document.widgets).toHaveLength(1);
+    expect(storage.getItem(SCENE_WIDGET_DRAFT_STORAGE_KEY)).toContain("scene:scene-local");
+
+    const refreshed = memoryStorage();
+    refreshed.setItem(SCENE_WIDGET_DRAFT_STORAGE_KEY, storage.getItem(SCENE_WIDGET_DRAFT_STORAGE_KEY)!);
+    const resolved = await resolveSceneWidgets(null, null, undefined, refreshed, "scene-local");
+    expect(resolved.source).toBe("local-draft");
+    expect(resolved.document.widgets[0]?.id).toBe("w1");
+    expect(resolved.source).not.toBe("platform");
   });
 });

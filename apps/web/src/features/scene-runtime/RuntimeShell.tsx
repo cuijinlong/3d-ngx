@@ -306,7 +306,8 @@ export function RuntimeShell() {
             <WidgetOverlay
               layout={sceneWidgets}
               readOnly
-              showDraftMark={chrome.showReturnToStudio}
+              showDraftMark={chrome.showWidgetDraftMark}
+              role={role}
               widgetsSource={persistence.widgetsSource}
               sceneTitle={sceneName}
               bindings={document.bindings}

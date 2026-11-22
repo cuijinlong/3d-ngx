@@ -106,11 +106,12 @@ export type { SceneJumpDraft, SceneJumpLink, SceneJumpTarget, ObjectClickDecisio
 export {
   SCENE_WIDGET_DRAFT_NOTICE,
   SCENE_WIDGET_DRAFT_STORAGE_KEY,
+  widgetDraftKey,
   readSceneWidgetDraft,
   writeSceneWidgetDraft,
   clearSceneWidgetDraft,
 } from "./scene-widget-draft";
-export type { SceneWidgetDraft } from "./scene-widget-draft";
+export type { SceneWidgetDraft, SceneWidgetDraftRef } from "./scene-widget-draft";
 export { getAuthSnapshot } from "./auth-snapshot";
 export type { AuthSnapshot } from "./auth-snapshot";
 export { LOCAL_DRAFT_NOTICE, isSceneStorageUnmounted, isSceneStorageUnavailable, isDefaultSceneEmptyPointer, guardErrorCode } from "./scene-storage-errors";

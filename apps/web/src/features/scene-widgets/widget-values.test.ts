@@ -1,7 +1,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { Device, DeviceBinding, TelemetryRecord } from "@idt/shared-types";
-import { readSlotValue, summarizeSceneBindings, selectionBindings, widgetBindableDevices, resolveWidgetBindingSlots } from "./widget-values";
+import { readSlotValue, summarizeSceneBindings, selectionBindings, widgetBindableDevices, resolveWidgetBindingSlots, canDisplayWidgetDeviceReading } from "./widget-values";
 
 function binding(partial: Partial<DeviceBinding> = {}): DeviceBinding {
   return {
@@ -140,5 +140,90 @@ describe("widget-values", () => {
     }];
     expect(resolveWidgetBindingSlots("dev-v", "temperature", forged, [realtime])).toEqual([]);
     expect(resolveWidgetBindingSlots("dev-1", "temperature", options, [realtime])[0]?.deviceId).toBe("dev-1");
+  });
+
+  it("does not display a value or trend for a stale virtual deviceId even when the feed still has data", () => {
+    const realtime: Device = {
+      id: "dev-1",
+      name: "模块机 9#",
+      type: "ahu",
+      points: [{ key: "temperature", label: "温度", unit: "℃", displayType: "number" }],
+      source: "guard",
+      createdAt: "t",
+      updatedAt: "t",
+    };
+    const latest: Record<string, TelemetryRecord> = {
+      "dev-v:temperature": {
+        deviceId: "dev-v",
+        key: "temperature",
+        value: 36,
+        unit: "℃",
+        timestamp: 1,
+        source: "guard",
+      },
+      "dev-1:temperature": {
+        deviceId: "dev-1",
+        key: "temperature",
+        value: 18.4,
+        unit: "℃",
+        timestamp: 1,
+        source: "guard",
+      },
+    };
+    const staleSlot = { key: "temperature", deviceId: "dev-v", telemetryKey: "temperature", label: "温度" };
+    const hidden = readSlotValue(staleSlot, [], latest, [realtime]);
+    expect(hidden.text).toBe("");
+    expect(hidden.bound).toBe(false);
+    expect(hidden.missing).toBe(true);
+
+    const beforeList = readSlotValue(staleSlot, [], latest, []);
+    expect(beforeList.bound).toBe(true);
+    expect(beforeList.text).toContain("36");
+    expect(canDisplayWidgetDeviceReading("dev-v", [])).toBe(true);
+    expect(canDisplayWidgetDeviceReading("dev-v", [realtime])).toBe(false);
+    expect(readSlotValue({ key: "temperature", deviceId: "dev-1", telemetryKey: "temperature" }, [], latest, [realtime]).text).toContain("18.4");
+  });
+
+  it("excludes virtual or unknown devices from the summary and selection cards once the realtime list is ready", () => {
+    const realtime: Device = {
+      id: "dev-1",
+      name: "模块机 9#",
+      type: "ahu",
+      points: [{ key: "temperature", label: "温度", unit: "℃", displayType: "number" }],
+      source: "guard",
+      createdAt: "t",
+      updatedAt: "t",
+    };
+    const latest: Record<string, TelemetryRecord> = {
+      "dev-1:temperature": {
+        deviceId: "dev-1",
+        key: "temperature",
+        value: 18.4,
+        timestamp: 1,
+        source: "guard",
+      },
+      "dev-v:temperature": {
+        deviceId: "dev-v",
+        key: "temperature",
+        value: 36,
+        timestamp: 1,
+        source: "guard",
+      },
+    };
+    const rows = [
+      binding(),
+      binding({ id: "b-v", deviceId: "dev-v", deviceName: "虚拟点位", sceneEntityId: "fan-v" }),
+    ];
+    const beforeList = summarizeSceneBindings(rows, latest);
+    expect(beforeList.boundCount).toBe(2);
+    expect(beforeList.withDataCount).toBe(2);
+
+    const ready = summarizeSceneBindings(rows, latest, [realtime]);
+    expect(ready.boundCount).toBe(1);
+    expect(ready.withDataCount).toBe(1);
+
+    expect(selectionBindings("fan-v", rows).map((item) => item.deviceId)).toEqual(["dev-v"]);
+    expect(selectionBindings("fan-v", rows, [realtime])).toEqual([]);
+    expect(selectionBindings("fan-1", rows, [realtime]).map((item) => item.deviceId)).toEqual(["dev-1"]);
   });
 });

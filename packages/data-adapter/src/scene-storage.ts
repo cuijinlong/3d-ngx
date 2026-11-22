@@ -380,12 +380,13 @@ export async function saveSceneBindings(
 
 export async function resolveSceneWidgets(
   client: GuardClient | null,
-  topologyId: string,
+  topologyId?: string | null,
   local?: SceneWidgetsDocument | null,
   storage?: Storage | null,
+  sceneId?: string | null,
 ): Promise<WidgetsResult> {
-  const draft = readSceneWidgetDraft(topologyId, storage);
-  if (client) {
+  const draft = readSceneWidgetDraft({ topologyId, sceneId }, storage);
+  if (client && topologyId) {
     try {
       const document = await new SceneStorageApi(client).getWidgets(topologyId);
       cachedAvailability = { value: true, at: Date.now() };
@@ -406,15 +407,16 @@ export async function resolveSceneWidgets(
 
 export async function saveSceneWidgets(
   client: GuardClient | null,
-  topologyId: string,
+  topologyId?: string | null,
   document?: SceneWidgetsDocument | null,
   storage?: Storage | null,
+  sceneId?: string | null,
 ): Promise<WidgetsResult> {
   const next = document ?? { ...SCENE_WIDGETS_EMPTY };
-  if (client) {
+  if (client && topologyId) {
     try {
       const saved = await new SceneStorageApi(client).putWidgets(topologyId, next);
-      clearSceneWidgetDraft(topologyId, storage);
+      clearSceneWidgetDraft({ topologyId, sceneId }, storage);
       cachedAvailability = { value: true, at: Date.now() };
       return { document: saved, source: "platform" };
     } catch (error) {
@@ -425,7 +427,11 @@ export async function saveSceneWidgets(
       if (isSceneStorageUnmounted(error)) cachedAvailability = { value: false, at: Date.now() };
     }
   }
-  writeSceneWidgetDraft({ topologyId, document: next }, storage);
+  writeSceneWidgetDraft({
+    ...(topologyId ? { topologyId } : {}),
+    ...(sceneId ? { sceneId } : {}),
+    document: next,
+  }, storage);
   return { document: next, source: "local-draft" };
 }
 

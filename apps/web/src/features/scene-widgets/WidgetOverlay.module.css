@@ -52,8 +52,9 @@
   padding: 10px 12px 8px;
   border-radius: var(--ngx-radius, 8px);
   --widget-glass-alpha: 0.72;
+  --widget-glass-border-alpha: var(--widget-glass-alpha);
   background: rgba(var(--ngx-glass-rgb, 255, 255, 255), var(--widget-glass-alpha));
-  border: 1px solid rgba(var(--ngx-glass-border-rgb, 220, 227, 237), var(--widget-glass-alpha));
+  border: 1px solid rgba(var(--ngx-glass-border-rgb, 220, 227, 237), var(--widget-glass-border-alpha));
   backdrop-filter: blur(var(--widget-blur, var(--ngx-glass-blur)));
   -webkit-backdrop-filter: blur(var(--widget-blur, var(--ngx-glass-blur)));
   color: var(--widget-text, var(--ngx-color-text));
@@ -381,4 +382,9 @@
 
 .linkBtn:hover {
   text-decoration: underline;
+}
+
+/* 深色描边保持主题默认 0.08，不跟整屏玻璃滑杆，避免比 --ngx-glass-border 更实。浅色仍用整屏 alpha。 */
+[data-theme="dark"] .card {
+  --widget-glass-border-alpha: var(--ngx-glass-border-alpha, 0.08);
 }

@@ -7,7 +7,7 @@ import type { ParsedHmiScene, SceneEntity } from "@idt/shared-types";
 import { EngineViewport } from "../../engine/react/EngineViewport";
 import { WidgetOverlay, hasSummaryCard } from "../scene-widgets/WidgetOverlay";
 import { routes } from "../../constants/routes";
-import { customerScopePath, workbenchChrome } from "../../auth/access";
+import { customerScopePath, shouldShowWidgetDraftMark, workbenchChrome } from "../../auth/access";
 import { useAuthSession } from "../../auth/AuthSession";
 import { LOCAL_DRAFT_NOTICE } from "@idt/data-adapter";
 import { openSceneKey } from "../../services/scene/sceneService";
@@ -251,9 +251,16 @@ export function EditorShell() {
         </button>
         <span className={styles.brand}>3D-NGX</span>
         <span className={styles.draftTag}>{
-          !persistence.available
-          || persistence.bindingsSource === "local-draft"
-          || (persistence.widgetsSource === "local-draft" && (sceneWidgets?.widgets.length ?? 0) > 0)
+          role !== "customer" && (
+            !persistence.available
+            || persistence.bindingsSource === "local-draft"
+            || shouldShowWidgetDraftMark({
+              role,
+              showDraftMark: chrome.showWidgetDraftMark,
+              widgetsSource: persistence.widgetsSource,
+              widgetCount: sceneWidgets?.widgets.length ?? 0,
+            })
+          )
             ? LOCAL_DRAFT_NOTICE
             : document.platform?.publishState === "published"
               ? "已发布"
@@ -367,7 +374,8 @@ export function EditorShell() {
               layout={sceneWidgets}
               arranging={arranging && chrome.showWidgetDrag}
               readOnly={!editing || !chrome.showWidgetDrag}
-              showDraftMark
+              showDraftMark={chrome.showWidgetDraftMark}
+              role={role}
               widgetsSource={persistence.widgetsSource}
               sceneTitle={document.scene.name}
               bindings={document.bindings}

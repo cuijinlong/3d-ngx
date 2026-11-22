@@ -41,6 +41,7 @@
   --ngx-color-nameplate-text: #ffffff;
   --ngx-glass-bg: rgba(255, 255, 255, 0.72);
   --ngx-glass-border: rgba(220, 227, 237, 0.85);
+  --ngx-glass-border-alpha: 0.85;
   --ngx-glass-rgb: 255, 255, 255;
   --ngx-glass-border-rgb: 220, 227, 237;
   --ngx-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
@@ -68,6 +69,7 @@
   --ngx-color-nameplate-text: #ffffff;
   --ngx-glass-bg: rgba(255, 255, 255, 0.72);
   --ngx-glass-border: rgba(220, 227, 237, 0.85);
+  --ngx-glass-border-alpha: 0.85;
   --ngx-glass-rgb: 255, 255, 255;
   --ngx-glass-border-rgb: 220, 227, 237;
   --ngx-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
@@ -95,6 +97,7 @@
   --ngx-color-nameplate-text: #e8edf4;
   --ngx-glass-bg: rgba(27, 33, 43, 0.72);
   --ngx-glass-border: rgba(255, 255, 255, 0.08);
+  --ngx-glass-border-alpha: 0.08;
   --ngx-glass-rgb: 27, 33, 43;
   --ngx-glass-border-rgb: 255, 255, 255;
   --ngx-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);

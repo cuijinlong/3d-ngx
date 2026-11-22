@@ -19,6 +19,7 @@ import {
   type SceneWidget,
   type SceneWidgetLayout,
   type SceneWidgetSlot,
+  type SessionRole,
   widgetTypeMeta,
 } from "@idt/data-adapter";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
@@ -34,6 +35,7 @@ import {
   widgetHeading,
 } from "./WidgetCards";
 import { hasSummaryCard, readSlotValue, resolveWidgetBindingSlots, widgetBindableDevices, type WidgetPointOption } from "./widget-values";
+import { shouldShowWidgetDraftMark } from "../../auth/access";
 import styles from "./WidgetOverlay.module.css";
 
 type DragKind = "move" | "resize";
@@ -43,6 +45,7 @@ interface WidgetOverlayProps {
   arranging?: boolean;
   readOnly?: boolean;
   showDraftMark?: boolean;
+  role?: SessionRole;
   widgetsSource?: "platform" | "local-draft" | "empty";
   sceneTitle?: string;
   bindings?: DeviceBinding[];
@@ -188,7 +191,12 @@ export function WidgetOverlay(props: WidgetOverlayProps) {
     event.stopPropagation();
   };
 
-  const showDraft = Boolean(props.showDraftMark) && props.widgetsSource === "local-draft" && layout.widgets.length > 0;
+  const showDraft = shouldShowWidgetDraftMark({
+    role: props.role,
+    showDraftMark: props.showDraftMark,
+    widgetsSource: props.widgetsSource,
+    widgetCount: layout.widgets.length,
+  });
   const [extraKeys, setExtraKeys] = useState<Record<string, WidgetPointOption[]>>({});
   const devices = props.devices ?? [];
   const bindOptions = useMemo(
@@ -244,7 +252,7 @@ export function WidgetOverlay(props: WidgetOverlayProps) {
         const meta = widgetTypeMeta(widget.type);
         const heading = widgetHeading(widget, meta?.label);
         const first = widget.slots?.[0];
-        const demo = first ? readSlotValue(first, bindings, latest).source === "mock" : false;
+        const demo = first ? readSlotValue(first, bindings, latest, devices).source === "mock" : false;
         const selectedCard = arranging && widget.id === selectedId;
         const focused = widget.id === focusedId;
         return (
@@ -287,13 +295,13 @@ export function WidgetOverlay(props: WidgetOverlayProps) {
             ) : null}
             <div className={styles.cardBody}>
               {widget.type === "metric-card" ? (
-                <MetricCardBody widget={widget} bindings={bindings} latest={latest} />
+                <MetricCardBody widget={widget} bindings={bindings} latest={latest} devices={devices} />
               ) : widget.type === "trend-chart" ? (
-                <TrendCardBody widget={widget} bindings={bindings} latest={latest} history={history} />
+                <TrendCardBody widget={widget} bindings={bindings} latest={latest} history={history} devices={devices} />
               ) : widget.type === "summary-card" ? (
-                <SummaryCardBody bindings={bindings} latest={latest} />
+                <SummaryCardBody bindings={bindings} latest={latest} devices={devices} />
               ) : widget.type === "selection-card" ? (
-                <SelectionCardBody selectedNode={props.selectedNode} selectedEntityId={props.selectedEntityId} bindings={bindings} latest={latest} />
+                <SelectionCardBody selectedNode={props.selectedNode} selectedEntityId={props.selectedEntityId} bindings={bindings} latest={latest} devices={devices} />
               ) : widget.type === "title" ? (
                 <TitleCardBody widget={widget} fallback={props.sceneTitle} />
               ) : widget.type === "caption" ? (

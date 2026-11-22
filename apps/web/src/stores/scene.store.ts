@@ -108,18 +108,27 @@ export const useSceneStore = create<SceneState>((set, get) => ({
         let persistence: SceneState["persistence"] = { available: false, bindingsSource: "local-draft", widgetsSource: "empty" };
         let sceneWidgets: SceneWidgetsDocument | null = null;
         const topologyId = document.platform?.topologyId;
+        const sceneId = document.scene.id;
         const client = getConnectedGuardClient();
         if (topologyId) {
           const bindings = await resolveSceneBindings(client, topologyId, document.bindings);
           if (bindings.source === "platform") {
             document = { ...document, bindings: bindings.document.bindings };
           }
-          const widgets = await resolveSceneWidgets(client, topologyId);
+          const widgets = await resolveSceneWidgets(client, topologyId, undefined, undefined, sceneId);
           sceneWidgets = widgets.document;
           persistence = {
             available: bindings.source === "platform" || widgets.source === "platform",
             bindingsSource: bindings.source,
             widgetsSource: widgets.source,
+          };
+        } else {
+          const widgets = await resolveSceneWidgets(null, null, undefined, undefined, sceneId);
+          sceneWidgets = widgets.document;
+          persistence = {
+            available: false,
+            bindingsSource: persistence.bindingsSource,
+            widgetsSource: widgets.source === "platform" ? "local-draft" : widgets.source,
           };
         }
         return { ok: true as const, document, persistence, sceneWidgets };
@@ -154,9 +163,15 @@ export const useSceneStore = create<SceneState>((set, get) => ({
   setHmi: (hmi) => set({ hmi }),
 
   setSceneWidgets: (layout) => {
-    const topologyId = get().document?.platform?.topologyId;
-    if (topologyId && layout) {
-      writeSceneWidgetDraft({ topologyId, document: layout });
+    const document = get().document;
+    const topologyId = document?.platform?.topologyId;
+    const sceneId = document?.scene.id;
+    if (layout && (topologyId || sceneId)) {
+      writeSceneWidgetDraft({
+        ...(topologyId ? { topologyId } : {}),
+        ...(sceneId ? { sceneId } : {}),
+        document: layout,
+      });
       set({
         sceneWidgets: layout,
         persistence: { ...get().persistence, widgetsSource: "local-draft" },
@@ -231,14 +246,23 @@ export const useSceneStore = create<SceneState>((set, get) => ({
     const client = getConnectedGuardClient();
     let persistence = get().persistence;
     let sceneWidgets = get().sceneWidgets;
+    const sceneId = saved.scene.id;
     if (topologyId) {
       const bindings = await saveSceneBindings(client, topologyId, saved.bindings);
-      const widgets = await saveSceneWidgets(client, topologyId, sceneWidgets);
+      const widgets = await saveSceneWidgets(client, topologyId, sceneWidgets, undefined, sceneId);
       sceneWidgets = widgets.document;
       persistence = {
         available: bindings.source === "platform" || widgets.source === "platform",
         bindingsSource: bindings.source,
         widgetsSource: widgets.source,
+      };
+    } else if (sceneWidgets) {
+      const widgets = await saveSceneWidgets(null, null, sceneWidgets, undefined, sceneId);
+      sceneWidgets = widgets.document;
+      persistence = {
+        ...persistence,
+        available: false,
+        widgetsSource: "local-draft",
       };
     }
     set({ document: saved, persistence, sceneWidgets });

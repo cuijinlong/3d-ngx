@@ -1,7 +1,7 @@
 
 import ReactECharts from "echarts-for-react";
 import { useEffect, useMemo, useState } from "react";
-import type { DeviceBinding, TelemetryRecord } from "@idt/shared-types";
+import type { Device, DeviceBinding, TelemetryRecord } from "@idt/shared-types";
 import type { SceneWidget } from "@idt/data-adapter";
 import { useAppTheme } from "../../theme/AppThemeProvider";
 import type { TelemetryPoint } from "../../stores/telemetry.store";
@@ -26,14 +26,16 @@ export function MetricCardBody({
   widget,
   bindings,
   latest,
+  devices,
 }: {
   widget: SceneWidget;
   bindings: DeviceBinding[];
   latest: Record<string, TelemetryRecord>;
+  devices?: Device[] | null;
 }) {
   const slot = widget.slots?.[0];
   if (!slot) return <Empty>还没有绑定测点</Empty>;
-  const reading = readSlotValue(slot, bindings, latest);
+  const reading = readSlotValue(slot, bindings, latest, devices);
   if (!reading.bound) return <Empty>还没有绑定测点</Empty>;
   if (reading.missing) return <Empty>暂无数据</Empty>;
   return (
@@ -47,11 +49,13 @@ export function MetricCardBody({
 export function SummaryCardBody({
   bindings,
   latest,
+  devices,
 }: {
   bindings: DeviceBinding[];
   latest: Record<string, TelemetryRecord>;
+  devices?: Device[] | null;
 }) {
-  const summary = summarizeSceneBindings(bindings, latest);
+  const summary = summarizeSceneBindings(bindings, latest, devices);
   if (!summary.boundCount) return <Empty>还没有已绑定的设备</Empty>;
   return (
     <div className={styles.rows}>
@@ -74,13 +78,15 @@ export function SelectionCardBody({
   selectedEntityId,
   bindings,
   latest,
+  devices,
 }: {
   selectedNode?: string | null;
   selectedEntityId?: string | null;
   bindings: DeviceBinding[];
   latest: Record<string, TelemetryRecord>;
+  devices?: Device[] | null;
 }) {
-  const list = selectionBindings([selectedNode, selectedEntityId], bindings);
+  const list = selectionBindings([selectedNode, selectedEntityId], bindings, devices);
   if (!selectedNode && !selectedEntityId) return <Empty>未选中对象</Empty>;
   if (!list.length) return <Empty>该对象还没有绑定测点</Empty>;
   const rows = list.flatMap((binding) =>
@@ -128,18 +134,22 @@ export function TrendCardBody({
   bindings,
   latest,
   history,
+  devices,
 }: {
   widget: SceneWidget;
   bindings: DeviceBinding[];
   latest: Record<string, TelemetryRecord>;
   history: Record<string, TelemetryPoint[]>;
+  devices?: Device[] | null;
 }) {
   const tokens = useChartTokens();
   const slots = widget.slots?.length ? widget.slots : [];
   const series = useMemo(() => {
     return slots.map((slot) => {
-      const reading = readSlotValue(slot, bindings, latest);
-      const bindingDevice = slot.deviceId || bindings.find((item) => item.sceneEntityId === slot.sceneEntityId)?.deviceId;
+      const reading = readSlotValue(slot, bindings, latest, devices);
+      const bindingDevice = reading.bound
+        ? (slot.deviceId || bindings.find((item) => item.sceneEntityId === slot.sceneEntityId)?.deviceId)
+        : undefined;
       const keys = [slot.telemetryKey, slot.key].filter(Boolean) as string[];
       const points = keys.flatMap((key) => (bindingDevice ? history[`${bindingDevice}:${key}`] ?? [] : []));
       return {
@@ -150,7 +160,7 @@ export function TrendCardBody({
         bound: reading.bound,
       };
     });
-  }, [slots, bindings, latest, history]);
+  }, [slots, bindings, latest, history, devices]);
 
   if (!slots.length) return <Empty>还没有绑定测点</Empty>;
   if (series.every((item) => !item.bound)) return <Empty>还没有绑定测点</Empty>;

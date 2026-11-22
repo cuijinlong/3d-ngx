@@ -98,6 +98,8 @@ export interface WorkbenchChrome {
   showWidgetDrag: boolean;
   showDemoTelemetryToggle: boolean;
   showReturnToStudio: boolean;
+  /** 仅租户可见小部件「未落库 / 本地草稿」标；客户运行态必须为 false。 */
+  showWidgetDraftMark: boolean;
   showPlatformSettings: boolean;
   showJumpConfig: boolean;
   showLogout: boolean;
@@ -115,9 +117,21 @@ export function workbenchChrome(role: SessionRole): WorkbenchChrome {
     showWidgetDrag: tenant,
     showDemoTelemetryToggle: tenant,
     showReturnToStudio: tenant,
+    showWidgetDraftMark: tenant,
     showPlatformSettings: tenant,
     showJumpConfig: tenant,
     showLogout: true,
     showThemeToggle: true,
   };
+}
+
+/** 客户永远看不到小部件草稿标。即使误传 showDraftMark，也不展示。 */
+export function shouldShowWidgetDraftMark(input: {
+  role?: SessionRole;
+  showDraftMark?: boolean;
+  widgetsSource?: "platform" | "local-draft" | "empty";
+  widgetCount: number;
+}): boolean {
+  if (input.role === "customer") return false;
+  return Boolean(input.showDraftMark) && input.widgetsSource === "local-draft" && input.widgetCount > 0;
 }

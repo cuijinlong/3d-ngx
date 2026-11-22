@@ -35,15 +35,32 @@ function slotKeys(slot: SceneWidgetSlot, binding?: DeviceBinding): string[] {
   return mapped;
 }
 
+/**
+ * 展示路径：设备列表未就绪时不把有效实时读数打空；
+ * 一旦列表里能判断该 ID 不是实时设备（含旧槽里的虚拟设备），就不得显示。
+ */
+export function canDisplayWidgetDeviceReading(
+  deviceId: string | undefined,
+  devices?: Array<Pick<Device, "id" | "source" | "deviceVirtual"> & { additionalInfo?: unknown }> | null,
+): boolean {
+  if (!deviceId) return false;
+  if (!devices || devices.length === 0) return true;
+  return isWidgetBindableDeviceId(deviceId, devices);
+}
+
 export function readSlotValue(
   slot: SceneWidgetSlot,
   bindings: DeviceBinding[],
   latest: Record<string, TelemetryRecord> | Map<string, TelemetryRecord>,
+  devices?: Device[] | null,
 ): SlotReading {
   const binding = findBindingForSlot(slot, bindings);
   const deviceId = slot.deviceId || binding?.deviceId;
   const label = slot.label || binding?.deviceName || slot.telemetryKey || slot.key;
   if (!deviceId) {
+    return { label, text: "", bound: false, missing: true };
+  }
+  if (!canDisplayWidgetDeviceReading(deviceId, devices)) {
     return { label, text: "", bound: false, missing: true };
   }
   const keys = slotKeys(slot, binding);
@@ -226,8 +243,9 @@ export type SceneSummary = {
 export function summarizeSceneBindings(
   bindings: DeviceBinding[],
   latest: Record<string, TelemetryRecord> | Map<string, TelemetryRecord>,
+  devices?: Device[] | null,
 ): SceneSummary {
-  const bound = bindings.filter((item) => item.deviceId);
+  const bound = bindings.filter((item) => item.deviceId && canDisplayWidgetDeviceReading(item.deviceId, devices));
   let withDataCount = 0;
   let runningCount = 0;
   let stoppedCount = 0;
@@ -255,12 +273,13 @@ export function summarizeSceneBindings(
 export function selectionBindings(
   selected: string | Array<string | null | undefined> | null | undefined,
   bindings: DeviceBinding[],
+  devices?: Device[] | null,
 ): DeviceBinding[] {
   const keys = new Set(
     (Array.isArray(selected) ? selected : [selected]).filter((item): item is string => Boolean(item)),
   );
   if (!keys.size) return [];
-  return bindings.filter((item) => item.deviceId && keys.has(item.sceneEntityId));
+  return bindings.filter((item) => item.deviceId && keys.has(item.sceneEntityId) && canDisplayWidgetDeviceReading(item.deviceId, devices));
 }
 
 export function hasSummaryCard(layoutWidgets: SceneWidget[]): SceneWidget | undefined {
