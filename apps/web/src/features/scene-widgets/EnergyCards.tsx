@@ -2,13 +2,13 @@ import { useMemo, type ReactElement } from "react";
 import ReactECharts from "echarts-for-react";
 import type { SceneWidget } from "@idt/data-adapter";
 import { formatMetricNumber } from "../../utils/device-plates";
-import { displayNameOf } from "../../utils/display-name";
 import {
   ENERGY_GRANULARITIES,
   type EnergyGranularity,
   type EnergyKindRow,
   type SiteEnergyStats,
 } from "../../hooks/useSiteEnergyStats";
+import type { EnergyRollup } from "../../hooks/useEnergyRollup";
 import styles from "./WidgetOverlay.module.css";
 
 /**
@@ -91,14 +91,26 @@ function nameOfKind(kinds: EnergyKindRow[], code: string): string {
  *
  * <p>阈值按实测：40px 下 4 个字符约 96px，安全；
  * 6 个字符（`597.75`）就需要降到 32px 才不溢出。
+ *
+ * <h3>★ 2026-11-23 整体上调（40→54 / 31→44 / 25→35 / 21→28 / 17→22）</h3>
+ *
+ * <p>旧阈值是按**卡片 217px 宽**算的。客户要求「部件尽量大点」后，
+ * 模板宽度改到 16.5%（1920 下 **317px**，可用宽度约 297px），
+ * 旧字号在新卡片里明显偏小 —— 尤其 6 字符的 `62.51万` 只给 31px，
+ * 那正是客户在主卡上看到的数。
+ *
+ * <p>按同一套度量（每字符约 0.6em）重算：6 字符 @44px ≈ 158px，
+ * 加单位（0.36em）仍远低于 297px，余量充足。
+ * 提升幅度约 40%，与卡片宽度增幅（+46%）基本匹配 ——
+ * **两者必须同步，否则不是「字太小」就是「数字溢出」。**
  */
 function kpiFontSize(text: string): number {
   const len = text.length;
-  if (len <= 4) return 40;
-  if (len <= 6) return 31;
-  if (len <= 8) return 25;
-  if (len <= 10) return 21;
-  return 17;
+  if (len <= 4) return 54;
+  if (len <= 6) return 44;
+  if (len <= 8) return 35;
+  if (len <= 10) return 28;
+  return 22;
 }
 
 /**
@@ -148,6 +160,44 @@ function pendingReason(stats: SiteEnergyStats): ReactElement {
   return <EnergyPending title="正在统计" detail="等待首次汇总…" />;
 }
 
+/**
+ * 从用量序列里挑出峰值与谷值时段（2026-11-23）。
+ *
+ * <h2>为什么抽成纯函数</h2>
+ *
+ * <p>这段逻辑有两处「看着像自然写法、实际会出错」的坑，都只能靠单测钉住：
+ * <ol>
+ *   <li>**谷值必须排除 0**。数据断档那天的用量是 0，直接取 min 会得到
+ *       「谷值 0」，运维会以为那天停机，实际是没上报。</li>
+ *   <li>**只有一个桶时不能列两行**。峰谷同桶时上下两行一模一样，
+ *       看起来像渲染重复。</li>
+ * </ol>
+ *
+ * <p>另外它承担一个产品职责：左 1 卡与左 3 卡不能长得一样
+ * （客户反馈过「重复」）。
+ *
+ * <h3>★ 2026-11-23：UI 已不再使用峰谷</h3>
+ *
+ * <p>客户原话「峰值和谷值先去掉」，左 1 改成「今日/本周/本月/本年」四格汇总。
+ * 函数与测试**保留**：它锁住两处容易写错的判定（谷值必须排除 0、
+ * 同桶时不返回），将来若恢复展示可以直接用，不用重新踩一遍。
+ */
+export function selectPeakTrough(
+  series: ReadonlyArray<{ bucket: string; tce: number }>,
+): Array<{ key: "peak" | "trough"; label: string; bucket: string; value: number }> | null {
+  if (!series.length) return null;
+  const nonZero = series.filter((b) => b.tce > 0);
+  if (!nonZero.length) return null;
+  const hi = series.reduce((a, b) => (b.tce > a.tce ? b : a));
+  const lo = nonZero.reduce((a, b) => (b.tce < a.tce ? b : a));
+  /* 同桶：列成两行等于把同一个数写两遍 */
+  if (hi.bucket === lo.bucket) return null;
+  return [
+    { key: "peak", label: "峰值", bucket: hi.bucket, value: hi.tce },
+    { key: "trough", label: "谷值", bucket: lo.bucket, value: lo.tce },
+  ];
+}
+
 /* ==================================================================== */
 /* ============================ ① KPI 卡 ============================== */
 /* ==================================================================== */
@@ -162,13 +212,25 @@ function pendingReason(stats: SiteEnergyStats): ReactElement {
 export function EnergyMetricBody({
   widget,
   stats,
+  rollup: passedRollup,
 }: {
   widget: SceneWidget;
   stats: SiteEnergyStats;
+  /**
+   * 今日/本周/本月/本年汇总（2026-11-23）。
+   *
+   * <p>由 `useEnergyRollup` 单独取数 —— 它需要四个不同时间窗，
+   * 塞不进 `stats` 那个「单窗口」模型。缺省给空值，编辑态预览也不会崩。
+   */
+  rollup?: EnergyRollup;
 }) {
   const metric = energyMetricOf(widget);
 
   const kind = energyKindOf(widget);
+
+  /* 缺省空汇总：编辑态 / 预览态不传时直接空，避免 `undefined.items` 崩掉 */
+  const emptyRollup: EnergyRollup = { loading: false, error: null, items: [] };
+  const rollup = passedRollup ?? emptyRollup;
 
   /*
    * 按 metric 分派（2026-11-23 通用化）。
@@ -188,8 +250,14 @@ export function EnergyMetricBody({
         value: stats.kpi.co2,
         unit: "tCO₂",
         label: title || "碳排放",
-        sideLabel: "折标煤",
-        sideText: `${formatMetricNumber(stats.kpi.tce)} tce`,
+        /*
+         * 不再用 side 显示「折标煤」—— 下方三格里已经有一格是折标煤
+         * （2026-11-23 客户反馈「内容超出边界」，实测是同一句话出现两次：
+         *  `折标煤 77.54 tce` 先出现在副标题、又出现在三格第一格）。
+         * 副标题改成口径说明，信息不重复。
+         */
+        sideLabel: "核算口径",
+        sideText: `${stats.kinds.length} 项能源品种`,
         hasData: stats.kinds.length > 0,
         emptyTitle: "暂无碳排数据",
         emptyDetail: stats.error ?? "该场站下没有可计量的用能点",
@@ -241,10 +309,6 @@ export function EnergyMetricBody({
     };
   }, [metric, kind, stats, widget.title]);
 
-  if (!view.hasData) {
-    return <EnergyPending title={view.emptyTitle} detail={view.emptyDetail} />;
-  }
-
   /*
    * 文字长度决定字号 —— 用 `compactNumber` 之后的结果算，
    * 而不是原始数值：`913400` 会被压成 `91.34万`（6 个字符），
@@ -252,16 +316,127 @@ export function EnergyMetricBody({
    */
   const mainText = compactNumber(view.value ?? 0);
 
+
+  /*
+   * 碳排放口径的三格指标（2026-11-23）。
+   *
+   * <p>对应原型的 `info-metrics`（三列：数值 + 小标签）。
+   * 全部由已有字段推导，不引入新数据源：
+   *   · 折标煤 = `kpi.tce`
+   *   · 排放强度 = co₂ / 用电量（有电量才有意义，否则不显示）
+   *   · 计量品种 = `kinds.length`
+   */
+  const carbonStats = useMemo(() => {
+    if (metric !== "carbon") return [];
+    const kwh = stats.electricityKwh;
+    const items: Array<{ value: string; label: string }> = [
+      { value: `${formatMetricNumber(stats.kpi.tce)}`, label: "折标煤 tce" },
+    ];
+    if (kwh && kwh > 0) {
+      /* kg CO₂ / kW·h 是行业通用强度量；tCO₂ ÷ kW·h × 1000 = kg/kW·h */
+      items.push({ value: formatMetricNumber((stats.kpi.co2 * 1000) / kwh, 2), label: "排放强度 kg/kW·h" });
+    }
+    items.push({ value: `${stats.kinds.length}`, label: "计量品种" });
+    return items;
+  }, [metric, stats.kpi.tce, stats.kpi.co2, stats.electricityKwh, stats.kinds.length]);
+
+  /*
+   * ★ 早退必须放在**全部 hook 之后**（2026-11-23 实测崩溃）。
+   *
+   * <p>第一版把它放在 `kindRows` / `carbonStats` 两个 `useMemo` 之前：
+   * 首屏「还没取到场站数据」时走早退、hook 数量少；数据到达后多调两个
+   * `useMemo` → React 抛
+   * `Rendered more hooks than during the previous render`，
+   * 整页被错误边界接住，变成一张「页面出了点问题」的卡片。
+   *
+   * <p>后果特别隐蔽：**首屏看起来是空的（不是报错）**，要等数据回来才崩，
+   * 所以「刷新一下就好了」这种假象很容易误导排查。
+   */
+  if (!view.hasData) {
+    return <EnergyPending title={view.emptyTitle} detail={view.emptyDetail} />;
+  }
+
   return (
     <div className={styles.energyKpi}>
-      <div className={styles.energyKpiValue} style={{ fontSize: kpiFontSize(mainText) }}>
-        {mainText}
-        <span className={styles.energyKpiUnit}>{view.unit}</span>
+      {/*
+       * 主体区（2026-11-23 按原型 `info-lines` + `info-metrics` 重构）。
+       *
+       * <h3>改前的问题</h3>
+       *
+       * <p>原来是三行独立文本：大数字 / 标签 / 占比说明。三点问题：
+       * <ol>
+       *   <li>垂直占位太多，18% 高的卡（194px）里正文只剩 146px；</li>
+       *   <li>标签与占比各占一行，中间大片留白，看着松散；</li>
+       *   <li>没有任何分隔线，四格/三格与主体糊成一片。</li>
+       * </ol>
+       *
+       * <h3>改后</h3>
+       *
+       * <p>大数字独占一行（保留视觉焦点），标签与占比合并成一行小字，
+       * 下方用一条分隔线接住指标网格 —— 这正是原型的层级：
+       * `ring-inner b`（大数） → `.info-lines`（行内 b + 说明） → `.info-metrics`（网格）。
+       */}
+      <div className={styles.energyHero}>
+        <div className={styles.energyKpiValue} style={{ fontSize: kpiFontSize(mainText) }}>
+          {mainText}
+          <span className={styles.energyKpiUnit}>{view.unit}</span>
+        </div>
+        <div className={styles.energyKpiMeta}>
+          <span className={styles.energyKpiLabel}>{view.label}</span>
+          {view.sideText ? (
+            <span className={styles.energyKpiSide}>
+              {view.sideLabel} <b>{view.sideText}</b>
+            </span>
+          ) : null}
+        </div>
       </div>
-      <div className={styles.energyKpiLabel}>{view.label}</div>
-      <div className={styles.energyKpiSide}>
-        {view.sideLabel} {view.sideText}
-      </div>
+      {/*
+       * 今日 / 本周 / 本月 / 本年 用电汇总（2026-11-23 客户要求）。
+       *
+       * <p>替换掉原来的「峰值 / 谷值」两行。客户原话：
+       * 「场站用电量中增加今日用电、本周、本月、本年的用电汇总数字卡，峰值和谷值先去掉」。
+       *
+       * <p>只在「用电量」口径显示。碳排卡有自己的三格（折标煤/强度/品种），
+       * 混进来会让两块卡又长得一样（之前已经因此返工过一次）。
+       */}
+      {metric === "usage" && rollup.items.length ? (
+        <div className={styles.rollupGrid} data-testid="energy-rollup">
+          {rollup.items.map((item) => (
+            <div
+              key={item.key}
+              className={styles.rollupCell}
+              data-key={item.key}
+              data-empty={item.usage == null ? "true" : undefined}
+              /*
+               * 空值时 title 说明原因。悬停就能知道「为什么是 —」，
+               * 不用去翻文档 —— 现场最常见的原因就是网关没上报。
+               */
+              title={
+                item.usage == null
+                  ? `${item.label}窗口内没有任何用电数据（可能是网关未上报）`
+                  : `${item.label}累计用电 ${formatMetricNumber(item.usage)} ${view.unit}（截至现在）`
+              }
+            >
+              <span className={styles.rollupLabel}>{item.label}</span>
+              <b>
+                {/* null 显示「—」：0 与「没数据」必须能分开，否则会误读成"没用电" */}
+                {item.usage == null ? "—" : compactNumber(item.usage)}
+                {item.usage == null ? null : <em>{view.unit}</em>}
+              </b>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {carbonStats.length ? (
+        <div className={styles.energyMetricGrid} data-testid="energy-carbon-stats">
+          {carbonStats.map((item) => (
+            <div key={item.label}>
+              <strong>{item.value}</strong>
+              <span>{item.label}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -390,8 +565,6 @@ export function EnergyTrendBody({
      */
   }, [peak, trough, buckets.join("|"), values.join("|"), kindUnit]);
 
-  const total = seriesOfKind.reduce((sum, s) => sum + s.tce, 0);
-
   if (!seriesOfKind.length) {
     /*
      * 有其它品种但缺这个品种 —— 要说清是「没有该品种计量」，
@@ -410,16 +583,20 @@ export function EnergyTrendBody({
   }
 
   return (
-    <div className={styles.trendRow}>
-      <div className={styles.trendKpi}>
-        <b>
-          {compactNumber(total)}
-          <i>{kindUnit}</i>
-        </b>
-        <span>
-          {kindName}用量 · {ENERGY_GRANULARITIES.find((g) => g.value === gran)?.hint ?? ""}
-        </span>
-      </div>
+    <div className={styles.energyTrendRow}>
+      {/*
+       * ★ 左侧大数字已移除（2026-11-23 客户要求）。
+       *
+       * <p>客户原话：「把右侧第 2 个场站用电趋势内部去掉左侧的数字」。
+       *
+       * <p>那张卡当时已经移到左翼第 2 位，但内部的「62.51万 kW·h + 电能用量」
+       * 仍占着左边一列 —— 卡宽只有 326px 时，图表只剩一半宽度（实测 167/295）。
+       * 而且它与**同一列的上一张卡**（场站用电量）显示的是同一个总量，
+       * 等于同一屏里同一个数字出现两次。
+       *
+       * <p>去掉后图表横跨整卡。总量没丢：上一张卡就是它，且图表本身
+       * 逐桶可读，右侧还有粒度切换（时/日/月/年）。
+       */}
       {/*
        * 粒度切换放在卡片正文里，而不是卡片标题栏 ——
        * 标题栏由 WidgetOverlay 统一渲染，从 Body 里改不到它。
@@ -461,7 +638,39 @@ export function EnergyTrendBody({
  * 高低两端用不同颜色标出来 —— 客户要「最高最低耗电的数据可视化」，
  * 光排序不够，得让眼睛一眼扫到两端。
  */
-export function EnergyRankingBody({
+/**
+ * 用能分项占比（2026-11-23 替换「设备用电排名」）。
+ *
+ * <h2>为什么换掉设备排名</h2>
+ *
+ * <p>客户原话：「设备用电排行没有用，换一下维度统计」。
+ *
+ * <p>实测原因（比「没用」更严重）：那个排名把**不同物理量的表混在一起排**：
+ *
+ * ```
+ * 正泰三相电表  61.31万 kW·h
+ * 雅达三相电表   1.21万 kW·h
+ * 热力表        12.59 GJ
+ * 蒸汽表         2.99 t
+ * ```
+ *
+ * <p>三行单位不同（kW·h / GJ / t），条长按原始数值算，于是
+ * 「2.99 t 蒸汽」的条比「1.21万 kW·h 电」还长 —— **视觉上完全误导**。
+ * 而且排的是计量表而不是机组，运维看不出任何可行动的结论。
+ *
+ * <h2>换成什么</h2>
+ *
+ * <p>用能分项占比。这是能源管理系统的标准维度，且**天然解决混单位问题**：
+ * <ul>
+ *   <li>条长按 `pct`（平台已按**折标煤**统一折算后的占比），
+ *       不同品种可比；</li>
+ *   <li>数值各自带自己的单位，不混算；</li>
+ *   <li>折标煤 `tce` 作为副数值 —— 那是唯一能跨品种相加的量纲。</li>
+ * </ul>
+ *
+ * <p>数据全部来自 `stats.kinds`（平台返回），不推导、不造数。
+ */
+export function EnergyKindBreakdownBody({
   widget,
   stats,
 }: {
@@ -470,58 +679,58 @@ export function EnergyRankingBody({
 }) {
   const rows = useMemo(() => {
     /*
-     * 只保留 counted 的（参与计量的）设备。
-     * 虚拟设备 / 不计入合计的点位放进去会让排名失去意义 ——
-     * 它们本来就不进 KPI。
+     * 只保留有用量的品种。`usage > 0` 而不是 `>= 0`：
+     * 某品种装了表但一直没数据时 usage 是 0，列出来会让占比条全是 0 宽，
+     * 看起来像界面坏了。
      */
-    const list = stats.devices.filter((d) => d.counted !== false && d.usage > 0);
-    return [...list].sort((a, b) => b.usage - a.usage);
-  }, [stats.devices]);
+    return [...stats.kinds].filter((k) => k.usage > 0).sort((a, b) => b.pct - a.pct);
+  }, [stats.kinds]);
 
   if (!rows.length) return pendingReason(stats);
 
-  const max = Math.max(...rows.map((r) => r.usage), 1);
   /*
-   * `rows.length` 上面已经判过非空，但 TS 从数组下标拿不到收窄。
-   * 用解构 + 早返回把类型定下来，比到处写 `!` 安全。
+   * 条长基数用 pct，但 pct 之和可能不是 100（平台按折标煤折算，
+   * 有个别品种份额极小被舍入）。用最大值归一，保证最长的占满轨道 ——
+   * 直接除以 100 会让所有条都只有一半长度，看起来像"都没用能"。
    */
-  const [top, ...rest] = rows;
-  if (!top) return pendingReason(stats);
-  const bottom = rest.length ? rest[rest.length - 1] : null;
+  const maxPct = Math.max(...rows.map((r) => r.pct), 1);
 
   return (
-    <div className={styles.barCompare} data-testid={`energy-ranking-${widget.id}`}>
-      {rows.slice(0, 8).map((row) => {
-        const isTop = row.id === top.id;
-        const isBottom = bottom != null && row.id === bottom.id;
-        return (
-          <div className={styles.barRow} key={row.id}>
-            {/*
-             * 命名铁律：显示 label（`正泰三相电表 DTSD3366D`），
-             * 不是技术名（`PowerMeter-3P-CHINT·平台演示中心`）。
-             * title 也用显示名 —— 悬停时不该冒出技术名。
-             */}
-            <span className={styles.barName} title={displayNameOf(row, row.id)}>
-              {displayNameOf(row, row.id)}
-            </span>
-            <span className={styles.barTrack}>
-              <i
-                className={styles.barFill}
-                style={{
-                  width: `${Math.max(2, (row.usage / max) * 100)}%`,
-                  /* 颜色用内联而不是新 CSS 类：只有「最高/最低」两种特例，
-                     为它们各加一条规则会让这份样式表越来越难读 */
-                  background: isTop ? "#e6a23c" : isBottom ? "#5b8ff9" : undefined,
-                }}
-              />
-            </span>
-            <b>
-              {compactNumber(row.usage)}
-              <i>{row.unit}</i>
-            </b>
-          </div>
-        );
-      })}
+    <div className={styles.barCompare} data-testid={`energy-breakdown-${widget.id}`}>
+      {rows.map((row, index) => (
+        <div className={styles.barRow} key={row.code} data-rank={index + 1 <= 3 ? String(index + 1) : undefined}>
+          {/*
+           * 品种名（电能 / 热力 / 蒸汽）—— 这是可行动的信息：
+           * 「热力占了快三成」比「某某电表排第一」有意义得多。
+           */}
+          <span className={styles.barName} title={`${row.name}：${compactNumber(row.usage)} ${row.unit}（折标煤 ${formatMetricNumber(row.tce)} tce）`}>
+            {row.name}
+          </span>
+          <span className={styles.barTrack}>
+            <i
+              className={styles.barFill}
+              style={{ width: `${Math.max(2, (row.pct / maxPct) * 100)}%` }}
+            />
+          </span>
+          <b>
+            {compactNumber(row.usage)}
+            <i>{row.unit}</i>
+          </b>
+        </div>
+      ))}
+      {/*
+       * 合计行：把「折标煤合计」写出来。
+       *
+       * <p>这是跨品种唯一能相加的量纲。没有它，用户看到「电 62.51万 kW·h、
+       * 热 12.59 GJ、蒸汽 2.99 t」无法判断总量到底多少。
+       */}
+      <div className={styles.breakdownTotal} data-testid="energy-breakdown-total">
+        <span>合计折标煤</span>
+        <b>
+          {formatMetricNumber(stats.kpi.tce)}
+          <i>tce</i>
+        </b>
+      </div>
     </div>
   );
 }

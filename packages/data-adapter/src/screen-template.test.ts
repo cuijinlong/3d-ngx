@@ -15,6 +15,7 @@ import {
   upsertInterfaceBinding,
   upsertRegionTitle,
 } from "./screen-template";
+import { pendingBindingsOfLayout } from "./pending-bindings";
 
 describe("screen template contract", () => {
   it("parses the builtin overview situation template and keeps stable region and interface keys", () => {
@@ -219,5 +220,88 @@ describe("parseScreenTemplate / aiExtension", () => {
       aiExtension: { operations: ["update-widget"], requiresDiffReview: false },
     });
     expect(tpl?.aiExtension?.requiresDiffReview).toBe(false);
+  });
+});
+
+/**
+ * 模板声明常量量程（2026-11-23）。
+ *
+ * <p>仪表（gauge-ring）的量程是设计值，模板必须能直接写死 ——
+ * 否则每套模板都要求现场「有一个上报总量的设备」，新建场景配不出仪表。
+ */
+describe("模板 interface 的 constant（设计值）", () => {
+  const base = {
+    schemaVersion: 1,
+    id: "tpl-gauge",
+    name: "仪表模板",
+    version: "1.0.0",
+    description: "测",
+    regions: [
+      {
+        id: "g1",
+        type: "gauge-ring",
+        zone: "left",
+        x: 2,
+        y: 10,
+        w: 20,
+        h: 20,
+        defaultTitle: "加载率",
+        interfaces: [
+          { key: "value-0", name: "当前值", valueType: "number", allowedSources: ["device-point"] },
+          { key: "max-0", name: "满量程", valueType: "number", allowedSources: [], constant: 100 },
+        ],
+      },
+    ],
+    objectBinding: {},
+    aiExtension: { editableTargets: [], protectedTargets: [], operations: [], requiresDiffReview: true },
+  };
+
+  it("生成带 constant 的槽位，且不要求绑定", () => {
+    const layout = materializeScreenTemplate(parseScreenTemplate(base)!, { sceneName: "测试" });
+    const slots = layout.widgets[0]?.slots ?? [];
+    expect(slots).toHaveLength(2);
+    const max = slots.find((s) => s.key === "max-0");
+    expect(max?.constant).toBe(100);
+    /* 常量槽不需要设备 */
+    expect(max?.deviceId).toBeUndefined();
+    expect(max?.telemetryKey).toBeUndefined();
+  });
+
+  it("★ 允许 0 与负数 —— 量程不一定是正数", () => {
+    for (const constant of [0, -25]) {
+      const doc = structuredClone(base);
+      doc.regions[0]!.interfaces[1] = {
+        key: "max-0",
+        name: "下限",
+        valueType: "number",
+        allowedSources: [],
+        constant,
+      } as never;
+      const layout = materializeScreenTemplate(parseScreenTemplate(doc)!, { sceneName: "测试" });
+      expect(layout.widgets[0]?.slots?.find((s) => s.key === "max-0")?.constant).toBe(constant);
+    }
+  });
+
+  it("★ 空字符串不当作 0（Number('') === 0 的坑）", () => {
+    const doc = structuredClone(base);
+    doc.regions[0]!.interfaces[1] = {
+      key: "max-0",
+      name: "满量程",
+      valueType: "number",
+      allowedSources: ["device-point"],
+      constant: "",
+    } as never;
+    const layout = materializeScreenTemplate(parseScreenTemplate(doc)!, { sceneName: "测试" });
+    expect(layout.widgets[0]?.slots?.find((s) => s.key === "max-0")?.constant).toBeUndefined();
+  });
+
+  it("常量槽不会进「待绑定」清单", () => {
+    const layout = materializeScreenTemplate(parseScreenTemplate(base)!, { sceneName: "测试" });
+    const widget = layout.widgets[0]!;
+    const report = pendingBindingsOfLayout(layout);
+    const item = report.items.find((entry) => entry.widgetId === widget.id);
+    /* 只差 value-0 一个槽，不是两个 */
+    expect(item?.requiredSlots).toBe(2);
+    expect(item?.filledSlots).toBe(1);
   });
 });

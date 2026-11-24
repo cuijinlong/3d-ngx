@@ -29,6 +29,7 @@
  */
 
 import type { SceneWidget, SceneWidgetLayout, SceneWidgetSlot } from "./scene-widget-layout";
+import { parseSceneWidget } from "./scene-widget-layout";
 
 /** 与 `template.manifest.json` 的 `aiExtension` 同构。 */
 export interface AiExtension {
@@ -112,7 +113,9 @@ export type ProposalIssueCode =
   | "widget-duplicate"
   | "protected-field"
   | "slot-not-found"
-  | "empty-operation";
+  | "empty-operation"
+  /** 新增/移动后的卡片压住了别的卡片 —— 被压的那张**在界面上看不见**。 */
+  | "widget-overlap";
 
 export interface ProposalIssue {
   code: ProposalIssueCode;
@@ -141,6 +144,60 @@ export interface LayoutProposal {
  * </ul>
  */
 const PROTECTED_WIDGET_FIELDS = ["id", "type"] as const;
+
+/**
+ * 两张卡是否重叠。
+ *
+ * <p>**贴边不算重叠** —— 大屏是拿百分比切格子的，相邻卡片共边是常态
+ * （实测天骄场景 7 张卡全部首尾相接，一块压一块才对不上）。
+ * 所以判据要求两个方向都有正面积的交叉，并且留 `EPS` 吸收浮点误差。
+ */
+const OVERLAP_EPS = 0.05;
+
+function rectsOverlap(
+  a: Pick<SceneWidget, "x" | "y" | "w" | "h">,
+  b: Pick<SceneWidget, "x" | "y" | "w" | "h">,
+): boolean {
+  const ox = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+  const oy = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+  return ox > OVERLAP_EPS && oy > OVERLAP_EPS;
+}
+
+/**
+ * 找出布局里所有重叠的卡片对，只报**牵涉本次改动**的那些。
+ *
+ * <h3>为什么必须校验（2026-11-24 实测踩到）</h3>
+ *
+ * <p>AI 新增一张 42×22 的对比卡到 x=58,y=56，而告警条占 x=79..97.6,
+ * y=61.4..93 —— 两者大幅重叠。AI 在回答里写「不与任何现有卡片重叠」，
+ * 但它是算错了，而不是故意。
+ *
+ * <p>结果：告警卡被压在下面**在界面上完全看不见**，用户以为它坏了。
+ * 这类破坏是静默的 —— 遮挡本身不报错，只有人去看才发现。
+ *
+ * <h3>为什么只报牵涉本次改动的</h3>
+ *
+ * <p>老布局本来就重叠时（历史数据、手工几何微调），
+ * 全量校验会让**任何** AI 提案都被拒绝，而用户改的根本不是那两张卡。
+ * 只查与本次 add / update 相关的卡片，既挡住新引入的遮挡，
+ * 又不把历史遗留变成死锁。
+ */
+function collectOverlaps(
+  layout: SceneWidgetLayout,
+  touchedIds: Set<string>,
+): Array<{ a: SceneWidget; b: SceneWidget }> {
+  const widgets = layout.widgets;
+  const hits: Array<{ a: SceneWidget; b: SceneWidget }> = [];
+  for (let i = 0; i < widgets.length; i += 1) {
+    for (let j = i + 1; j < widgets.length; j += 1) {
+      const a = widgets[i]!;
+      const b = widgets[j]!;
+      if (!touchedIds.has(a.id) && !touchedIds.has(b.id)) continue;
+      if (rectsOverlap(a, b)) hits.push({ a, b });
+    }
+  }
+  return hits;
+}
 
 function widgetLabel(widget: SceneWidget | undefined, id: string): string {
   const title = widget?.title?.trim();
@@ -272,6 +329,11 @@ export function examineLayoutProposal(
 ): LayoutProposal {
   const issues: ProposalIssue[] = [];
   const diff: string[] = [];
+  /*
+   * 本次改动牵涉到的卡片 id（新增的 + 动了坐标的）。
+   * 用于把重叠校验限制在「这次引入的」范围里，见 collectOverlaps。
+   */
+  const touchedIds = new Set<string>();
 
   if (!operations.length) {
     return {
@@ -315,7 +377,24 @@ export function examineLayoutProposal(
 
     /* ── 2. add-widget ── */
     if (operation.op === "add-widget") {
-      const widget = operation.widget;
+      /*
+       * 过一遍 `parseSceneWidget` 再落库（2026-11-24）。
+       *
+       * <p>AI 给的 widget 是自由 JSON：字段名可能写成 `slotKey`（因为
+       * `bind-telemetry` 用那个名字）、坐标可能是字符串、多余字段可能一堆。
+       * 直接塞进布局，这些瑕疵会**一路活到渲染层**，表现为空白卡片。
+       *
+       * <p>规范化而不是拒绝：形状不对是 AI 的表达问题，不是用户的意图问题。
+       * 真没法解析时才报错（返回 null）。
+       */
+      const widget = parseSceneWidget(operation.widget, working.widgets.length);
+      if (!widget) {
+        issues.push({
+          code: "empty-operation",
+          message: "新增卡片的配置无法解析（缺少 type / 坐标不合法）。",
+        });
+        continue;
+      }
       if (findWidget(working, widget.id)) {
         issues.push({
           code: "widget-duplicate",
@@ -324,6 +403,8 @@ export function examineLayoutProposal(
         continue;
       }
       working = { ...working, widgets: [...working.widgets, widget] };
+      /* 新增的卡片一定要查重叠：它是最容易压住别人的来源 */
+      touchedIds.add(widget.id);
       diff.push(`+ 新增卡片 ${widgetLabel(widget, widget.id)}（${widget.type}）`);
       continue;
     }
@@ -357,6 +438,18 @@ export function examineLayoutProposal(
         continue;
       }
       const updated: SceneWidget = { ...target, ...operation.patch };
+      /*
+       * 只有**动了位置/尺寸**才纳入重叠校验。
+       *
+       * <p>只改标题/槽位的卡片不可能新引入遮挡；把它算进来会让
+       * 「历史遗留的重叠」把一次无关的改名也拒掉，用户完全无法理解。
+       */
+      if (
+        operation.patch.x !== undefined || operation.patch.y !== undefined
+        || operation.patch.w !== undefined || operation.patch.h !== undefined
+      ) {
+        touchedIds.add(operation.id);
+      }
       working = {
         ...working,
         widgets: working.widgets.map((item) => (item.id === operation.id ? updated : item)),
@@ -412,6 +505,28 @@ export function examineLayoutProposal(
       diff.push(`  测点: ${brief(before?.telemetryKey)} → ${brief(operation.telemetryKey)}`);
       if (operation.deviceId) diff.push(`  设备: ${brief(before?.deviceId)} → ${brief(operation.deviceId)}`);
       continue;
+    }
+  }
+
+  /*
+   * ── 4. 遮挡检查 ──
+   *
+   * 放在最后：前面已经筛掉非法操作，这里只需要看「最终形态」有没有压住别人。
+   * 逐条操作边算边查会在集合还没成形时误判。
+   */
+  if (!issues.length && touchedIds.size) {
+    for (const { a, b } of collectOverlaps(working, touchedIds)) {
+      issues.push({
+        code: "widget-overlap",
+        message: `卡片 ${widgetLabel(a, a.id)} 与 ${widgetLabel(b, b.id)} 重叠`
+          + `（${brief(a.id)} 占 x${a.x}~${a.x + a.w} / y${a.y}~${a.y + a.h}，`
+          + `${brief(b.id)} 占 x${b.x}~${b.x + b.w} / y${b.y}~${b.y + b.h}）。`
+          + "被压在下面的那张在界面上看不见 —— 请挪开或缩小后再试。",
+      });
+    }
+    if (issues.length) {
+      diff.push("");
+      diff.push(`! 存在 ${issues.length} 处遮挡，未应用。`);
     }
   }
 

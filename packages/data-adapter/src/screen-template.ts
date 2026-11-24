@@ -1,6 +1,7 @@
 import overviewSituationJson from "./screen-templates/overview-situation.json";
 import tianjiaoHeatPumpJson from "./screen-templates/tianjiao-heat-pump.json";
 import {
+  SCENE_WIDGET_TYPE_REGISTRY,
   clampWidgetRect,
   parseSceneWidget,
   parseWidgetScope,
@@ -31,6 +32,59 @@ export interface ScreenTemplateInterface {
   valueType: ScreenTemplateValueType;
   allowedSources: ScreenTemplateSourceKind[];
   optional?: boolean;
+  /**
+   * 设计值常量（2026-11-23）。
+   *
+   * <p>仪表量程、参考线这类「设计值」不属于任何设备。模板里直接写：
+   *
+   * <pre>
+   * { "key": "max", "name": "满量程", "valueType": "number",
+   *   "allowedSources": [], "constant": 100 }
+   * </pre>
+   *
+   * <p>存在此字段时，该 interface **不要求绑定**，生成的槽位带 `constant`，
+   * 待绑定清单也不会报它。
+   *
+   * <p>为什么不能靠「留空让运行时默认 100」代替：
+   * 默认值只能抽一个通用数（百分比）。功率量程 750kW、温度下限 -25℃
+   * 这些必须由模板作者写清楚 —— 靠猜就会画出一个量纲错的环。
+   */
+  constant?: number;
+  /**
+   * 多设备聚合口径（2026-11-24）。
+   *
+   * <h3>为什么必须在模板里写</h3>
+   *
+   * <p>「9 台之和」这种槽位，如果只写 label 不写 `aggregate`，
+   * 实例化出来的卡片 `hasAggregate = false`，于是走「绑一台设备」的取数路径 ——
+   * 而它名下没有 deviceId，结果是**一张永远空白的趋势图，且不报错**。
+   *
+   * <p>实测证据：模板 JSON 里 `series-0` 叫「9 台之和」却没 `aggregate`；
+   * 而库里天骄场景那份同名槽位带着 `aggregate: "sum"` ——
+   * 说明是后来手工补的，模板一直缺。凡是从模板新建的场景，
+   * 趋势图都是空的。
+   */
+  aggregate?: "sum" | "avg" | "max" | "min";
+  /** 渲染形态（device-list 逐台列用 `bar`，见 SceneWidgetSlot.render）。 */
+  render?: "value" | "bar";
+  /** 显示类型：开关量需要 `boolean` 才会显示「运行/停止」而不是 1/0。 */
+  displayType?: "number" | "boolean" | "text";
+}
+
+/**
+ * 部件级设置（2026-11-24）。
+ *
+ * <p>`interfaces` 描述「有哪些可绑的槽位」，但这些**不描述卡片怎么取数**。
+ * 一张「场站用电趋势」和一张「单台机组功率趋势」槽位结构可以完全一样，
+ * 区别全在这里：走场站能量口径（`dataSource: "energy"`）还是走设备遥测。
+ *
+ * <p>缺了它，模板只能做出一张「结构对、数据源靠运气」的卡 ——
+ * 而 data-adapter 的 materialize 以前根本无从表达这件事。
+ */
+export interface ScreenTemplateWidgetSettings {
+  dataSource?: "telemetry" | "energy";
+  energyMetric?: "usage" | "cost" | "carbon" | "tce" | "trend" | "ranking";
+  energyKind?: string;
 }
 
 /** 模板级的在线编程边界（与 template.manifest.json 的 aiExtension 同构）。 */
@@ -55,6 +109,8 @@ export interface ScreenTemplateRegion {
   interfaces: ScreenTemplateInterface[];
   /** 设备名包含过滤（仅 device-list / bar-compare 用），如 "模块机" */
   filterText?: string;
+  /** 部件级取数设置。见 {@link ScreenTemplateWidgetSettings}。 */
+  settings?: ScreenTemplateWidgetSettings;
 }
 
 export type ScreenObjectBindingFieldKey =
@@ -144,6 +200,34 @@ export function parseScreenTemplateInterface(raw: unknown): ScreenTemplateInterf
     allowedSources: allowedSources.length ? allowedSources : valueType === "scope" ? ["site", "scene-topology"] : ["device-point"],
   };
   if (row.optional === true) item.optional = true;
+  /*
+   * 常量量程（2026-11-23）。
+   *
+   * 与 `parseWidgetSlot` 同口径：排除空串（`Number("") === 0` 会把
+   * 「没填」误读成「量程 0」），允许 0 与负数。
+   */
+  const rawConstant = row.constant;
+  if (rawConstant !== undefined && rawConstant !== null && rawConstant !== "") {
+    const constant = Number(rawConstant);
+    if (Number.isFinite(constant)) item.constant = constant;
+  }
+  /*
+   * 槽位的取数/显示形态（2026-11-24）。
+   *
+   * 这三个字段以前被**静默丢弃**（解析函数不认就扔），于是模板作者
+   * 在 JSON 里写了 `aggregate: "sum"` 也白写，实例化后卡片是空的。
+   * 不认识的值一律不设 —— 留空比设错好（设错照样静默空白）。
+   */
+  const aggregate = text(row.aggregate);
+  if (aggregate === "sum" || aggregate === "avg" || aggregate === "max" || aggregate === "min") {
+    item.aggregate = aggregate;
+  }
+  const render = text(row.render);
+  if (render === "value" || render === "bar") item.render = render;
+  const displayType = text(row.displayType);
+  if (displayType === "number" || displayType === "boolean" || displayType === "text") {
+    item.displayType = displayType;
+  }
   return item;
 }
 
@@ -174,6 +258,21 @@ export function parseScreenTemplateRegion(raw: unknown, index = 0): ScreenTempla
   if (defaultSubtitle) region.defaultSubtitle = defaultSubtitle;
   const filterText = text(row.filterText);
   if (filterText) region.filterText = filterText;
+  /* 部件级取数设置（2026-11-24）—— 只有认得的值才收，其余忽略 */
+  if (row.settings && typeof row.settings === "object" && !Array.isArray(row.settings)) {
+    const rawSettings = row.settings as Record<string, unknown>;
+    const settings: ScreenTemplateWidgetSettings = {};
+    const dataSource = text(rawSettings.dataSource);
+    if (dataSource === "telemetry" || dataSource === "energy") settings.dataSource = dataSource;
+    const energyMetric = text(rawSettings.energyMetric);
+    if (energyMetric === "usage" || energyMetric === "cost" || energyMetric === "carbon"
+      || energyMetric === "tce" || energyMetric === "trend" || energyMetric === "ranking") {
+      settings.energyMetric = energyMetric;
+    }
+    const energyKind = text(rawSettings.energyKind);
+    if (energyKind) settings.energyKind = energyKind;
+    if (Object.keys(settings).length) region.settings = settings;
+  }
   return region;
 }
 
@@ -332,6 +431,84 @@ export function getBuiltinScreenTemplate(id: string): ScreenTemplate | undefined
   return found ? structuredClone(found) : undefined;
 }
 
+/** 一种卡片类型的槽位模板（供 AI 新增卡片时使用）。 */
+export interface WidgetTypeSchema {
+  type: string;
+  label: string;
+  defaultSize: { w: number; h: number };
+  /**
+   * `usesScope` 为 true 的项是范围选择器，不是测点。
+   *
+   * <p>`aggregate` / `displayType` 是模板给的**默认形态** ——
+   * AI 照着建卡才不会是「结构对、一打开就空白」。
+   */
+  slots: Array<{
+    key: string;
+    name: string;
+    valueType: string;
+    usesScope: boolean;
+    aggregate?: "sum" | "avg" | "max" | "min";
+    displayType?: "number" | "boolean" | "text";
+  }>;
+  /** 该类型在模板里惯用的取数口径（`dataSource` / `energyMetric` / `energyKind`）。 */
+  settings?: ScreenTemplateWidgetSettings;
+  /**
+   * true = 这个类型「按设备逐台各读一个值」（device-list / bar-compare）。
+   *
+   * <p>这类类型的测点槽位**不能带 `aggregate`** —— 一旦带了，
+   * 待绑定诊断与取数都会切到「按范围聚合历史」的分支
+   * （见 `describePendingSlot` 的聚合分支），而这里要的恰恰是逐台最新值。
+   * 实测后果：卡片显示「等待范围内设备上报 water_in_temp 的历史（用于求平均）」，
+   * 而它本该显示 9 台各自的水温。
+   */
+  perDevice?: boolean;
+}
+
+/**
+ * 归纳「卡片类型 → 槽位模板」。
+ *
+ * <h3>为什么要这个函数（2026-11-24）</h3>
+ *
+ * <p>AI 搭建要能**新增**卡片，就必须知道那种类型该有哪些槽位键。
+ * 只给「已有卡片的槽位」不够 —— 实测 AI 的原话是
+ * 「上下文未提供 trend-chart 的槽位定义，不能瞎绑」，然后拒绝出提案。
+ * 它说得对：`series-0` / `main` / `rows` 是设计契约，猜错就是
+ * `slot-not-found`，整个提案被整体拒绝（提案不做部分应用）。
+ *
+ * <p>槽位键的权威来源就是内置模板的 `regions[].interfaces[]` ——
+ * 渲染、待绑定判定、提案校验都以它为准。所以从那里归纳，不另立一份。
+ *
+ * <p>按类型去重，取先出现的。同类型在不同模板里的槽位一致
+ * （`metric-card` 都是 `filter/main/left/right`），
+ * 若将来分歧，应该先统一模板而不是让 AI 随机看到两种。
+ */
+export function describeWidgetTypeSchemas(): WidgetTypeSchema[] {
+  const byType = new Map<string, WidgetTypeSchema>();
+  for (const template of BUILTIN_SCREEN_TEMPLATES) {
+    for (const region of template.regions) {
+      if (byType.has(region.type)) continue;
+      const meta = SCENE_WIDGET_TYPE_REGISTRY.find((item) => item.type === region.type);
+      byType.set(region.type, {
+        type: region.type,
+        label: meta?.label ?? region.type,
+        defaultSize: meta?.defaultSize ?? { w: region.w, h: region.h },
+        slots: (region.interfaces ?? []).map((iface) => ({
+          key: iface.key,
+          name: iface.name,
+          valueType: iface.valueType,
+          usesScope: iface.allowedSources.includes("site")
+            || iface.allowedSources.includes("scene-topology"),
+          ...(iface.aggregate ? { aggregate: iface.aggregate } : {}),
+          ...(iface.displayType ? { displayType: iface.displayType } : {}),
+        })),
+        ...(region.settings ? { settings: { ...region.settings } } : {}),
+        ...(meta?.scopePerDevice ? { perDevice: true } : {}),
+      });
+    }
+  }
+  return [...byType.values()];
+}
+
 export function resolveScreenTemplate(layout: SceneWidgetLayout | null | undefined): ScreenTemplate | undefined {
   if (layout?.templateDraft) {
     const draft = parseScreenTemplate(layout.templateDraft);
@@ -414,7 +591,9 @@ export function materializeScreenTemplate(
       const iface = region.interfaces.find((entry) => entry.key === item.key);
       return iface?.valueType === "scope";
     });
-    const slotIfaces = region.interfaces.filter((item) => item.allowedSources.includes("device-point"));
+    const slotIfaces = region.interfaces.filter(
+      (item) => item.allowedSources.includes("device-point") || item.constant != null,
+    );
     const slots: SceneWidgetSlot[] = slotIfaces.map((iface) => {
       const bound = regionBindings.find((item) => item.key === iface.key);
       const slot: SceneWidgetSlot = { key: iface.key, label: iface.name };
@@ -422,6 +601,18 @@ export function materializeScreenTemplate(
       if (bound?.label) slot.label = bound.label;
       if (bound?.deviceId) slot.deviceId = bound.deviceId;
       if (bound?.telemetryKey) slot.telemetryKey = bound.telemetryKey;
+      /* 设计值优先于绑定：与 readSlotValue / pending 同口径 */
+      if (iface.constant != null) slot.constant = iface.constant;
+      /*
+       * 取数/显示形态跟着模板走（2026-11-24）。
+       *
+       * 以前这三项不搬 —— 模板写了也不生效。后果最典型的是
+       * 「9 台之和」的趋势图：`aggregate` 丢了 → hasAggregate=false
+       * → 走单设备取数 → 没有 deviceId → **空白卡片，且不报错**。
+       */
+      if (iface.aggregate) slot.aggregate = iface.aggregate;
+      if (iface.render) slot.render = iface.render;
+      if (iface.displayType) slot.displayType = iface.displayType;
       return slot;
     });
     const title = options.regionTitles?.[region.id] ?? expandDefaultTitle(region.defaultTitle, options.sceneName);
@@ -437,6 +628,15 @@ export function materializeScreenTemplate(
       slots,
       scope: scopeFromBinding(scopeBinding),
       ...(region.filterText ? { filterText: region.filterText } : {}),
+      /*
+       * 部件级取数设置（2026-11-24）。
+       *
+       * 没有它，「场站用电趋势」与「单台机组功率趋势」在模板里长得一模一样 ——
+       * 因为差别不在槽位结构，而在取数口径（场站能量 vs 设备遥测）。
+       */
+      ...(region.settings?.dataSource ? { dataSource: region.settings.dataSource } : {}),
+      ...(region.settings?.energyMetric ? { energyMetric: region.settings.energyMetric } : {}),
+      ...(region.settings?.energyKind ? { energyKind: region.settings.energyKind } : {}),
     };
     return parseSceneWidget(raw, index)!;
   });

@@ -2,8 +2,8 @@
   "schemaVersion": "1.0.0",
   "id": "tianjiao-heat-pump",
   "name": "天骄冷热站",
-  "version": 18,
-  "description": "热泵机组监控大屏：左翼 9 台机组列表，中间三维场景，右翼选中机组与系统汇总，底部功率趋势与加载率对比。系统级点位读网关设备，机组级点位读各模块机。",
+  "version": 23,
+  "description": "热泵机组监控大屏：左翼场站用电量、场站用电趋势、用能分项占比；右翼碳排放核算、机组状态、告警跑马灯。",
   "regions": [
     {
       "id": "title",
@@ -21,10 +21,10 @@
       "id": "system-power",
       "type": "metric-card",
       "zone": "left",
-      "x": 3.13,
-      "y": 13.43,
-      "w": 11.35,
-      "h": 24.12,
+      "x": 2.4,
+      "y": 12.6,
+      "w": 18.6,
+      "h": 22,
       "defaultTitle": "系统功率",
       "defaultSubtitle": "SYSTEM POWER",
       "filterText": "模块机",
@@ -64,16 +64,93 @@
             "device-point"
           ]
         }
-      ]
+      ],
+      "settings": {
+        "dataSource": "energy",
+        "energyMetric": "usage",
+        "energyKind": "elec"
+      }
+    },
+    {
+      "id": "power-trend",
+      "type": "trend-chart",
+      "zone": "left",
+      "x": 2.4,
+      "y": 35.5,
+      "w": 18.6,
+      "h": 24,
+      "defaultTitle": "机组总功率趋势",
+      "defaultSubtitle": "POWER TREND",
+      "interfaces": [
+        {
+          "key": "filter",
+          "name": "取数范围",
+          "valueType": "scope",
+          "allowedSources": [
+            "site",
+            "scene-topology"
+          ]
+        },
+        {
+          "key": "series-0",
+          "name": "9 台之和",
+          "valueType": "number-series",
+          "aggregate": "sum",
+          "allowedSources": [
+            "device-point"
+          ]
+        }
+      ],
+      "filterText": "模块机",
+      "settings": {
+        "dataSource": "energy",
+        "energyMetric": "trend",
+        "energyKind": "elec"
+      }
+    },
+    {
+      "id": "load-compare",
+      "type": "bar-compare",
+      "zone": "left",
+      "x": 2.4,
+      "y": 60.4,
+      "w": 18.6,
+      "h": 32.6,
+      "defaultTitle": "用能分项占比",
+      "defaultSubtitle": "ENERGY BREAKDOWN",
+      "filterText": "模块机",
+      "interfaces": [
+        {
+          "key": "scope",
+          "name": "范围",
+          "valueType": "scope",
+          "allowedSources": [
+            "site",
+            "scene-topology"
+          ]
+        },
+        {
+          "key": "load",
+          "name": "功率",
+          "valueType": "number",
+          "allowedSources": [
+            "device-point"
+          ]
+        }
+      ],
+      "settings": {
+        "dataSource": "energy",
+        "energyMetric": "ranking"
+      }
     },
     {
       "id": "plant-capacity",
       "type": "metric-card",
-      "zone": "left",
-      "x": 3.13,
-      "y": 38.38,
-      "w": 11.35,
-      "h": 19.38,
+      "zone": "right",
+      "x": 79.0,
+      "y": 12.6,
+      "w": 18.6,
+      "h": 18,
       "defaultTitle": "装机参数",
       "defaultSubtitle": "PLANT CAPACITY",
       "interfaces": [
@@ -103,16 +180,20 @@
             "device-point"
           ]
         }
-      ]
+      ],
+      "settings": {
+        "dataSource": "energy",
+        "energyMetric": "carbon"
+      }
     },
     {
       "id": "unit-list",
       "type": "device-list",
-      "zone": "left",
-      "x": 3.13,
-      "y": 58.59,
-      "w": 11.35,
-      "h": 22.61,
+      "zone": "right",
+      "x": 79.0,
+      "y": 31.5,
+      "w": 18.6,
+      "h": 29,
       "defaultTitle": "机组状态",
       "defaultSubtitle": "UNIT STATUS",
       "filterText": "模块机",
@@ -146,6 +227,7 @@
           "key": "state",
           "name": "运行状态",
           "valueType": "number",
+          "displayType": "boolean",
           "allowedSources": [
             "device-point"
           ]
@@ -153,113 +235,16 @@
       ]
     },
     {
-      "id": "selected-unit",
-      "type": "selection-card",
+      "id": "alarm-ticker",
+      "type": "alarm-ticker",
       "zone": "right",
-      "x": 85.51,
-      "y": 13.43,
-      "w": 11.35,
-      "h": 27.5,
-      "defaultTitle": "选中机组",
-      "defaultSubtitle": "SELECTED UNIT",
+      "x": 79.0,
+      "y": 61.4,
+      "w": 18.6,
+      "h": 31.6,
+      "defaultTitle": "告警",
+      "defaultSubtitle": "ALARMS",
       "interfaces": []
-    },
-    {
-      "id": "unit-summary",
-      "type": "summary-card",
-      "zone": "right",
-      "x": 85.51,
-      "y": 41.76,
-      "w": 11.35,
-      "h": 26.95,
-      "defaultTitle": "运行汇总",
-      "defaultSubtitle": "RUN SUMMARY",
-      "filterText": "模块机",
-      "interfaces": [
-        {
-          "key": "scope",
-          "name": "范围",
-          "valueType": "scope",
-          "allowedSources": [
-            "site",
-            "scene-topology"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "control-bar",
-      "type": "control-bar",
-      "zone": "right",
-      "x": 85.51,
-      "y": 69.54,
-      "w": 11.35,
-      "h": 11.66,
-      "defaultTitle": "系统控制",
-      "defaultSubtitle": "CONTROL",
-      "interfaces": []
-    },
-    {
-      "id": "power-trend",
-      "type": "trend-chart",
-      "zone": "bottom",
-      "x": 3.13,
-      "y": 84.63,
-      "w": 46.5,
-      "h": 14.17,
-      "defaultTitle": "机组总功率趋势",
-      "defaultSubtitle": "POWER TREND",
-      "interfaces": [
-        {
-          "key": "filter",
-          "name": "取数范围",
-          "valueType": "scope",
-          "allowedSources": [
-            "site",
-            "scene-topology"
-          ]
-        },
-        {
-          "key": "series-0",
-          "name": "9 台之和",
-          "valueType": "number-series",
-          "allowedSources": [
-            "device-point"
-          ]
-        }
-      ],
-      "filterText": "模块机"
-    },
-    {
-      "id": "load-compare",
-      "type": "bar-compare",
-      "zone": "bottom",
-      "x": 50.36,
-      "y": 84.63,
-      "w": 46.5,
-      "h": 14.17,
-      "defaultTitle": "机组功率对比",
-      "defaultSubtitle": "UNIT POWER",
-      "filterText": "模块机",
-      "interfaces": [
-        {
-          "key": "scope",
-          "name": "范围",
-          "valueType": "scope",
-          "allowedSources": [
-            "site",
-            "scene-topology"
-          ]
-        },
-        {
-          "key": "load",
-          "name": "功率",
-          "valueType": "number",
-          "allowedSources": [
-            "device-point"
-          ]
-        }
-      ]
     }
   ],
   "objectBinding": {

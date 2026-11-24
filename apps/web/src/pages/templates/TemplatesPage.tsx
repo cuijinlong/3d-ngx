@@ -15,6 +15,7 @@ import { useAuthSession } from "../../auth/AuthSession";
 import { brandPath } from "../../auth/access";
 import { routes } from "../../constants/routes";
 import { EntryChrome, entryStyles as styles } from "../entry/EntryChrome";
+import { TemplateFileExplorer } from "../../features/scene-editor/TemplateFileExplorer";
 
 const MAX_BYTES = 48 * 1024 * 1024;
 
@@ -55,6 +56,13 @@ export function TemplatesPage() {
   const [editing, setEditing] = useState<SceneTemplateCard | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
+  /**
+   * 文件资源管理器（2026-11-24）。
+   *
+   * <p>存整张卡片而不只是 id：弹框标题要显示模板名，且打开时要判断
+   * 「有没有模型」给出不同提示。只存 id 的话得到处再查一遍。
+   */
+  const [filesOf, setFilesOf] = useState<SceneTemplateCard | null>(null);
   const [form] = Form.useForm<TemplateFormValues>();
 
   /*
@@ -253,6 +261,21 @@ export function TemplatesPage() {
                 <button type="button" className={styles.link} onClick={() => openEdit(row)}>
                   编辑
                 </button>
+                {/*
+                 * 文件资源管理器入口（2026-11-24）。
+                 *
+                 * 不禁用「没有模型的模板」：套装文件（css/js）也算资源，
+                 * 有些模板只有套装没有模型。禁用会让人以为这个功能用不了。
+                 */}
+                <button
+                  type="button"
+                  className={styles.link}
+                  onClick={() => setFilesOf(row)}
+                  data-testid="open-template-files"
+                  data-template-id={row.id}
+                >
+                  文件
+                </button>
                 <button type="button" className={styles.link} onClick={() => void remove(row)}>
                   删除
                 </button>
@@ -335,6 +358,12 @@ export function TemplatesPage() {
           </Form.Item>
         </Form>
       </Modal>
+
+      <TemplateFileExplorer
+        open={filesOf != null}
+        template={filesOf}
+        onClose={() => setFilesOf(null)}
+      />
     </EntryChrome>
   );
 }

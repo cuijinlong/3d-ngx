@@ -234,6 +234,7 @@ interface SceneWidgetControl {
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `metric-card` | 主指标 | 20.4×18 | ✓ | ✓ | — | — | 槽位 `main`/`left`/`right` |
 | `ratio-ring` | 已用/总数圆环 | 20.4×22 | ✓ | ✓ | ✓ | — | 两个槽画圆环比例 |
+| `gauge-ring` | 环形仪表 | 20.4×20 | ✓ | — | — | — | 粗环+渐变+光点+刻度；槽位 `value-N`/`max-N`，量程可用 `constant` |
 | `trend-chart` | 趋势小图 | 20.4×22 | ✓ | ✓ | — | — | 单设备走 store 累积；聚合槽走历史接口 |
 | `summary-card` | 状态汇总 | 20.4×16 | — | ✓ | ✓ | — | 运行/离线/故障计数 + 在线率 |
 | `selection-card` | 选中对象卡 | 20.4×22 | — | — | — | — | 最多 1 块；点击 3D 后显示该对象参数 |
@@ -563,3 +564,180 @@ cd apps/web && ../../node_modules/.bin/vitest run layout-proposal
 | 资产源需手填 id | 面板没有资产选择器（设备有） | 装机参数这类资产属性源要手填 |
 
 前两条是刻意的取舍（A5 禁止 N+1），第三四条是当前范围外。
+
+---
+
+## 12. 科技大屏视觉语言（2026-11-23 对照参考效果图定案）
+
+这一节规定「HUD 皮肤下长什么样」。所有规则都写在
+`apps/web/src/features/scene-widgets/WidgetOverlay.module.css` 的
+`:global([data-ngx-hud])` 作用域内 —— **只影响运行态大屏，编辑器与亮色主题零改动**。
+
+> 为什么放在样式层而不是模板 JSON 里：同一套视觉要服务所有模板、所有客户。
+> 写进某个模板 = 定制；写进 HUD 皮肤 = 模板库能力。
+
+### 12.1 五条必备元素（缺一条就不像专业大屏）
+
+| # | 元素 | 实现位置 | 作用 |
+| --- | --- | --- | --- |
+| 1 | **四角折线光角** | `.card::after` 8 条 linear-gradient | 一眼认出「仪表盘」而非「网页卡片」 |
+| 2 | **标题双斜线** | `.cardTitleMark` 的 `::before/::after` | 参考图 `《 区块名` 的等价物 |
+| 3 | **主数值渐变高光** | `.metricValue > span` + `@supports` | LED 大屏感；`color:transparent` 必须有 `@supports` 兜底 |
+| 4 | **数据行细分隔线** | `.row` 底边 0.12 透明度 | 让 9 台设备「数得清、不串行」 |
+| 5 | **大标题横向光带** | `.titleCard::after` 两端渐隐 | 顶部不再是「一行裸字」 |
+
+### 12.2 实测踩到的四个坑
+
+**① 伪元素只有两个，`::before` 已被占用**
+
+`.card::before` 是顶部彩条。四角光角只能用 `::after`。而标题卡要光带也用 `::after`，
+所以 **`titleCard::after` 必须显式覆盖 `display` / `inset` / `opacity`** ——
+`.card::after` 上的 `inset:0`、`opacity:0.7`、`display:none`（标题卡关光角）都会继承过来。
+漏一个的后果分别是：光带被拉满整卡、光带偏暗、光带完全不显示。**三种都不报错。**
+
+**② 装饰重复：既有竖条 + 新增双斜线**
+
+`.cardTitle::before` 原本就有一条 3px 竖条。加双斜线后变成「两根柱子」。
+HUD 下隐藏竖条（`display:none`），保留双斜线。
+
+**③ 标题被延迟标记挤断**
+
+标题条里有三个 flex:none 元素（标题 / 延迟标记 / 英文副标题）争 200px。
+实测标题被 ellipsis 切成「场站用电」，用户看不到完整名称。
+修法：`.cardTitleText { flex: 1 1 auto }` + 有延迟时用 `:has(.dataStale)` 让副标题让位
+—— **延迟是运维关键信息，英文副标题只是装饰，该让位的是装饰**。
+
+**④ 1px 光带在 1920 宽大屏上等于不存在**
+
+实测整屏截图里 1px 光带完全消失（显示器缩放 + 截图压缩）。提到 2px + 两层外发光才看得见。
+
+### 12.3 验收方法（不能只看整屏截图）
+
+整屏截图分辨率压缩后，1px 线、9px 字号、角标细节**全部看不见**。
+判断视觉是否生效必须用 `Page.captureScreenshot` 的 `clip` + `scale: 3` 放大单卡：
+
+```js
+const r = card.getBoundingClientRect();
+await send("Page.captureScreenshot", {
+  format: "png",
+  clip: { x: r.x - 6, y: r.y - 6, width: r.width + 12, height: r.height + 12, scale: 3 },
+}, sessionId);
+```
+
+同时要 probe 伪元素的计算样式，否则「看起来没变」分不清是「没生效」还是「生效了但太小」：
+
+```js
+getComputedStyle(card, "::after").backgroundImage   // 应为 8 条 linear-gradient
+getComputedStyle(mark).fontSize                      // 应为 0px（原字符已隐藏）
+getComputedStyle(mark, "::before").content           // 应为 ""（双斜线已生成）
+```
+
+脚本：`/tmp/shot-detail.mjs`（可复用）。
+
+### 12.4 明确不做的事
+
+- **不在样式里写业务数字**：阈值、单位、设备数全部来自数据字典与绑定。
+- **不把视觉写进模板 JSON**：模板只声明 `region` + `interfaces` 绑定契约。
+- **不用 `color: transparent` 而不加 `@supports`**：不支持 `background-clip: text` 时
+  文字会**完全消失**，而大屏上消失的正是最重要的数字。
+
+---
+
+## 13. 环形仪表 `gauge-ring`（2026-11-23）
+
+### 13.1 它和 `ratio-ring` 的区别
+
+两者形状相似，语义和兜底规则**相反**：
+
+| | `ratio-ring` 已用/总数 | `gauge-ring` 当前值/量程 |
+| --- | --- | --- |
+| 分母语义 | 真实总量（车位总数、房间数） | 设计量程（100%、750kW） |
+| 分母来源 | 必须绑测点 | 可绑测点，也可是 `constant` |
+| 缺分母时 | 报「未绑定」 | 默认 100（`maxOrigin: "default"`） |
+| 配了量程但没值 | — | **不兜底**，判未解析 |
+| 视觉 | 细环 + 圆内占比 | 粗环 + 渐变 + 环尾光点 + 刻度 |
+
+> 不要用 `ratio-ring` 冒充仪表：它的「缺分母就报未绑定」会让百分比类指标
+> 永远要求一个「上报总量」的假设备。
+
+### 13.2 槽位约定
+
+```jsonc
+"slots": [
+  { "key": "value-0", "label": "运行功率", "unit": "kW",
+    "deviceId": "<id>", "telemetryKey": "power" },
+  { "key": "max-0", "label": "满量程", "unit": "kW", "constant": 100 }
+]
+```
+
+- 命名：`value-N` / `max-N`（也接受 `used-N` / `total-N`，两者语义等价）
+- 不写序号时按「偶数位 = 值、奇数位 = 量程」配对
+- **量程槽强烈建议写 `constant`**：百分比类不用绑定任何设备就能出环
+
+### 13.3 `slot.constant`：设计值，不属于任何设备
+
+量程、阈值、参考线这类「设计值」用 `constant` 写死：
+
+```ts
+interface SceneWidgetSlot {
+  constant?: number;   // 优先级最高：填了就不看 device / telemetryKey
+}
+```
+
+**三个必须知道的行为**：
+
+1. **优先于绑定** —— 同一槽位既填 `constant` 又绑设备时，常量赢。
+   这是刻意的：量程是设计值，绑上的测点只可能是误配。
+2. **不算「未绑定」** —— `pendingBindings` 里常量槽直接视为已配好。
+   不这样做的话仪表会永远挂着「还差 1 项」，用户怎么配都消不掉。
+3. **允许 0 和负数** —— 量程可以是 0，温度下限可以是 -25℃。
+   但**空字符串不算 0**（`Number("") === 0` 的经典坑，会把「没填」读成「量程 0」）。
+
+### 13.4 模板里声明常量量程
+
+```jsonc
+// screen-templates/xxx.json → regions[].interfaces[]
+{
+  "key": "max-0", "name": "满量程", "valueType": "number",
+  "allowedSources": [], "constant": 100
+}
+```
+
+`constant` 存在时该 interface 不要求绑定，生成的槽位自带常量。
+
+### 13.5 ★ 适用边界：只适合「零基比例型」指标
+
+**实测发现的真实缺陷**（2026-11-23）：温度类指标用仪表会失去意义。
+
+```
+出水温度 7.35℃，量程写 50℃ → 环只画到 14.7%，几乎看不见
+而它的真实正常范围是 5~20℃，相对该范围其实处于中位
+```
+
+原因：当前仪表**只支持 0 ~ max**，没有 `min` 偏移。所以：
+
+| 指标类型 | 适合仪表？ | 该用什么 |
+| --- | --- | --- |
+| 加载率 / 开度 / 在线率（0~100%） | ✅ 最合适 | 仪表 |
+| 台数占比（运行 5 / 共 9 台） | ✅ | 仪表 或 ratio-ring |
+| 容量占比（已租 / 总面积） | ✅ | 仪表 |
+| 功率（0 ~ 额定功率） | ⚠️ 勉强 | 仪表（量程写额定值） |
+| **温度、压力、频率**（非零起点区间） | ❌ | **趋势图**（看走势才有意义） |
+
+要把温度类也做成仪表，需要给 `gauge` 加 `min` 支持（几何上要处理负角度起点）。
+**当前不做** —— 温度看趋势比看瞬时占比更有诊断价值，加 `min` 是复杂度换不来收益。
+
+### 13.6 验证方法
+
+```js
+// 环是否真的画出来了（CSS Modules 类名带 hash，用 *= 匹配）
+document.querySelectorAll('[data-testid="gauge-ring"]').length      // = 组数
+card.querySelectorAll('[class*=gaugeProgress]').length              // = 有值的环数
+card.querySelectorAll('[class*=gaugeDot]').length                   // = 同上（ratio>0 才有）
+[...card.querySelectorAll('[data-testid="gauge-ring"]')].map(e => e.innerText)
+// → ["19.3 kW / 100 运行功率", "43 % / 100 阀门开度", ...]
+```
+
+⚠️ 探针要在卡片真正渲染后跑（等 `[data-testid^="scene-widget-"]` 数量稳定 + 再等 8 秒）。
+实测踩过：DOM 查询写对了但查得太早，返回 0 个环，误判成「没渲染」——
+而同一时刻的截图里三个环好端端地在。

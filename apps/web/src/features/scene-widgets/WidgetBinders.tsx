@@ -102,6 +102,25 @@ function slotPresetsForType(type: string, slotCount: number): Array<Partial<impo
     }
     return list;
   }
+  if (type === "gauge-ring") {
+    /*
+     * 仪表默认**两槽一组**：值 + 量程（2026-11-23）。
+     *
+     * 量程那格用 `constant` 预设 100：百分比类指标占绝大多数，
+     * 预填 100 就能直接用；要改成 kW 量程就在配置面板里改一个数，
+     * 不用再去找一个「上报总量」的设备。
+     *
+     * 注意：预设里的 constant 会被用户后续覆盖，所以它只是**起点**，
+     * 不是写死的——`parseWidgetSlot` 两边的值优先。
+     */
+    const groups = Math.max(1, Math.ceil(slotCount / 2) || 1);
+    const list: Array<{ key: string; label: string; constant?: number }> = [];
+    for (let index = 0; index < groups; index += 1) {
+      list.push({ key: `value-${index}`, label: `当前值 ${index + 1}` });
+      list.push({ key: `max-${index}`, label: `满量程 ${index + 1}`, constant: 100 });
+    }
+    return list;
+  }
   if (type === "trend-chart") {
     const count = Math.max(1, slotCount);
     return Array.from({ length: count }, (_, index) => ({ key: `series-${index}`, label: `系列 ${index + 1}` }));

@@ -82,6 +82,16 @@ function slotIsFilled(widget: SceneWidget, slotIndex: number): boolean {
   const slot = widget.slots?.[slotIndex];
   if (!slot) return false;
   /*
+   * 常量槽（2026-11-23）。
+   *
+   * <p>仪表量程、参考线这类槽位故意不绑设备 —— 它们就是写死的设计值。
+   * 不加这一条的话，「满量程 100」会被判成未绑定，整个仪表卡
+   * 永远带着一个「还差 1 项」的标记，用户怎么配都消不掉。
+   *
+   * <p>放最前面：常量优先于一切绑定字段（与 `readSlotValue` 同口径）。
+   */
+  if (slot.constant != null && Number.isFinite(slot.constant)) return true;
+  /*
    * 资产槽的键名是 attributeKey，不是 telemetryKey（2026-11-23）。
    * 原来统一查 telemetryKey，导致配好的资产槽被误报为未绑定 ——
    * 而用户怎么配都「配不好」，因为两种字段名就不一样。
