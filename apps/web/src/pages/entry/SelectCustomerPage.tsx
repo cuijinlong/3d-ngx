@@ -1,7 +1,7 @@
 
 import { getConnectedGuardClient, listPlatformCustomers, resolveDefaultScene, type PlatformCustomer } from "@idt/data-adapter";
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { isUsableCustomerId, writeLastCustomerId } from "../../auth/customer-scope";
 import { routes } from "../../constants/routes";
 import { customerCardHints, listCustomerScenes } from "../../services/scene/customer-scenes";
@@ -52,9 +52,18 @@ export function SelectCustomerPage() {
     };
   }, []);
 
+  /*
+   * 从模板库「用它建场景」进来时会带 templateId。
+   * 这里只负责把它透传到客户的场景页 —— 选客户仍然是必须的一步，
+   * 不因为带了模板就跳过（模板是租户级的，场景必须落在某个客户下）。
+   */
+  const [searchParams] = useSearchParams();
+  const templateId = searchParams.get("templateId") || undefined;
+
   const openCustomer = (id: string) => {
     writeLastCustomerId(id);
-    nav(routes.customerScenes(id));
+    const base = routes.customerScenes(id);
+    nav(templateId ? `${base}?templateId=${encodeURIComponent(templateId)}` : base);
   };
 
   if (timedOut && loading) {

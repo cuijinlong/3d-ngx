@@ -28,3 +28,6 @@ test-results/
 apps/web/public/models/*.glb
 apps/web/public/models/*.gltf
 apps/web/public/environments/*.hdr
+
+# 模板包导出产物（由 scripts/export-template-package.mjs 生成，可随时重建）
+_tmp-template-package/

@@ -1,0 +1,183 @@
+/*
+ * AI 搭建面板（2026-11-23）。
+ *
+ * <p>布局是「消息流（可滚）+ 输入区（固定底部）」两段。
+ * 消息流必须 `flex: 1; min-height: 0` —— 少了 `min-height: 0`，
+ * flex 子项会被内容撑高，底部输入框会被挤出可视区
+ * （与告警跑马灯里踩过的是同一个坑）。
+ */
+
+.titleRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.badge {
+  font-size: 11px;
+}
+
+.wrap {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-right: 4px;
+  scrollbar-width: thin;
+}
+
+.list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.list::-webkit-scrollbar-thumb {
+  border-radius: 2px;
+  background: var(--ngx-color-border);
+}
+
+.bubble {
+  max-width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--ngx-color-border);
+  background: var(--ngx-color-surface);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.bubbleUser {
+  align-self: flex-end;
+  max-width: 86%;
+  border-color: var(--ngx-color-primary);
+  background: color-mix(in srgb, var(--ngx-color-primary) 12%, transparent);
+}
+
+.bubbleAi {
+  align-self: flex-start;
+  max-width: 92%;
+}
+
+/*
+ * 报错气泡：红色边框 + 浅红底。
+ *
+ * <p>必须和 AI 回答视觉上完全分开 —— 用户会把「系统报错」当成
+ * 「AI 说的话」，进而以为 AI 给了个奇怪的建议。
+ */
+.bubbleError {
+  align-self: stretch;
+  border-color: var(--ngx-color-danger, #e5484d);
+  background: color-mix(in srgb, var(--ngx-color-danger, #e5484d) 10%, transparent);
+  color: var(--ngx-color-danger, #e5484d);
+}
+
+.bubbleHead {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  color: var(--ngx-color-muted);
+  margin-bottom: 3px;
+}
+
+.bubbleError .bubbleHead {
+  color: var(--ngx-color-danger, #e5484d);
+}
+
+.bubbleBody {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.composer {
+  flex: none;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding-top: 10px;
+  margin-top: 4px;
+  border-top: 1px solid var(--ngx-color-border);
+}
+
+/* ==================== AI 改动确认卡片（2026-11-24） ==================== */
+
+/*
+ * 一条 AI 回包旁边的「待确认改动」。
+ *
+ * 视觉上必须和聊天气泡分开：气泡是「AI 说的话」（仅供参考），
+ * 这块是「要动你的大屏」（需要决定）。用左边框 + 浅底把它标成一个区块。
+ */
+.plan {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-left: 2px solid var(--ngx-color-primary, #1677ff);
+  background: var(--ngx-color-surface-sunken, rgba(0, 0, 0, 0.03));
+  border-radius: 0 6px 6px 0;
+  font-size: 12px;
+}
+
+/*
+ * 校验问题。
+ *
+ * 分成两档颜色：有 next（可以应用但有提示）用琥珀，
+ * 没有 next（不能应用）用红 —— 「提醒」和「拦下」是两种不同的意思，
+ * 同一种颜色会让人以为都能点。
+ */
+.planIssues {
+  margin-bottom: 8px;
+  color: var(--ngx-color-text, #333);
+}
+
+.planIssues b {
+  color: #c2410c;
+}
+
+.planIssues ul,
+.planDiff ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  line-height: 1.6;
+}
+
+.planIssues li {
+  color: #b45309;
+}
+
+/*
+ * 差异行用等宽字体。
+ *
+ * 内容形如 `power-trend.title: 「旧」 → 「新」`，对齐后更容易扫读；
+ * 比例字体下引号和箭头会挤在一起。
+ */
+.planDiff li {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 11.5px;
+  line-height: 1.65;
+  color: var(--ngx-color-text, #333);
+  word-break: break-word;
+}
+
+.planActions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+/*
+ * 已处理状态。
+ *
+ * 保留一行说明而不是删掉卡片：用户需要看到「这里曾经有过一处改动、
+ * 我点了应用」，否则回头分不清是 AI 没提还是自己漏点了。
+ */
+.planSettled {
+  margin-top: 8px;
+  font-size: 11.5px;
+  color: var(--ngx-color-muted, #888);
+}

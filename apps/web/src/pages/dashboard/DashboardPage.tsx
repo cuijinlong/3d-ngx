@@ -41,7 +41,7 @@ export function DashboardPage() {
         <div className="page-head">
           <div>
             <h1 className="page-title">工业三维数字孪生</h1>
-            <p className="page-sub">本地运行 · 第一阶段使用演示数据，不连接现场设备</p>
+            <p className="page-sub">场景数据来自 guard-server 实时遥测，不再有演示数据开关</p>
           </div>
           <Button type="primary" onClick={() => void create()}>
             新建场景

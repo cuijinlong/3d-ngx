@@ -1,0 +1,120 @@
+/*
+ * 3D 视口 HUD 装饰层（2026-11-23）。
+ * 数值对齐 template01 的 .viewport-hud / .hud-chip / .hud-bottom，
+ * 但透明度更低：它是氛围，不能和卡片抢注意力。
+ */
+
+.hud {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  font-size: 8px;
+  letter-spacing: 0.5px;
+  color: var(--ngx-hud-muted, #7f9bb0);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 顶部：场景名 + 英文（对应 .scene-topline） ── */
+.top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(90deg, transparent, rgba(17, 83, 145, 0.22), transparent);
+}
+
+.title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.title strong {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--ngx-hud-text, #e8f4ff);
+  opacity: 0.8;
+}
+
+.title em {
+  font-style: normal;
+  font-size: 7px;
+  letter-spacing: 1.5px;
+  opacity: 0.6;
+}
+
+/*
+ * ── 四角 chip（对应 .viewport-hud .hud-chip） ──
+ *
+ * 与模板的关键差异：template01 是「三列并排」，3D 在中间一列，
+ * chip 贴在 3D 内部 14px 处即可。
+ * 我们是「3D 占满全屏 + 卡片浮层」，贴边会压在左侧「系统功率」和
+ * 右侧「运行汇总」上（实测截图确认）。
+ *
+ * 所以按当前模板的卡片宽度（左右各约 22%）把 chip 收进中间：
+ * 24% 既避开卡片，又离模型足够近。窄屏下直接隐藏（见文件末尾）。
+ */
+.corners {
+  position: absolute;
+  top: 40px;
+  left: 24%;
+  right: 24%;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.chipColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.chipRight {
+  align-items: flex-end;
+}
+
+.chip {
+  padding: 4px 8px;
+  border: 1px solid rgba(82, 157, 214, 0.4);
+  background: rgba(4, 24, 47, 0.42);
+  border-radius: 3px;
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  white-space: nowrap;
+}
+
+/* ── 底部：坐标系（对应 .hud-bottom） ── */
+.bottom {
+  position: absolute;
+  /* 底部左右是趋势图与对比图，同样要避开 */
+  left: 24%;
+  right: 24%;
+  bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  opacity: 0.72;
+}
+
+.coord {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.5px;
+  white-space: pre;
+}
+
+/* HUD 很淡：太亮会盖住模型，也可能让用户误以为是可点的控件 */
+@media (max-width: 1400px) {
+  /* 窄屏下卡片占比更大，中间留给 3D 的净宽不够放 chip —— 直接收起来，
+     留着半截被卡片压住的文字比不显示更难看。 */
+  .corners,
+  .bottom {
+    display: none;
+  }
+}

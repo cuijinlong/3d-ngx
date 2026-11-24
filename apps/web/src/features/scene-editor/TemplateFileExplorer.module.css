@@ -1,0 +1,327 @@
+/*
+ * 模板文件资源管理器（2026-11-24）。
+ *
+ * <h2>为什么代码区用深色</h2>
+ *
+ * <p>项目主体是 antd 亮色主题，但代码编辑器用深色是行业惯例 ——
+ * 长时间读 css/json 时对比度更低、不刺眼。而且侧栏文件列表用浅色，
+ * 一深一浅把「浏览」和「编辑」两种动作在视觉上分开。
+ *
+ * <h2>行号列为什么和文本框分离</h2>
+ *
+ * <p>用两个元素 + 同步 scrollTop，而不是给每一行套一个 div。
+ * 后者在长文件（几千行）下 DOM 节点爆炸，而且换行折行时会错位 ——
+ * 这里 `wrap="off"` 不折行，行号与内容行天然一一对应。
+ */
+
+.modalShell :global(.ant-modal-content) {
+  padding: 0;
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  max-height: min(88vh, 900px);
+  background: var(--ngx-color-surface, #fff);
+}
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--ngx-color-border, #eee);
+  flex: none;
+}
+
+.headText {
+  min-width: 0;
+}
+
+.title {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 650;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* 模板名跟在标题后，用小号灰字 —— 它是上下文，不是标题的一部分 */
+.crumb {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ngx-color-muted, #888);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 420px;
+}
+
+.lead {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--ngx-color-muted, #888);
+  max-width: 680px;
+}
+
+.headActions {
+  flex: none;
+}
+
+.error {
+  margin: 12px 20px 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid #ffccc7;
+  background: #fff2f0;
+  color: #cf1322;
+  font-size: 12px;
+}
+
+/* ---------------- 主体：左列表 + 右编辑器 ---------------- */
+
+.body {
+  display: grid;
+  grid-template-columns: 258px minmax(0, 1fr);
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.side {
+  border-right: 1px solid var(--ngx-color-border, #eee);
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--ngx-color-surface-sunken, rgba(0, 0, 0, 0.02));
+}
+
+.sideHint {
+  padding: 20px 12px;
+  font-size: 12px;
+  color: var(--ngx-color-muted, #888);
+  line-height: 1.7;
+  text-align: center;
+}
+
+.sideHintSub {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--ngx-color-muted, #aaa);
+}
+
+/*
+ * 文件行用 <button>：它本来就是可点选项。
+ *
+ * 必须重置按钮默认样式（灰底、居中、系统字体），否则和整个列表格格不入。
+ */
+.fileRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  color: var(--ngx-color-text, #222);
+  min-width: 0;
+}
+
+.fileRow:hover {
+  background: var(--ngx-color-surface, #fff);
+  border-color: var(--ngx-color-border, #e5e5e5);
+}
+
+.fileRowActive,
+.fileRowActive:hover {
+  background: var(--ngx-color-primary-bg, #e6f4ff);
+  border-color: var(--ngx-color-primary, #1677ff);
+}
+
+.fileIcon {
+  flex: none;
+  width: 18px;
+  text-align: center;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 11px;
+  color: var(--ngx-color-muted, #999);
+}
+
+.fileName {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fileTail {
+  flex: none;
+}
+
+/* 标签压到 10px：它在列表里是辅助信息，不该和文件名抢宽度 */
+.fileTag,
+.fileTagMuted {
+  margin: 0;
+  font-size: 10px;
+  line-height: 16px;
+  padding: 0 5px;
+}
+
+.fileTagMuted {
+  color: var(--ngx-color-muted, #999);
+  background: transparent;
+  border: 1px solid var(--ngx-color-border, #e5e5e5);
+}
+
+/* ---------------- 编辑器 ---------------- */
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.placeholder {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  padding: 40px;
+  font-size: 13px;
+  color: var(--ngx-color-muted, #888);
+}
+
+.placeholderHint {
+  font-size: 11.5px;
+  color: var(--ngx-color-muted, #aaa);
+}
+
+.editorBar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  border-bottom: 1px solid #1d2b3a;
+  background: #0f1c2b;
+  color: #cfe3f5;
+  flex: none;
+}
+
+.editorName {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editorMeta {
+  flex: 1;
+  font-size: 11px;
+  color: #7d97b0;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 「未保存」用琥珀色：它是要提醒的状态，不是错误 */
+.dirty {
+  margin-left: 8px;
+  font-style: normal;
+  color: #ffbf47;
+  font-weight: 600;
+}
+
+.editorActions {
+  display: flex;
+  gap: 8px;
+  flex: none;
+}
+
+/*
+ * 代码区：行号列 + 文本框。
+ *
+ * 高度用 flex 撑满剩余空间而不是固定值 —— 弹框高度随视口变化（max-height 88vh），
+ * 固定 420px 会在小屏上把底部提示挤出视野。
+ */
+.codeWrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  background: #0b1621;
+  overflow: hidden;
+}
+
+.gutter {
+  flex: none;
+  width: 46px;
+  overflow: hidden;
+  padding: 10px 8px 10px 0;
+  text-align: right;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 20px;
+  color: #4a6076;
+  background: #0a141d;
+  border-right: 1px solid #16283a;
+  user-select: none;
+  /* 滚动位置由 JS 同步，这里禁掉自身滚动条避免出现两条 */
+  scrollbar-width: none;
+}
+
+.code {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  padding: 10px 12px;
+  border: 0;
+  outline: none;
+  resize: none;
+  background: transparent;
+  color: #d7e6f5;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  /* 与 .gutter 的 line-height 必须一致，否则行号会逐行偏移 */
+  font-size: 12px;
+  line-height: 20px;
+  tab-size: 2;
+  white-space: pre;
+  overflow: auto;
+}
+
+.code::selection {
+  background: rgba(56, 217, 239, 0.28);
+}
+
+.footNote {
+  flex: none;
+  padding: 8px 14px;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--ngx-color-muted, #888);
+  border-top: 1px solid var(--ngx-color-border, #eee);
+  background: var(--ngx-color-surface-sunken, rgba(0, 0, 0, 0.02));
+}
+
+@media (max-width: 820px) {
+  .body {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 180px) minmax(0, 1fr);
+  }
+  .side {
+    border-right: 0;
+    border-bottom: 1px solid var(--ngx-color-border, #eee);
+  }
+}

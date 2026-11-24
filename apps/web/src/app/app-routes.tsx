@@ -7,6 +7,7 @@ import { SettingsPage } from "../pages/settings/SettingsPage";
 import { LoginPage } from "../pages/login/LoginPage";
 import { SelectCustomerPage } from "../pages/entry/SelectCustomerPage";
 import { CustomerScenesPage } from "../pages/entry/CustomerScenesPage";
+import { TemplatesPage } from "../pages/templates/TemplatesPage";
 import { DefaultRuntimePage } from "../pages/entry/DefaultRuntimePage";
 import { AppErrorPage } from "./AppErrorPage";
 
@@ -48,6 +49,15 @@ export const appRouteObjects: RouteObject[] = [
         element: (
           <RequireTenant>
             <SelectCustomerPage />
+          </RequireTenant>
+        ),
+      },
+      {
+        /* 模板库是租户级资产（customer_id 为空），不挂在客户范围下。 */
+        path: "templates",
+        element: (
+          <RequireTenant>
+            <TemplatesPage />
           </RequireTenant>
         ),
       },

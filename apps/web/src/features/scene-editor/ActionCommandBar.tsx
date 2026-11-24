@@ -22,6 +22,8 @@ export function ActionCommandBar({
     const kind = getProviderKind();
     const allowed = kind === "guard" ? new Set(devices.filter(isRealtimePlatformDevice).map((item) => item.id)) : null;
     for (const binding of bindingsForNode(document, nodeName ?? null)) {
+      /* 资产绑定条目没有 deviceId —— 它不是「可下发命令的设备」，直接跳过。 */
+      if (!binding.deviceId) continue;
       if (allowed && !allowed.has(binding.deviceId)) continue;
       for (const mapping of binding.actionMappings) {
         if (!mapping.commandId) continue;

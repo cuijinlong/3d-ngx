@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<title>模板在线配置</title>
+<link rel="stylesheet" href="_wb.css"/>
+<style>.cfg{inset:12px 16px 8px;}</style>
+</head>
+<body>
+<div class="page">
+  <aside class="rail">
+    <div class="logo">3D</div>
+    <a><svg viewBox="0 0 24 24"><path d="M4 11.5 12 5l8 6.5V20H4z"/></svg>首页</a>
+    <a class="on"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7"/><rect x="13" y="4" width="7" height="7"/><rect x="4" y="13" width="7" height="7"/><rect x="13" y="13" width="7" height="7"/></svg>工作室</a>
+    <a><svg viewBox="0 0 24 24"><polygon points="8,6 18,12 8,18"/></svg>运行</a>
+    <a><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M16 16l4 4"/></svg>搜索</a>
+    <a><svg viewBox="0 0 24 24"><rect x="6" y="7" width="12" height="12"/><path d="M9 7V5h6v2"/></svg>设备</a>
+    <a><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg>设置</a>
+  </aside>
+  <div class="col">
+    <header class="top">
+      <div class="brand">3D-NGX 工作台</div>
+      <div class="scene">天骄科技园</div>
+      <button class="ghost">撤销</button>
+      <button class="ghost">重做</button>
+      <div class="sp"></div>
+      <button class="ghost on">模板配置</button>
+      <button class="ghost">核对绑定</button>
+      <button class="btn-pri">应用对接结果</button>
+      <button class="ghost">保存</button>
+      <button class="ghost pri">预览运行</button>
+      <button class="ghost">发布</button>
+    </header>
+    <div class="view">
+      <div class="frame"></div>
+      <div class="canvas-title">天骄科技园 · 综合态势</div>
+      <div class="wing left">
+        <div class="card dash">
+          <div class="hd"><div class="h">实时负荷</div></div>
+          <div class="empty"><div class="msg">还没有绑定设备</div><div class="sub">应用对接结果后会在这里显示读数</div></div>
+        </div>
+        <div class="card dash">
+          <div class="hd"><div class="h">设备状态</div></div>
+          <div class="empty"><div class="msg">还没有绑定设备</div><div class="sub">应用对接结果后会在这里显示读数</div></div>
+        </div>
+      </div>
+      <div class="wing right">
+        <div class="card dash">
+          <div class="hd"><div class="h">运行台数</div></div>
+          <div class="empty"><div class="msg">还没有绑定设备</div><div class="sub">应用对接结果后会在这里显示读数</div></div>
+        </div>
+        <div class="card dash">
+          <div class="hd"><div class="h">用能趋势</div></div>
+          <div class="empty"><div class="msg">还没有绑定设备</div><div class="sub">应用对接结果后会在这里显示读数</div></div>
+        </div>
+      </div>
+      <div class="mask" style="background:rgba(31,35,41,.28)">
+        <div class="cfg">
+          <div class="chd">
+            <div>
+              <h2>配置画面模板</h2>
+              <div class="sub">综合态势 · 保存后写入当前场景草稿（版本将升为 2），不会改仓库里的内置模板文件</div>
+            </div>
+            <span class="dialog-x">×</span>
+          </div>
+          <div class="cbody">
+            <div class="clist">
+              <div class="item"><div class="nm">标题</div><div class="id">title · 顶中</div></div>
+              <div class="item on"><div class="nm">实时负荷</div><div class="id">metric-load · 左翼 · 主指标</div></div>
+              <div class="item"><div class="nm">设备状态</div><div class="id">device-status · 左翼 · 状态汇总</div></div>
+              <div class="item"><div class="nm">运行台数</div><div class="id">running-count · 右翼 · 圆环</div></div>
+              <div class="item"><div class="nm">用能趋势</div><div class="id">energy-trend · 右翼 · 趋势</div></div>
+              <div class="add">＋ 添加部件区域</div>
+            </div>
+            <div class="cform">
+              <div style="display:flex;gap:16px;flex-wrap:wrap">
+                <div class="fl"><label>默认标题</label><div class="input">实时负荷</div></div>
+                <div class="fl"><label>分区</label><div class="input">左翼</div></div>
+                <div class="fl"><label>稳定 id</label><div class="input">metric-load</div></div>
+              </div>
+              <div class="fl">
+                <label>接口</label>
+                <div class="ifs">
+                  <div class="ih"><span>key</span><span>名称</span><span>值类型</span><span>允许来源</span><span></span></div>
+                  <div class="ir"><span>filter</span><span>先限定范围</span><span>scope</span><span class="pill">场站 / 拓扑</span><span class="link">可选</span></div>
+                  <div class="ir"><span>main</span><span>主值</span><span>number</span><span class="pill">实时设备加测点</span><span>必填</span></div>
+                  <div class="ir"><span>left</span><span>左分解</span><span>number</span><span class="pill">实时设备加测点</span><span class="link">可选</span></div>
+                  <div class="ir"><span>right</span><span>右分解</span><span>number</span><span class="pill">实时设备加测点</span><span class="link">可选</span></div>
+                </div>
+                <div style="margin-top:8px"><span class="link">＋ 添加接口</span>　　<span class="link" style="color:#e5484d">删除这个区域</span></div>
+              </div>
+              <p class="note">这不是代码编辑器。这里只增删部件区域、改接口约定。数据还是靠对接文件填上；三维对象按对象名对接，字段是目标设备、铭牌测点、行为、底部启停命令和状态规则。</p>
+            </div>
+          </div>
+          <div class="cft">
+            <span style="font-size:12px;color:var(--muted)">内置模板保持不动，草稿只作用于当前场景</span>
+            <div style="display:flex;gap:8px">
+              <button class="ghost">取消</button>
+              <button class="btn-pri">保存到当前场景草稿</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="statusbar">
+        <span>模板「综合态势」· 正在编辑场景草稿，尚未保存</span>
+        <span>工作台 · --ngx-*</span>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

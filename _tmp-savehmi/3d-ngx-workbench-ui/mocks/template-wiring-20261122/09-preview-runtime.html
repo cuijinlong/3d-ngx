@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<title>预览运行 · 深色科技包</title>
+<style>
+@font-face{font-family:"Noto Sans CJK SC";src:url("file:///usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc") format("truetype");font-weight:400;font-display:block;}
+@font-face{font-family:"Noto Sans CJK SC";src:url("file:///usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc") format("truetype");font-weight:600;font-display:block;}
+:root{
+  --ngx-hud-bg:#070d16;
+  --ngx-hud-text:#e8f4ff;
+  --ngx-hud-muted:#7f9bb0;
+  --ngx-hud-accent:#2ec7f0;
+  --ngx-hud-gold:#e8b44c;
+  --ngx-hud-success:#19b37d;
+  --ngx-hud-warning:#e8930c;
+  --ngx-hud-danger:#e5484d;
+  --ngx-hud-frame:rgba(46,199,240,.65);
+  --ngx-hud-corner:#5ce0ff;
+  --ngx-hud-glass:rgba(8,24,42,.64);
+  --ngx-hud-glass-border:rgba(80,200,240,.35);
+  --font:"Noto Sans CJK SC",sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1600px;height:1000px;overflow:hidden;background:#05080e;font-family:var(--font);color:var(--ngx-hud-text);font-size:13px;line-height:1.5;}
+.page{width:1600px;height:1000px;display:flex;background:#05080e;}
+.rail{width:64px;flex:none;background:#070b12;border-right:1px solid rgba(46,199,240,.10);display:flex;flex-direction:column;align-items:center;padding:10px 0 16px;color:#6f8296;}
+.rail .logo{width:36px;height:36px;border-radius:8px;background:#0b3a5a;color:#7febff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;letter-spacing:-.4px;margin-bottom:14px;border:1px solid rgba(46,199,240,.35);}
+.rail a{width:64px;height:52px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:#6f8296;text-decoration:none;font-size:10px;}
+.rail a.on{color:#d7f6ff;background:rgba(46,199,240,.08);}
+.rail svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;}
+.col{flex:1;min-width:0;display:flex;flex-direction:column;}
+.top{height:48px;flex:none;display:flex;align-items:center;gap:10px;padding:0 14px;background:#0a121c;border-bottom:1px solid rgba(46,199,240,.14);color:var(--ngx-hud-text);}
+.brand{font-weight:650;font-size:13px;white-space:nowrap;}
+.scene{height:28px;padding:0 10px;border:1px solid rgba(46,199,240,.22);border-radius:6px;display:flex;align-items:center;background:rgba(8,24,42,.6);min-width:120px;}
+.sp{flex:1}
+.tag{font-size:11px;color:#e8b44c;background:rgba(232,180,76,.12);border:1px solid rgba(232,180,76,.28);border-radius:4px;padding:1px 8px;}
+.ghost{height:28px;padding:0 12px;border-radius:6px;border:1px solid rgba(46,199,240,.4);background:transparent;color:#9be7ff;font:13px/28px var(--font);}
+.view{flex:1;min-height:0;position:relative;background:#071018 url("../hud-ref-20261122/assets-runtime-3d.jpg") center / cover no-repeat;}
+.hud-frame{position:absolute;top:12px;left:14px;right:14px;bottom:56px;border-radius:16px;border:2px solid rgba(46,199,240,.85);box-shadow:0 0 0 1px rgba(10,40,60,.5) inset, 0 0 14px rgba(46,199,240,.6), 0 0 40px rgba(46,199,240,.32), 0 0 88px rgba(46,199,240,.14), inset 0 0 40px rgba(6,30,48,.18);pointer-events:none;}
+.hud-frame .inner-line{position:absolute;inset:7px;border-radius:11px;border:1px solid rgba(46,199,240,.28);pointer-events:none;}
+.cor{position:absolute;width:28px;height:28px;pointer-events:none;}
+.cor i{position:absolute;background:var(--ngx-hud-corner);box-shadow:0 0 10px rgba(92,224,255,.95);}
+.cor .h{height:3px;width:28px;left:0;}
+.cor .v{width:3px;height:28px;top:0;}
+.cor.tl{top:-1px;left:-1px;} .cor.tl .h{top:0;} .cor.tl .v{left:0;}
+.cor.tr{top:-1px;right:-1px;} .cor.tr .h{top:0;right:0;left:auto;} .cor.tr .v{right:0;left:auto;}
+.cor.bl{bottom:-1px;left:-1px;} .cor.bl .h{bottom:0;top:auto;} .cor.bl .v{left:0;bottom:0;top:auto;}
+.cor.br{bottom:-1px;right:-1px;} .cor.br .h{bottom:0;top:auto;right:0;left:auto;} .cor.br .v{right:0;left:auto;bottom:0;top:auto;}
+.tick{position:absolute;background:var(--ngx-hud-corner);box-shadow:0 0 6px rgba(92,224,255,.7);}
+.tick.tm{top:-1px;left:50%;width:28px;height:2px;margin-left:-14px;}
+.tick.bm{bottom:-1px;left:50%;width:28px;height:2px;margin-left:-14px;}
+.tick.ml{left:-1px;top:50%;width:2px;height:20px;margin-top:-10px;}
+.tick.mr{right:-1px;top:50%;width:2px;height:20px;margin-top:-10px;}
+.canvas-title{position:absolute;top:36px;left:350px;right:350px;text-align:center;font-size:26px;font-weight:700;letter-spacing:.12em;color:#fff;text-shadow:0 0 18px rgba(46,199,240,.35);pointer-events:none;line-height:1.2;}
+.wing{position:absolute;top:88px;bottom:52px;width:308px;display:flex;flex-direction:column;gap:14px;pointer-events:none;}
+.wing.left{left:32px;}
+.wing.right{right:32px;}
+.card{background:var(--ngx-hud-glass);border:1px solid var(--ngx-hud-glass-border);border-radius:8px;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);padding:12px 14px 14px;box-shadow:0 8px 24px rgba(0,0,0,.28);pointer-events:none;}
+.card .hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px;}
+.card .h{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:650;color:#d7f6ff;}
+.card .h::before{content:"";width:3px;height:12px;background:var(--ngx-hud-accent);border-radius:1px;box-shadow:0 0 6px rgba(46,199,240,.7);}
+.demo{font-size:10px;font-weight:400;color:#e8b44c;border:1px solid rgba(232,180,76,.3);border-radius:3px;padding:0 5px;line-height:16px;flex:none;}
+.twin{position:relative;height:124px;display:flex;flex-direction:column;align-items:center;justify-content:center;margin-top:4px;}
+.kpi{font-size:34px;font-weight:700;letter-spacing:-.03em;line-height:1;color:#fff;}
+.kpi small{font-size:13px;font-weight:500;color:var(--ngx-hud-muted);margin-left:4px;}
+.kpi-sub{font-size:12px;color:var(--ngx-hud-muted);margin-top:4px;}
+.split{display:flex;justify-content:space-between;width:100%;padding:0 6px;margin-bottom:2px;font-size:12px;}
+.split .a{color:#9be7ff;} .split .b{color:var(--ngx-hud-gold);}
+.split b{font-weight:700;font-size:13px;}
+.arc{position:absolute;inset:0;pointer-events:none;}
+.counts{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:6px;}
+.counts .item{text-align:center;padding:8px 4px 6px;border-radius:6px;background:rgba(255,255,255,.03);}
+.counts .lab{font-size:11px;color:var(--ngx-hud-muted);}
+.counts .num{font-size:22px;font-weight:700;line-height:1.2;margin-top:2px;}
+.counts .ok{color:var(--ngx-hud-success);}
+.counts .warn{color:var(--ngx-hud-warning);}
+.counts .bad{color:var(--ngx-hud-danger);}
+.total-row{display:flex;align-items:baseline;justify-content:space-between;margin:2px 0 8px;}
+.total-row .lab{color:var(--ngx-hud-muted);font-size:12px;}
+.total-row .num{font-size:22px;font-weight:700;}
+.rings{display:flex;justify-content:space-around;align-items:center;margin:4px 0 10px;}
+.ring{width:86px;text-align:center;}
+.ring svg{display:block;margin:0 auto 4px;}
+.ring .nm{font-size:14px;font-weight:700;color:#fff;line-height:1;}
+.ring .nm span{color:var(--ngx-hud-muted);font-weight:500;font-size:11px;}
+.ring .lab{font-size:11px;color:var(--ngx-hud-muted);margin-top:2px;}
+.bar-row{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ngx-hud-muted);}
+.bar-row b{color:#fff;font-weight:700;}
+.bar{flex:1;height:8px;border-radius:4px;background:rgba(255,255,255,.06);display:flex;overflow:hidden;}
+.bar .used{width:75%;background:var(--ngx-hud-gold);height:100%;}
+.bar .free{flex:1;background:var(--ngx-hud-accent);height:100%;}
+.chart{height:118px;position:relative;margin-top:2px;}
+.chart svg{width:100%;height:100%;display:block;}
+.legend{display:flex;gap:12px;justify-content:flex-end;font-size:11px;color:var(--ngx-hud-muted);margin-top:2px;}
+.legend i{display:inline-block;width:8px;height:8px;border-radius:1px;margin-right:4px;vertical-align:middle;}
+.drawer{position:absolute;left:50%;transform:translateX(-50%);bottom:36px;width:72px;padding:8px 10px;background:rgba(12,20,30,.88);border:1px solid rgba(46,199,240,.2);border-radius:12px;z-index:3;}
+.drawer .handle{width:36px;height:4px;border-radius:2px;background:rgba(127,155,176,.5);margin:0 auto;}
+.fab{position:absolute;right:16px;bottom:40px;z-index:4;height:28px;padding:0 12px;border-radius:14px;border:1px solid rgba(46,199,240,.35);background:rgba(8,24,42,.9);color:#9be7ff;font:650 13px/26px var(--font);box-shadow:0 2px 8px rgba(0,0,0,.3);}
+.statusbar{position:absolute;left:0;right:0;bottom:0;height:28px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;background:rgba(7,13,22,.92);border-top:1px solid rgba(46,199,240,.12);color:var(--ngx-hud-muted);font-size:12px;z-index:2;}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="col">
+    <header class="top">
+      <div class="brand">3D-NGX</div>
+      <div class="scene">天骄科技园</div>
+      <div class="sp"></div>
+      <button class="ghost">退出预览</button>
+    </header>
+    <div class="view">
+      <div class="hud-frame">
+        <div class="inner-line"></div>
+        <div class="cor tl"><i class="h"></i><i class="v"></i></div>
+        <div class="cor tr"><i class="h"></i><i class="v"></i></div>
+        <div class="cor bl"><i class="h"></i><i class="v"></i></div>
+        <div class="cor br"><i class="h"></i><i class="v"></i></div>
+        <i class="tick tm"></i><i class="tick bm"></i><i class="tick ml"></i><i class="tick mr"></i>
+      </div>
+      <div class="canvas-title">天骄科技园 · 综合态势</div>
+
+      <div class="wing left">
+        <div class="card">
+          <div class="hd"><div class="h">实时负荷</div></div>
+          <div class="twin">
+            <svg class="arc" viewBox="0 0 280 130" style="position:absolute;inset:0;width:100%;height:100%">
+              <path d="M28,112 A52,52 0 0 1 28,18" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="8" stroke-linecap="round"/>
+              <path d="M28,112 A52,52 0 0 1 28,18" fill="none" stroke="#2ec7f0" stroke-width="8" stroke-linecap="round" stroke-dasharray="120 163"/>
+              <path d="M252,18 A52,52 0 0 1 252,112" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="8" stroke-linecap="round"/>
+              <path d="M252,18 A52,52 0 0 1 252,112" fill="none" stroke="#e8b44c" stroke-width="8" stroke-linecap="round" stroke-dasharray="70 163"/>
+            </svg>
+            <div class="split" style="position:absolute;top:14px;left:52px;right:52px;width:auto;padding:0">
+              <span class="a">电 <b>210</b></span>
+              <span class="b">冷 <b>76</b></span>
+            </div>
+            <div class="kpi">286<small>kW</small></div>
+            <div class="kpi-sub">实时负荷</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="hd"><div class="h">设备状态</div></div>
+          <div class="total-row"><span class="lab">设备总数</span><span class="num">10</span></div>
+          <div class="counts">
+            <div class="item"><div class="lab">运行</div><div class="num ok">9</div></div>
+            <div class="item"><div class="lab">离线</div><div class="num warn">1</div></div>
+            <div class="item"><div class="lab">故障</div><div class="num bad">0</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="wing right">
+        <div class="card">
+          <div class="hd"><div class="h">运行台数</div></div>
+          <div class="rings">
+            <div class="ring">
+              <svg width="72" height="72" viewBox="0 0 72 72">
+                <circle cx="36" cy="36" r="28" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="6"/>
+                <circle cx="36" cy="36" r="28" fill="none" stroke="#2ec7f0" stroke-width="6" stroke-linecap="round" stroke-dasharray="131.9 175.9" transform="rotate(-90 36 36)"/>
+              </svg>
+              <div class="nm">9<span>/12</span></div>
+              <div class="lab">主机</div>
+            </div>
+            <div class="ring">
+              <svg width="72" height="72" viewBox="0 0 72 72">
+                <circle cx="36" cy="36" r="28" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="6"/>
+                <circle cx="36" cy="36" r="28" fill="none" stroke="#7ec8f0" stroke-width="6" stroke-linecap="round" stroke-dasharray="117.3 175.9" transform="rotate(-90 36 36)"/>
+              </svg>
+              <div class="nm">4<span>/6</span></div>
+              <div class="lab">循环泵</div>
+            </div>
+            <div class="ring">
+              <svg width="72" height="72" viewBox="0 0 72 72">
+                <circle cx="36" cy="36" r="28" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="6"/>
+                <circle cx="36" cy="36" r="28" fill="none" stroke="#e8b44c" stroke-width="6" stroke-linecap="round" stroke-dasharray="131.9 175.9" transform="rotate(-90 36 36)"/>
+              </svg>
+              <div class="nm">18<span>/24</span></div>
+              <div class="lab">阀门</div>
+            </div>
+          </div>
+          <div class="bar-row"><span>负荷率</span><b>75%</b><span>已用</span><div class="bar"><i class="used"></i><i class="free"></i></div><span>可用</span></div>
+        </div>
+        <div class="card">
+          <div class="hd"><div class="h">用能趋势</div></div>
+          <div class="legend"><span><i style="background:#2ec7f0"></i>电</span><span><i style="background:#e8b44c"></i>冷</span></div>
+          <div class="chart">
+            <svg viewBox="0 0 280 110" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="gElec" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stop-color="#2ec7f0" stop-opacity=".45"/>
+                  <stop offset="1" stop-color="#2ec7f0" stop-opacity="0"/>
+                </linearGradient>
+                <linearGradient id="gCold" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stop-color="#e8b44c" stop-opacity=".35"/>
+                  <stop offset="1" stop-color="#e8b44c" stop-opacity="0"/>
+                </linearGradient>
+              </defs>
+              <line x1="0" y1="92" x2="280" y2="92" stroke="rgba(255,255,255,.08)" stroke-width="1"/>
+              <path d="M0,78 C20,74 30,70 40,68 C60,64 70,50 90,48 C110,46 120,58 140,52 C160,46 170,30 190,28 C210,26 220,38 240,36 C255,34 268,40 280,38 L280,92 L0,92 Z" fill="url(#gElec)"/>
+              <path d="M0,78 C20,74 30,70 40,68 C60,64 70,50 90,48 C110,46 120,58 140,52 C160,46 170,30 190,28 C210,26 220,38 240,36 C255,34 268,40 280,38" fill="none" stroke="#2ec7f0" stroke-width="1.8"/>
+              <path d="M0,88 C20,86 40,84 60,82 C90,80 110,78 140,76 C170,72 200,70 230,74 C255,76 270,78 280,77 L280,92 L0,92 Z" fill="url(#gCold)"/>
+              <path d="M0,88 C20,86 40,84 60,82 C90,80 110,78 140,76 C170,72 200,70 230,74 C255,76 270,78 280,77" fill="none" stroke="#e8b44c" stroke-width="1.6"/>
+              <text x="0" y="108" fill="#7f9bb0" font-size="9" font-family="Noto Sans CJK SC">09:00</text>
+              <text x="122" y="108" fill="#7f9bb0" font-size="9" font-family="Noto Sans CJK SC">12:00</text>
+              <text x="248" y="108" fill="#7f9bb0" font-size="9" font-family="Noto Sans CJK SC">15:00</text>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+
+      <div class="drawer"><div class="handle"></div></div>
+      <button class="fab">总览</button>
+      <div class="statusbar">
+        <span>预览运行 · 与客户看到的是同一套表面 · 没有重新加载模型，镜头保持进入前的位置</span>
+        <span>退出预览后回到浅色工作台</span>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

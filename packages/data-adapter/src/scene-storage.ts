@@ -1,4 +1,5 @@
 import type { DeviceBinding } from "@idt/shared-types";
+import { normalizeBinding } from "./binding-normalize";
 import { parseSceneWidgetLayout, type SceneWidgetLayout } from "./scene-widget-layout";
 import type { GuardClient } from "./guard-client";
 import { GuardHttpError } from "./guard-client";
@@ -193,20 +194,16 @@ export function parseBindings(payload: unknown): SceneBindingsDocument {
   return { schemaVersion: "1.0.0", bindings };
 }
 
+/**
+ * 归一化一条绑定。实现已抽到 binding-normalize.ts（v1/v2 共用一套规则）。
+ *
+ * 为什么必须走它、不能在本文件里各写一份：
+ * v2 的资产绑定条目**不带** deviceId。老实现 `deviceId = text(row.deviceId)`
+ * 会把它写成空字符串再 PUT 回后端 —— 而后端 `parseUuid("")` 直接抛
+ * 「deviceId 不是合法 UUID」，整份绑定写不进去。资产条目必须是没有该字段。
+ */
 function bindingOf(raw: unknown): DeviceBinding | null {
-  const row = asRecord(raw);
-  const sceneEntityId = text(row.sceneEntityId ?? row.entityId);
-  const deviceId = text(row.deviceId);
-  if (!sceneEntityId && !deviceId) return null;
-  return {
-    id: text(row.id) || crypto.randomUUID(),
-    sceneEntityId,
-    deviceId,
-    deviceName: text(row.deviceName),
-    telemetryMappings: Array.isArray(row.telemetryMappings) ? (row.telemetryMappings as DeviceBinding["telemetryMappings"]) : [],
-    actionMappings: Array.isArray(row.actionMappings) ? (row.actionMappings as DeviceBinding["actionMappings"]) : [],
-    statusMapping: row.statusMapping as DeviceBinding["statusMapping"],
-  };
+  return normalizeBinding(raw);
 }
 
 export function parseWidgets(payload: unknown): SceneWidgetsDocument {

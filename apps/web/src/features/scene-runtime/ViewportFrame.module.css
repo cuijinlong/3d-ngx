@@ -1,0 +1,65 @@
+
+.frame {
+  position: absolute;
+  inset: 10px 12px 48px 12px;
+  z-index: 1;
+  pointer-events: none;
+  border-radius: 16px;
+  box-sizing: border-box;
+}
+
+.frameEdit {
+  border: 1px solid var(--ngx-glass-border);
+  box-shadow: none;
+}
+
+.frameHud {
+  border: 1px solid var(--ngx-hud-frame);
+  box-shadow: var(--ngx-hud-frame-glow);
+}
+
+.corner {
+  display: none;
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-color: var(--ngx-hud-corner);
+  border-style: solid;
+  border-width: 0;
+}
+
+.frameHud .corner {
+  display: block;
+}
+
+.corner[data-corner="tl"] {
+  top: -1px;
+  left: -1px;
+  border-top-width: 2px;
+  border-left-width: 2px;
+  border-top-left-radius: 16px;
+}
+
+.corner[data-corner="tr"] {
+  top: -1px;
+  right: -1px;
+  border-top-width: 2px;
+  border-right-width: 2px;
+  border-top-right-radius: 16px;
+}
+
+.corner[data-corner="bl"] {
+  bottom: -1px;
+  left: -1px;
+  border-bottom-width: 2px;
+  border-left-width: 2px;
+  border-bottom-left-radius: 16px;
+}
+
+.corner[data-corner="br"] {
+  bottom: -1px;
+  right: -1px;
+  border-bottom-width: 2px;
+  border-right-width: 2px;
+  border-bottom-right-radius: 16px;
+}

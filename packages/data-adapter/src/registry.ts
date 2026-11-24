@@ -11,6 +11,7 @@ import { GuardClient } from "./guard-client";
 import { TopologyApi } from "./topology-client";
 import { SceneStorageApi } from "./scene-storage";
 import { SceneTemplateApi } from "./scene-template-client";
+import { AssetApi } from "./asset-client";
 import { listRealtimeDevicesFrom, type RealtimeDeviceQuery } from "./list-realtime";
 import { GuardServerProvider, createGuardProvider } from "./guard-provider";
 import {
@@ -238,6 +239,15 @@ export function getTopologyApi(): TopologyApi {
 export function getSceneStorageApi(): SceneStorageApi | null {
   const client = getConnectedGuardClient();
   return client ? new SceneStorageApi(client) : null;
+}
+
+/**
+ * 资产属性读取。未连接平台时返回 null —— 调用方据此显示「未连接」，
+ * 而不是把「读不到」当成「没有属性」（两者在界面上必须是不同的话）。
+ */
+export function getAssetApi(): AssetApi | null {
+  const client = getConnectedGuardClient();
+  return client ? new AssetApi(client) : null;
 }
 
 export function getSceneTemplateApi(): SceneTemplateApi {

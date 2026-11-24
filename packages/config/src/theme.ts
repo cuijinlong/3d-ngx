@@ -94,6 +94,42 @@ export const themeTokens = {
   fontFamily: NGX_FONT,
 } as const;
 
+export const NGX_HUD_ATTR = "data-ngx-hud";
+
+/** 运行态 / 预览深色科技包。只作为独立 token，不写入 NgxThemeName、data-theme 或 ngx-theme。 */
+export const ngxHudTokens = {
+  bg: "#070d16",
+  viewport: "#071018",
+  text: "#e8f4ff",
+  muted: "#7f9bb0",
+  accent: "#2ec7f0",
+  accentSoft: "rgba(46, 199, 240, 0.16)",
+  gold: "#e8b44c",
+  success: "#19b37d",
+  warning: "#e8930c",
+  danger: "#e5484d",
+  frame: "rgba(46, 199, 240, 0.65)",
+  frameGlow: "0 0 24px rgba(46, 199, 240, 0.35), 0 0 64px rgba(46, 199, 240, 0.16)",
+  corner: "#5ce0ff",
+  glassBg: "rgba(8, 24, 42, 0.64)",
+  glassBorder: "rgba(80, 200, 240, 0.35)",
+  glassBlur: "16px",
+  glassRgb: "8, 24, 42",
+} as const;
+
+export const HUD_DEFAULT_GLASS_OPACITY = 0.64;
+
+/** 只在传入的根节点上开关 HUD 皮肤，不写 data-theme，也不碰 ngx-theme 存储。 */
+export function applyHudSkin(
+  enabled: boolean,
+  options?: { root?: HTMLElement | null; storage?: Storage | null },
+): void {
+  const root = options?.root ?? null;
+  if (!root) return;
+  if (enabled) root.setAttribute(NGX_HUD_ATTR, "on");
+  else root.removeAttribute(NGX_HUD_ATTR);
+}
+
 export function isNgxThemeName(value: unknown): value is NgxThemeName {
   return value === "light" || value === "dark";
 }

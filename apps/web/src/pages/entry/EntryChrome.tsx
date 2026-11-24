@@ -24,6 +24,16 @@ export function EntryChrome(props: {
         </Link>
         <div className={styles.crumb}>{props.crumbs}</div>
         <div className={styles.spacer} />
+        {/*
+          模板库（2026-11-23）：租户级入口，放在所有租户页面共用顶栏上。
+          不塞进客户范围菜单 —— 模板属于租户、不属于某个客户，
+          客户进到自己的场景时也不该看到它（客户本来就走不到 EntryChrome 的租户分支）。
+        */}
+        {chrome.showPlatformSettings ? (
+          <Link className={styles.ghost} to={routes.templates} style={{ display: "inline-flex", alignItems: "center", textDecoration: "none" }}>
+            模板库
+          </Link>
+        ) : null}
         {chrome.showPlatformSettings ? (
           <Link className={styles.ghost} to={routes.settings} style={{ display: "inline-flex", alignItems: "center", textDecoration: "none" }}>
             设置

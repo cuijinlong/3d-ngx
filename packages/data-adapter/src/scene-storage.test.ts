@@ -59,6 +59,36 @@ describe("scene storage client", () => {
     expect(parseWidgets({ schemaVersion: "1.0.0", widgets: [] }).widgets).toEqual([]);
   });
 
+  it("still assigns unique binding ids when randomUUID is missing", () => {
+    const originalRandomUUID = crypto.randomUUID;
+    Object.defineProperty(crypto, "randomUUID", {
+      configurable: true,
+      value: undefined,
+    });
+    try {
+      const first = parseBindings({
+        schemaVersion: "1.0.0",
+        bindings: [{ sceneEntityId: "obj-1", deviceId: "dev-1", deviceName: "冷冻泵" }],
+      });
+      const second = parseBindings({
+        schemaVersion: "1.0.0",
+        bindings: [{ sceneEntityId: "obj-2", deviceId: "dev-2" }],
+      });
+      expect(first.bindings[0]?.id).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+      );
+      expect(second.bindings[0]?.id).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+      );
+      expect(first.bindings[0]?.id).not.toBe(second.bindings[0]?.id);
+    } finally {
+      Object.defineProperty(crypto, "randomUUID", {
+        configurable: true,
+        value: originalRandomUUID,
+      });
+    }
+  });
+
   it("calls the energy default-scene, bindings, widgets and jumps endpoints", async () => {
     const requestJson = vi.fn(async (method: string, path: string) => {
       if (path.endsWith("/default-scene") && method === "GET") return { customerId: "cust-1", topologyId: "topo-a" };

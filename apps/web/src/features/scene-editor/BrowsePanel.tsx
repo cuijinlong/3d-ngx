@@ -158,7 +158,7 @@ export function WorkbenchSidePanel({
             ) : (
               <>
                 <HistoryList metrics={metrics} />
-                <p className={styles.hint}>图表系列来自该对象已绑定的看板数据。演示数据只标在状态栏。</p>
+                <p className={styles.hint}>图表系列来自该对象已绑定的看板数据（guard-server 实时遥测）。</p>
               </>
             )}
             {showAlarms ? (

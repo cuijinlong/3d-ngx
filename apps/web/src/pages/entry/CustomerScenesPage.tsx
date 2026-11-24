@@ -1,13 +1,16 @@
 
 import {
   LOCAL_DRAFT_NOTICE,
+  getSceneTemplateApi,
+  type SceneTemplateCard,
+  SCENE_ROOT_ISSUE_LABELS,
   getConnectedGuardClient,
   listPlatformCustomers,
   resolveDefaultScene,
   saveDefaultScene,
 } from "@idt/data-adapter";
 import { useEffect, useMemo, useState } from "react";
-import { Navigate, useNavigate, useParams } from "react-router-dom";
+import { Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { isUsableCustomerId, writeLastCustomerId } from "../../auth/customer-scope";
 import { routes } from "../../constants/routes";
 import { CreateSceneWizard } from "../../features/scene-editor/CreateSceneWizard";
@@ -35,6 +38,13 @@ export function CustomerScenesPage() {
   const [defaultSource, setDefaultSource] = useState<"platform" | "local-draft">("local-draft");
   const [error, setError] = useState<string | null>(null);
   const [wizardOpen, setWizardOpen] = useState(false);
+  /*
+   * 从模板库「用它建场景」跳进来时带 templateId：
+   * 自动打开新建向导并预填（模型、套装、名称），选客户/场站/资产根仍由用户走。
+   */
+  const [searchParams, setSearchParams] = useSearchParams();
+  const templateIdParam = searchParams.get("templateId");
+  const [sourceTemplate, setSourceTemplate] = useState<SceneTemplateCard | null>(null);
   const [loading, setLoading] = useState(true);
 
   const usable = isUsableCustomerId(customerId);
@@ -63,6 +73,25 @@ export function CustomerScenesPage() {
     setDefaultSource(pointer.source);
     setLoading(false);
   };
+
+  useEffect(() => {
+    if (!templateIdParam || !isUsableCustomerId(customerId)) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const card = await getSceneTemplateApi().get(templateIdParam);
+        if (cancelled) return;
+        setSourceTemplate(card);
+        setWizardOpen(true);
+      } catch (err) {
+        if (cancelled) return;
+        setError(err instanceof Error && err.message ? err.message : "模板不存在或已被删除");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [templateIdParam, customerId]);
 
   useEffect(() => {
     if (!isUsableCustomerId(customerId)) return;
@@ -106,6 +135,8 @@ export function CustomerScenesPage() {
         kind: defaultSource === "local-draft" ? "local-draft" : "draft",
         label: defaultSource === "local-draft" ? LOCAL_DRAFT_NOTICE : "草稿",
       },
+      // 这张卡是补出来的，平台没有它的卡片数据 —— roots 未知，按未绑定显示。
+      rootIssue: "no-root",
     };
     return [...rows, ghost];
   }, [rows, defaultId, defaultSource]);
@@ -158,6 +189,11 @@ export function CustomerScenesPage() {
                   <h2 className={styles.tileTitle}>{visibleSceneLabel(row.name, row.rootNames, row.topologyId)}</h2>
                   {isDefault ? <span className={styles.tag}>默认</span> : null}
                   {localDraft ? <span className={styles.tag}>{row.mark.label}</span> : null}
+                  {row.rootIssue !== "none" ? (
+                    <span className={styles.tag} title="一个场景应绑定且仅绑定一个资产；存量场景需要进入设计重新选择">
+                      {SCENE_ROOT_ISSUE_LABELS[row.rootIssue]}
+                    </span>
+                  ) : null}
                 </div>
                 <div className={styles.tileMeta}>
                   <span>场站 {row.siteName || "—"}</span>
@@ -185,9 +221,26 @@ export function CustomerScenesPage() {
         <CreateSceneWizard
           open={wizardOpen}
           customerId={customerId}
-          onCancel={() => setWizardOpen(false)}
+          template={sourceTemplate}
+          onCancel={() => {
+            setWizardOpen(false);
+            setSourceTemplate(null);
+            /* 取消时把 templateId 从地址栏去掉，避免刷新又弹一次。 */
+            if (templateIdParam) {
+              const next = new URLSearchParams(searchParams);
+              next.delete("templateId");
+              setSearchParams(next, { replace: true });
+            }
+          }}
           onCreated={(doc) => {
             setWizardOpen(false);
+            setSourceTemplate(null);
+            /* 建完清掉 templateId：刷新页面不该再弹一次向导。 */
+            if (templateIdParam) {
+              const next = new URLSearchParams(searchParams);
+              next.delete("templateId");
+              setSearchParams(next, { replace: true });
+            }
             void refresh();
             const id = openSceneKey(doc);
             if (id) nav(routes.studioEditor(id));

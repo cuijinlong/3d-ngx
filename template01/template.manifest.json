@@ -1,0 +1,206 @@
+{
+  "templateId": "campus-digital-twin-dashboard",
+  "name": "智慧园区数字孪生可视化大屏",
+  "version": "1.0.0",
+  "category": "smart-campus",
+  "description": "面向园区、医院、校园的数字孪生总览模板；采用左右业务面板、中间三维场景、底部分析模块的布局。",
+  "thumbnail": "thumbnail-reference.jpg",
+  "entry": "index.html",
+  "runtime": {
+    "framework": "React",
+    "language": "TypeScript",
+    "renderingEngine": "PlayCanvas Engine",
+    "mountPoints": [
+      {
+        "id": "playcanvas-viewport",
+        "selector": "#pc-canvas-root",
+        "kind": "canvas-container",
+        "required": true
+      }
+    ],
+    "events": [
+      "campus:scene-tab",
+      "campus:widget-action",
+      "campus:entity-select",
+      "campus:data-update"
+    ]
+  },
+  "regions": [
+    {
+      "id": "global-header",
+      "type": "header",
+      "locked": true
+    },
+    {
+      "id": "left-panels",
+      "type": "widget-group",
+      "widgets": [
+        "campus-overview",
+        "people-traffic-mini",
+        "security-overview"
+      ]
+    },
+    {
+      "id": "playcanvas-viewport",
+      "type": "scene-viewport",
+      "engine": "playcanvas",
+      "editable": false
+    },
+    {
+      "id": "right-panels",
+      "type": "widget-group",
+      "widgets": [
+        "equipment-status",
+        "meeting-room",
+        "space-rental"
+      ]
+    },
+    {
+      "id": "bottom-panels",
+      "type": "widget-group",
+      "widgets": [
+        "traffic-overview",
+        "facility-overview"
+      ]
+    }
+  ],
+  "widgets": [
+    {
+      "id": "campus-overview",
+      "title": "园区简介",
+      "type": "campus-info",
+      "bindings": [
+        "campus.name",
+        "campus.plannedArea",
+        "campus.buildingCount",
+        "campus.status",
+        "campus.totalArea",
+        "campus.greenRate",
+        "campus.energyScore"
+      ]
+    },
+    {
+      "id": "people-traffic-mini",
+      "title": "人车通行",
+      "type": "traffic-summary",
+      "bindings": [
+        "traffic.peopleNow",
+        "traffic.staff",
+        "traffic.visitors",
+        "traffic.vehicles"
+      ]
+    },
+    {
+      "id": "security-overview",
+      "title": "智慧安防",
+      "type": "security-summary",
+      "bindings": [
+        "security.total",
+        "security.online",
+        "security.offline",
+        "security.fault"
+      ]
+    },
+    {
+      "id": "equipment-status",
+      "title": "设备设施",
+      "type": "equipment-summary",
+      "bindings": [
+        "equipment.camerasOnline",
+        "equipment.accessOnline",
+        "equipment.elevatorsOnline",
+        "equipment.onlineRate"
+      ]
+    },
+    {
+      "id": "meeting-room",
+      "title": "会议室状态",
+      "type": "space-usage",
+      "bindings": [
+        "meeting.usageRate",
+        "meeting.used",
+        "meeting.available"
+      ]
+    },
+    {
+      "id": "space-rental",
+      "title": "出租状态",
+      "type": "space-statistics",
+      "bindings": [
+        "space.officeArea",
+        "space.apartmentArea",
+        "space.totalArea",
+        "space.officeRented",
+        "space.apartmentRented",
+        "space.officeVacant",
+        "space.apartmentVacant"
+      ]
+    },
+    {
+      "id": "traffic-overview",
+      "title": "人车通行",
+      "type": "traffic-analytics",
+      "bindings": [
+        "traffic.staff",
+        "traffic.vehicles",
+        "traffic.visitors",
+        "traffic.freeParking"
+      ]
+    },
+    {
+      "id": "facility-overview",
+      "title": "设备设施",
+      "type": "facility-analytics",
+      "bindings": [
+        "security.total",
+        "security.online",
+        "security.offline",
+        "security.fault"
+      ]
+    }
+  ],
+  "bindingModel": {
+    "provider": "thingsboard",
+    "entityTypes": [
+      "DEVICE",
+      "ASSET"
+    ],
+    "bindingFields": [
+      "entityType",
+      "entityId",
+      "telemetryKey",
+      "attributeKey",
+      "aggregation",
+      "unit",
+      "displayFormat",
+      "staleAfterSec",
+      "fallback",
+      "alarmRule"
+    ],
+    "policy": "Do not treat preview values as live telemetry. Missing or stale values must render as unavailable/stale."
+  },
+  "aiExtension": {
+    "editableTargets": [
+      "widget.props",
+      "widget.layout",
+      "widget.style",
+      "widget.binding",
+      "scene.interaction",
+      "scene.layer"
+    ],
+    "protectedTargets": [
+      "templateId",
+      "mountPoints.scene",
+      "runtime.eventContract"
+    ],
+    "operations": [
+      "add-widget",
+      "update-widget",
+      "remove-widget",
+      "bind-telemetry",
+      "add-scene-event",
+      "add-panel"
+    ],
+    "requiresDiffReview": true
+  }
+}

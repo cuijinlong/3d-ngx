@@ -1,10 +1,11 @@
 
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { parseHmiGlb } from "@idt/engine-adapter";
 import { decideObjectClick, getConnectedGuardClient, getGuardStatus, getProviderKind, resolveSceneJumps, type SceneJumpLink, type SceneJumpTarget } from "@idt/data-adapter";
 import { EngineViewport } from "../../engine/react/EngineViewport";
 import { WidgetOverlay, hasSummaryCard } from "../scene-widgets/WidgetOverlay";
+import { screenHasAnyTelemetry } from "../scene-widgets/widget-values";
 import { EngineManager } from "../../engine/core/EngineManager";
 import { getAsset, readAssetBuffer, resolveAssetUrl } from "../../services/asset/assetService";
 import { useAppStore } from "../../stores/app.store";
@@ -12,20 +13,19 @@ import { useDeviceStore } from "../../stores/device.store";
 import { useSceneStore } from "../../stores/scene.store";
 import { useSelectionStore } from "../../stores/selection.store";
 import { useTelemetryFeed } from "../../hooks/useTelemetryFeed";
-import { useNameplateCommands } from "../../hooks/useNameplateCommands";
+import { useSceneFeedDeviceIds } from "../../hooks/useSceneFeedDeviceIds";
+import { useStylePackRenderRules } from "../../hooks/useStylePackRenderRules";
+import { useTelemetryStore } from "../../stores/telemetry.store";
 import { resolveSceneEntity } from "../../utils/scene-entity";
-import { buildControlDrawerModel } from "../../utils/control-drawer";
 import { isControlDrawerOpen, isControlOrScreenPart, resolveSelectableNode } from "../../utils/selectable-node";
 import { visibleSceneLabel } from "../../services/scene/scene-label";
 import { routes } from "../../constants/routes";
 import { customerScopePath } from "../../auth/access";
-import { buildDevicePlates } from "../../utils/device-plates";
-import { useTelemetryStore } from "../../stores/telemetry.store";
-import { useDemoTelemetry, useTelemetrySource } from "../../hooks/useTelemetrySource";
-import { Button, Segmented, Space } from "antd";
 import { useAuthSession } from "../../auth/AuthSession";
-import { workbenchChrome } from "../../auth/access";
-import { ThemeToggle } from "../../theme/ThemeToggle";
+import { HudSkinProvider } from "../../theme/HudSkin";
+import { sceneSurfaceChrome } from "./runtime-surface";
+import { RuntimeChrome } from "./RuntimeChrome";
+import { ViewportFrame } from "./ViewportFrame";
 import {
   pushSceneNav,
   readSceneNav,
@@ -40,7 +40,7 @@ import styles from "./RuntimeShell.module.css";
 export function RuntimeShell() {
   const nav = useNavigate();
   const { role, logout, customerId: sessionCustomerId } = useAuthSession();
-  const chrome = workbenchChrome(role);
+  const surface = sceneSurfaceChrome("runtime", role);
   const document = useSceneStore((s) => s.document);
   const sceneWidgets = useSceneStore((s) => s.sceneWidgets);
   const persistence = useSceneStore((s) => s.persistence);
@@ -61,7 +61,23 @@ export function RuntimeShell() {
   const [jumpLinks, setJumpLinks] = useState<SceneJumpLink[]>([]);
 
   const customerId = document?.platform?.customerId || sessionCustomerId;
-  const topologyId = document?.platform?.topologyId;
+  /*
+   * ★ 场景 id 以 **URL 为准**，不是 document（2026-11-23 实测修正）。
+   *
+   * <h3>为什么</h3>
+   *
+   * <p>场景文档优先从 IndexedDB 读（本地缓存）。旧缓存里的
+   * `platform.topologyId` 可能是 null —— 因为早期版本没写这个字段。
+   *
+   * <p>后果是连锁的：`topologyId` 为 null →
+   * 「同组场景导航」不工作、「风格套装规则」查不到（回落到默认值）。
+   * 表现为「套装配了但没生效」，而代码链路全是对的。
+   *
+   * <p>URL 的 `:sceneId` 才是"我现在打开的是哪个场景"的权威来源 ——
+   * 它是用户点进来的那个链接，不可能和缓存不一致。
+   */
+  const routeParams = useParams<{ sceneId?: string }>();
+  const topologyId = routeParams.sceneId ?? document?.platform?.topologyId;
   const sceneName = visibleSceneLabel(document?.platform?.topologyName || document?.scene.name, document?.platform?.rootNames, document?.platform?.topologyId);
 
   useEffect(() => { if (ready) void refresh(); }, [ready, refresh]);
@@ -129,33 +145,84 @@ export function RuntimeShell() {
     return () => { cancelled = true; };
   }, [topologyId, document, modelUrl, select]);
 
-  const [telemetrySource, setTelemetrySource] = useTelemetrySource();
-  const feedSource = chrome.showDemoTelemetryToggle ? telemetrySource : "live";
-  const latest = useTelemetryStore((s) => s.latest);
-  const telemetryHistory = useTelemetryStore((s) => s.history);
-  const deviceIds = useMemo(() => document?.bindings.map((b) => b.deviceId) ?? [], [document]);
-  useTelemetryFeed(feedSource === "live" ? deviceIds : []);
-  useDemoTelemetry(document?.bindings ?? [], feedSource === "demo");
-  const labels = buildDevicePlates({
-    devices: hmi?.devices ?? [],
-    bindings: document?.bindings ?? [],
-    latest,
-    source: feedSource,
-  });
-  const { stateByNode, busy, send } = useNameplateCommands(labels, document?.bindings ?? []);
+  /*
+   * 订阅范围由 `useSceneFeedDeviceIds` 统一计算（2026-11-23）。
+   *
+   * <p>这段逻辑原来在本文件里内联，编辑器另写了一份而漏了两路来源 ——
+   * 于是「设计时看到的」和「打开时看到的」不一致。
+   * 现在两边共用同一个实现，改一处两边都变。
+   */
+  const {
+    deviceIds,
+    scopeDevices,
+    setScopeDevices,
+  } = useSceneFeedDeviceIds(document?.bindings, sceneWidgets);
+
+  /*
+   * ★ 只订阅实时数据（2026-11-23 客户要求）。
+   *
+   * <p>原先顶栏有「后端测点 / 演示数据」开关，演示那一路由 `useDemoTelemetry`
+   * 在浏览器里造数。客户明确要求去掉：大屏显示什么，就必须是设备真报上来的。
+   *
+   * <p>去掉的不只是一个按钮 —— 演示模式还挂着 `useDemoTelemetry` 的定时器，
+   * 它会持续往 store 里写假值。只要不删这行调用，即使没有开关，
+   * localStorage 里残留的 `demo` 也会让大屏继续显示造的数。
+   */
+  useTelemetryFeed(deviceIds);
+
+  /*
+   * 风格套装的渲染规则（2026-11-23）。
+   *
+   * <p>「管三态」「昼夜联动」这些描述此前没有任何实现 —— 选了套装
+   * 只是记了个标签。这个 hook 把平台返回的 `render` 规则灌进引擎：
+   * 管道流速、停流透明度、阀门染色、数据过期淡出。
+   *
+   * <p>取不到规则时回落到默认值，3D 照常渲染 —— 一个"选不到套装"
+   * 不该让整屏变白。
+   */
+  useStylePackRenderRules(
+    document?.platform?.stylePack ?? document?.settings?.stylePack,
+    topologyId,
+  );
+
+  /*
+   * 「没有数据」提示（2026-11-23）。
+   *
+   * <p>网关还没上报时，大屏上只剩一屏「暂无数据」的卡片。用户看到的是
+   * 「这个页面怎么这么空/这么简单」—— **真实原因是没数据，不是设计缺内容**。
+   * 不把这两件事分开说，就会去改设计而白费功夫（我这次就先跑了这一趟）。
+   *
+   * <p>延迟 10 秒再弹：刚打开页面遥测本来就在路上，立刻提示是误报。
+   */
+  const latest = useTelemetryStore((state) => state.latest);
+  const hasTelemetry = useMemo(
+    () => screenHasAnyTelemetry(sceneWidgets, latest),
+    [sceneWidgets, latest],
+  );
+  const [showNoDataHint, setShowNoDataHint] = useState(false);
+  useEffect(() => {
+    /* 来数就收起；只剩实时一路，没有「演示必然有数」这个分支了。 */
+    if (hasTelemetry) {
+      setShowNoDataHint(false);
+      return;
+    }
+    /*
+     * 等 45 秒再弹（2026-11-23 从 25 秒再放宽）。
+     *
+     * <p>实测（同一场景、14 台设备）：25 秒时提示已经弹出，而卡片上
+     * 「9 台机组之和 202.5 kW」是有值的 —— **提示和数据同时存在**，
+     * 自相矛盾。50 秒时提示自动收起（说明订阅确实在 25~50 秒之间完成）。
+     *
+     * <p>这类误报的代价比不提示高得多：客户看到「还没有收到设备数据」，
+     * 第一反应是去查网关/配置，而实际上只是订阅还在路上。
+     *
+     * <p>45 秒 = 实测首轮完成时间 + 余量。真没数据的场景多等 20 秒不影响判断。
+     */
+    const timer = setTimeout(() => setShowNoDataHint(true), 45_000);
+    return () => clearTimeout(timer);
+  }, [hasTelemetry]);
   const resolveNode = (raw: string | null) => resolveSelectableNode(hmi, document, raw);
   const drawerOpen = isControlDrawerOpen(selectedNode, pinnedDrawer);
-  const drawerModel = useMemo(
-    () =>
-      buildControlDrawerModel({
-        hmi,
-        selectedNode,
-        plates: labels,
-        bindings: document?.bindings ?? [],
-        latest,
-      }),
-    [hmi, selectedNode, labels, document?.bindings, latest],
-  );
 
   const navState = customerId ? readSceneNav(customerId) : null;
   const crumbs = navState?.path?.length ? navState.path : topologyId ? [{ topologyId, name: sceneName }] : [];
@@ -163,13 +230,15 @@ export function RuntimeShell() {
   if (!document) return null;
 
   const guardStatus = getGuardStatus();
-  const dataLabel = feedSource === "demo"
-    ? "演示数据"
-    : guardStatus.connected && getProviderKind() === "guard"
-      ? "后端数据"
-      : !guardStatus.connected && guardStatus.message
-        ? "未连接平台"
-        : "演示数据";
+  /*
+   * 数据口径标签（2026-11-23）：正常时**不挂任何标签**。
+   *
+   * <p>只剩一种数据来源了（实时），再标「实时数据」是废话；
+   * 而「未连接平台」必须留着 —— 没有它，大屏空白时无法区分
+   * 「配置好了没数据」和「根本没连上平台」，排查会走错方向。
+   */
+  const platformConnected = guardStatus.connected && getProviderKind() === "guard";
+  const dataLabel = platformConnected ? "" : "未连接平台";
 
   const enterTopology = (nextId: string, nextName: string) => {
     if (!customerId || !topologyId) {
@@ -201,49 +270,71 @@ export function RuntimeShell() {
     nav(routes.twinRuntime(id));
   };
 
+  const crumbNodes = (
+    <>
+      {crumbs.map((item, index) => (
+        <span key={item.topologyId}>
+          {index > 0 ? <span className={styles.sep}>/</span> : null}
+          {index === crumbs.length - 1 ? (
+            <b>{item.name}</b>
+          ) : (
+            <button type="button" className={styles.crumbBtn} onClick={() => goToCrumb(item.topologyId)}>
+              {item.name}
+            </button>
+          )}
+        </span>
+      ))}
+    </>
+  );
+
   return (
-    <div className={styles.shell}>
-      <div className={styles.bar}>
-        <div className={styles.crumbs}>
-          {crumbs.map((item, index) => (
-            <span key={item.topologyId}>
-              {index > 0 ? <span className={styles.sep}>/</span> : null}
-              {index === crumbs.length - 1 ? (
-                <b>{item.name}</b>
-              ) : (
-                <button type="button" className={styles.crumbBtn} onClick={() => goToCrumb(item.topologyId)}>
-                  {item.name}
-                </button>
-              )}
+    <HudSkinProvider enabled>
+      <div className={styles.shell} data-ngx-hud="on" data-testid="runtime-shell">
+        <RuntimeChrome
+          crumbs={crumbNodes}
+          dataLabel={dataLabel}
+          showDataLabel={Boolean(dataLabel)}
+          showReturnToStudio={surface.showReturnToStudio}
+          onReturnToStudio={() => nav(customerScopePath(customerId))}
+          showLogout={surface.showLogout}
+          onLogout={() => void logout().then(() => nav(routes.login, { replace: true }))}
+          showThemeToggle={surface.showThemeToggle}
+          fullscreen={fullscreen}
+          onToggleFullscreen={() => setFullscreen((value) => !value)}
+          /*
+           * 视角复位（2026-11-23）：按模板布局，按钮从视口右下角移到顶栏
+           * —— 右下角是「加载率对比」卡的位置，按钮会压住它。
+           * 同时做两件事：相机回到初始机位、滚动到「运行汇总」卡。
+           */
+          onOverview={() => {
+            EngineManager.instance.refitCamera();
+            const summary = hasSummaryCard(sceneWidgets?.widgets ?? []);
+            if (summary) setFocusWidgetId(summary.id);
+          }}
+        />
+      <div
+        className={`${styles.body} ${fullscreen ? styles.full : ""}`}
+        /* 诊断用：订阅名单 / 范围设备数。排查「大屏显示未知」时直接读这里。 */
+        data-subscribed={deviceIds.length}
+        data-scope-devices={scopeDevices.length}
+      >
+        {showNoDataHint ? (
+          <div
+            className={styles.noDataHint}
+            data-testid="no-data-hint"
+            /*
+             * 带上判断结果：排查「明明有数却弹提示」时不用再猜。
+             * 这里踩过一次 —— 逐台键没被算进判空，提示在 9 台都有状态时照弹。
+             */
+            data-has-telemetry={String(hasTelemetry)}
+            role="status"
+          >
+            <span>
+              还没有收到设备数据（网关未上报）。画面上的卡片位是配置好的，
+              缺的是数据 —— 不是页面缺内容。
             </span>
-          ))}
-        </div>
-        {chrome.showDemoTelemetryToggle ? <span className="idt-demo-tag">{dataLabel}</span> : null}
-        <span className={styles.grow} />
-        {chrome.showDemoTelemetryToggle ? (
-          <Segmented
-            size="small"
-            value={telemetrySource}
-            onChange={(v) => setTelemetrySource(v as typeof telemetrySource)}
-            options={[
-              { label: "后端测点", value: "live" },
-              { label: "演示数据", value: "demo" },
-            ]}
-          />
+          </div>
         ) : null}
-        <ThemeToggle />
-        <Space>
-          {chrome.showReturnToStudio ? (
-            <Button onClick={() => nav(customerScopePath(customerId))}>返回场景管理</Button>
-          ) : null}
-          <Button onClick={() => setFullscreen((v) => !v)}>{fullscreen ? "退出全屏布局" : "全屏展示"}</Button>
-          <Button onClick={() => void window.document.documentElement.requestFullscreen?.()}>浏览器全屏</Button>
-          {chrome.showLogout ? (
-            <Button onClick={() => void logout().then(() => nav(routes.login, { replace: true }))}>退出</Button>
-          ) : null}
-        </Space>
-      </div>
-      <div className={`${styles.body} ${fullscreen ? styles.full : ""}`}>
         <div className={styles.view}>
           <EngineViewport
             mode="runtime"
@@ -253,21 +344,17 @@ export function RuntimeShell() {
             hoveredNode={hoveredNode}
             bindings={document.bindings}
             hmi={hmi}
-            emptyText="该场景还没有导入模型"
-            labels={labels}
+            emptyText="还没有模型"
+            sceneName={sceneName}
             dataLabel={dataLabel}
-            nameplateCommands={stateByNode}
-            nameplateBusy={busy}
+            dataSource="live"
             drawerOpen={drawerOpen}
-            drawerModel={drawerModel}
             resolveNode={resolveNode}
             onHover={setHoveredNode}
             onToggleDrawer={() => {
               if (selectedNode) return;
               setPinnedDrawer((open) => !open);
             }}
-            onNameplateStart={(node) => void send(node, "start")}
-            onNameplateStop={(node) => void send(node, "stop")}
             onSelect={(name) => {
               setChoices(null);
               const node = resolveNode(name);
@@ -298,27 +385,30 @@ export function RuntimeShell() {
               const entity = resolveSceneEntity(document, decision.node);
               select(entity?.id ?? decision.node, entity?.nodeName ?? decision.node);
             }}
-            onOverview={() => {
-              const summary = hasSummaryCard(sceneWidgets?.widgets ?? []);
-              if (summary) setFocusWidgetId(summary.id);
-            }}
           >
+            <ViewportFrame variant="hud" />
             <WidgetOverlay
               layout={sceneWidgets}
+              onScopeDevicesChange={setScopeDevices}
+              surface="runtime"
               readOnly
-              showDraftMark={chrome.showWidgetDraftMark}
+              showDraftMark={surface.showDraftMark}
               role={role}
               widgetsSource={persistence.widgetsSource}
               sceneTitle={sceneName}
               bindings={document.bindings}
               devices={devices}
               hmi={hmi}
-              latest={latest}
-              history={telemetryHistory}
               selectedNode={selectedNode}
               selectedEntityId={selectedEntityId}
+              platform={document.platform}
               focusWidgetId={focusWidgetId}
               onConsumeFocus={() => setFocusWidgetId(null)}
+              onExitDeviceFocus={() => {
+                /* 退出设备专题 = 回到全景：清选中（外围卡滑回、抽屉收起），同时收起底部抽屉 */
+                select(null, null);
+                setPinnedDrawer(false);
+              }}
             />
           </EngineViewport>
           {choices && choices.length > 1 ? (
@@ -342,6 +432,7 @@ export function RuntimeShell() {
         </div>
       </div>
     </div>
+    </HudSkinProvider>
   );
 }
 

@@ -3,6 +3,8 @@ export const routes = {
   login: "/login",
   dashboard: "/dashboard",
   selectCustomer: "/customers",
+  /** 模板库（仅租户）：保存模型 + 风格套装，供新建场景时实例化 */
+  templates: "/templates",
   customerScenes: (customerId: string) => `/customers/${customerId}/scenes`,
   runtime: "/runtime",
   studioScenes: "/studio/scenes",

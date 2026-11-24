@@ -1,0 +1,213 @@
+{
+  "schemaVersion": "1.0.0",
+  "id": "overview-situation",
+  "name": "综合态势",
+  "version": 1,
+  "description": "左右翼加中央 3D 的综合态势一屏。这份说明是模板的稳定接口约定：以后用 skill 开发大屏，读的是这份说明，写出结构化对接结果再应用到场景；改模板时加区域、改接口，不是到画布上拖卡片，也不是让用户在抽屉里一项项手填绑定。场景里只保存选了哪个模板、挂了哪份 GLB，以及对接结果填上的绑定，不要把客户数据写进模板。",
+  "regions": [
+    {
+      "id": "title",
+      "type": "title",
+      "zone": "title",
+      "x": 22,
+      "y": 2,
+      "w": 56,
+      "h": 7,
+      "defaultTitle": "{sceneName} · 综合态势",
+      "interfaces": []
+    },
+    {
+      "id": "metric-load",
+      "type": "metric-card",
+      "zone": "left",
+      "x": 2,
+      "y": 10.2,
+      "w": 20.4,
+      "h": 18,
+      "defaultTitle": "实时负荷",
+      "interfaces": [
+        {
+          "key": "filter",
+          "name": "先限定范围",
+          "valueType": "scope",
+          "allowedSources": [
+            "site",
+            "scene-topology"
+          ],
+          "optional": true
+        },
+        {
+          "key": "main",
+          "name": "主值",
+          "valueType": "number",
+          "allowedSources": [
+            "device-point"
+          ]
+        },
+        {
+          "key": "left",
+          "name": "左分解",
+          "valueType": "number",
+          "allowedSources": [
+            "device-point"
+          ],
+          "optional": true
+        },
+        {
+          "key": "right",
+          "name": "右分解",
+          "valueType": "number",
+          "allowedSources": [
+            "device-point"
+          ],
+          "optional": true
+        }
+      ]
+    },
+    {
+      "id": "device-status",
+      "type": "summary-card",
+      "zone": "left",
+      "x": 2,
+      "y": 29.6,
+      "w": 20.4,
+      "h": 16,
+      "defaultTitle": "设备状态",
+      "interfaces": [
+        {
+          "key": "scope",
+          "name": "汇总范围",
+          "valueType": "scope",
+          "allowedSources": [
+            "site",
+            "scene-topology"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "running-count",
+      "type": "ratio-ring",
+      "zone": "right",
+      "x": 77.6,
+      "y": 10.2,
+      "w": 20.4,
+      "h": 22,
+      "defaultTitle": "运行台数",
+      "interfaces": [
+        {
+          "key": "scope",
+          "name": "汇总范围",
+          "valueType": "scope",
+          "allowedSources": [
+            "site",
+            "scene-topology"
+          ]
+        },
+        {
+          "key": "used-0",
+          "name": "已用 1",
+          "valueType": "number",
+          "allowedSources": [
+            "device-point"
+          ],
+          "optional": true
+        },
+        {
+          "key": "total-0",
+          "name": "总数 1",
+          "valueType": "number",
+          "allowedSources": [
+            "device-point"
+          ],
+          "optional": true
+        },
+        {
+          "key": "used-1",
+          "name": "已用 2",
+          "valueType": "number",
+          "allowedSources": [
+            "device-point"
+          ],
+          "optional": true
+        },
+        {
+          "key": "total-1",
+          "name": "总数 2",
+          "valueType": "number",
+          "allowedSources": [
+            "device-point"
+          ],
+          "optional": true
+        }
+      ]
+    },
+    {
+      "id": "energy-trend",
+      "type": "trend-chart",
+      "zone": "right",
+      "x": 77.6,
+      "y": 33.6,
+      "w": 20.4,
+      "h": 22,
+      "defaultTitle": "用能趋势",
+      "interfaces": [
+        {
+          "key": "filter",
+          "name": "先限定范围",
+          "valueType": "scope",
+          "allowedSources": [
+            "site",
+            "scene-topology"
+          ],
+          "optional": true
+        },
+        {
+          "key": "series-0",
+          "name": "系列 1",
+          "valueType": "number-series",
+          "allowedSources": [
+            "device-point"
+          ]
+        }
+      ]
+    }
+  ],
+  "objectBinding": {
+    "matchBy": "objectName",
+    "description": "三维对象按模型里的对象名对接，只影响铭牌和底部启停，不改模型里的位置。只绑平台实时设备，虚拟设备按已有规则失效。",
+    "fields": [
+      {
+        "key": "targetDevice",
+        "name": "目标设备",
+        "valueType": "realtime-device",
+        "required": true
+      },
+      {
+        "key": "nameplatePoints",
+        "name": "铭牌测点",
+        "valueType": "telemetry-mapping-list",
+        "optional": true
+      },
+      {
+        "key": "behaviors",
+        "name": "行为",
+        "valueType": "action-mapping-list",
+        "optional": true
+      },
+      {
+        "key": "controlCommands",
+        "name": "底部启停命令",
+        "valueType": "command-mapping-list",
+        "optional": true,
+        "note": "写在对应行为的 commandId / commandParams 上，供底部启停面板使用。"
+      },
+      {
+        "key": "status",
+        "name": "状态规则",
+        "valueType": "status-mapping",
+        "optional": true
+      }
+    ]
+  }
+}

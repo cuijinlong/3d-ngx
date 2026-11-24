@@ -12,6 +12,32 @@
 .side > * { flex: 1; min-height: 0; }
 .full { grid-template-columns: minmax(0, 1fr); }
 
+/*
+ * 品牌图标（2026-11-23）：对齐 template01 顶栏左侧的发光菱形。
+ * 只有大屏（带 data-ngx-hud）才发光，编辑器里保持朴素的描边。
+ */
+.brandMark {
+  flex: 0 0 auto;
+  width: 28px; height: 28px;
+  display: grid; place-items: center;
+  border: 1px solid color-mix(in srgb, var(--ngx-color-primary) 45%, transparent);
+  border-radius: 7px;
+}
+.brandMark i {
+  width: 9px; height: 9px;
+  border: 1.5px solid var(--ngx-color-primary);
+  border-radius: 2px;
+  transform: rotate(45deg);
+}
+.shell[data-ngx-hud] .brandMark {
+  border-color: rgba(100, 178, 239, 0.55);
+  box-shadow: 0 0 12px rgba(85, 220, 255, 0.16), inset 0 0 10px rgba(85, 220, 255, 0.08);
+}
+.shell[data-ngx-hud] .brandMark i {
+  border-color: #55dcff;
+  box-shadow: 0 0 8px rgba(85, 220, 255, 0.55);
+}
+
 .crumbs { display: flex; align-items: center; flex-wrap: wrap; gap: 0; font-size: 14px; color: var(--ngx-color-text); }
 .crumbs b { font-weight: 600; }
 .sep { color: var(--ngx-color-muted); margin: 0 8px; }
@@ -45,4 +71,113 @@
   display: block; width: 100%; margin-top: 6px;
   border: 0; background: none; color: var(--ngx-color-muted);
   font: inherit; cursor: pointer;
+}
+
+
+.shell[data-ngx-hud] {
+  background: var(--ngx-hud-bg);
+  color: var(--ngx-hud-text);
+}
+
+.shell[data-ngx-hud] .bar {
+  background: var(--ngx-hud-bg);
+  border-bottom-color: color-mix(in srgb, var(--ngx-hud-frame) 45%, transparent);
+  color: var(--ngx-hud-text);
+}
+
+.shell[data-ngx-hud] .crumbs,
+.shell[data-ngx-hud] .crumbs b {
+  color: var(--ngx-hud-text);
+}
+
+.shell[data-ngx-hud] .sep {
+  color: var(--ngx-hud-muted);
+}
+
+.shell[data-ngx-hud] .crumbBtn {
+  color: var(--ngx-hud-accent);
+}
+
+.shell[data-ngx-hud] .chooser {
+  background: var(--ngx-hud-glass-bg);
+  border-color: var(--ngx-hud-glass-border);
+  color: var(--ngx-hud-text);
+  backdrop-filter: blur(var(--ngx-hud-glass-blur));
+}
+
+.shell[data-ngx-hud] .chooserItem {
+  border-color: var(--ngx-hud-glass-border);
+  background: transparent;
+  color: var(--ngx-hud-text);
+}
+
+/*
+ * 「还没有数据」提示条（2026-11-23）。
+ *
+ * 位置压在 body 顶部、3D 之上，但不遮挡卡片交互（pointer-events 只给按钮）。
+ * 用琥珀色而不是红色：这不是错误，是「还没到」——红色会让人以为系统坏了。
+ */
+.noDataHint {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(720px, 88%);
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--ngx-hud-gold, #e8b44c) 55%, transparent);
+  background: color-mix(in srgb, var(--ngx-hud-bg, #070d16) 88%, transparent);
+  backdrop-filter: blur(10px);
+  color: var(--ngx-hud-text, #e8f4ff);
+  font-size: 12px;
+  line-height: 1.5;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+}
+
+.noDataHint button {
+  flex: none;
+  padding: 4px 10px;
+  border-radius: 5px;
+  border: 1px solid color-mix(in srgb, var(--ngx-hud-gold, #e8b44c) 70%, transparent);
+  background: color-mix(in srgb, var(--ngx-hud-gold, #e8b44c) 18%, transparent);
+  color: var(--ngx-hud-gold, #e8b44c);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.noDataHint button:hover {
+  background: color-mix(in srgb, var(--ngx-hud-gold, #e8b44c) 30%, transparent);
+}
+
+/*
+ * 顶栏时钟（2026-11-23）。
+ * 等宽数字 + 稍低饱和：它是参考信息，不该比操作按钮更抢眼。
+ */
+.clock {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.5px;
+  color: var(--ngx-color-muted);
+  white-space: nowrap;
+}
+
+.clockTime {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ngx-color-text);
+}
+
+:global([data-ngx-hud]) .clock {
+  color: var(--ngx-hud-muted, #7f9bb0);
+}
+
+:global([data-ngx-hud]) .clockTime {
+  color: var(--ngx-hud-text, #e8f4ff);
 }

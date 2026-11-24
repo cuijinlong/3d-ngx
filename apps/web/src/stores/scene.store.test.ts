@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   resolveSceneWidgets: vi.fn(),
   saveSceneBindings: vi.fn(),
   saveSceneWidgets: vi.fn(),
+  hydrateRootModelFromPlatform: vi.fn(async (document: SceneDocument) => document),
 }));
 
 vi.mock("../services/scene/sceneService", () => ({
@@ -18,6 +19,10 @@ vi.mock("../services/scene/sceneService", () => ({
   getScene: mocks.getScene,
   inspectTopologyScene: mocks.inspectTopologyScene,
   saveScene: mocks.saveScene,
+}));
+
+vi.mock("../services/scene/hydrate-platform-model", () => ({
+  hydrateRootModelFromPlatform: mocks.hydrateRootModelFromPlatform,
 }));
 
 vi.mock("@idt/data-adapter", async (importOriginal) => {
@@ -60,6 +65,12 @@ describe("scene store load cancellation", () => {
     mocks.getScene.mockReset();
     mocks.inspectTopologyScene.mockReset();
     mocks.saveScene.mockReset();
+    mocks.hydrateRootModelFromPlatform.mockReset();
+    mocks.hydrateRootModelFromPlatform.mockImplementation(async (document: SceneDocument) => document);
+    mocks.resolveSceneBindings.mockReset();
+    mocks.resolveSceneWidgets.mockReset();
+    mocks.resolveSceneBindings.mockResolvedValue({ source: "empty", document: { bindings: [] } });
+    mocks.resolveSceneWidgets.mockResolvedValue({ source: "empty", document: { widgets: [] } });
     mocks.getConnectedGuardClient.mockReturnValue(null);
     setSceneLoadTimeoutForTests(40);
     useSceneStore.getState().reset();
@@ -102,5 +113,59 @@ describe("scene store load cancellation", () => {
     expect(useSceneStore.getState().error).toBeNull();
     await pendingLoad;
     expect(useSceneStore.getState().document).toBeNull();
+  });
+});
+
+describe("scene store open path", () => {
+  beforeEach(() => {
+    mocks.getSceneByTopologyId.mockReset();
+    mocks.getScene.mockReset();
+    mocks.inspectTopologyScene.mockReset();
+    mocks.hydrateRootModelFromPlatform.mockReset();
+    mocks.hydrateRootModelFromPlatform.mockImplementation(async (document: SceneDocument) => document);
+    mocks.resolveSceneBindings.mockResolvedValue({ source: "empty", document: { bindings: [] } });
+    mocks.resolveSceneWidgets.mockResolvedValue({ source: "empty", document: { widgets: [] } });
+    mocks.getConnectedGuardClient.mockReturnValue(null);
+    setSceneLoadTimeoutForTests(40);
+    useSceneStore.getState().reset();
+  });
+
+  afterEach(() => {
+    setSceneLoadTimeoutForTests();
+    useSceneStore.getState().reset();
+  });
+
+  it("opens a platform scene without a model instead of treating it as not found", async () => {
+    const stub = doc("topo-open");
+    mocks.getSceneByTopologyId.mockResolvedValue(undefined);
+    mocks.getScene.mockResolvedValue(undefined);
+    mocks.inspectTopologyScene.mockResolvedValue({ status: "ok", document: stub });
+    await useSceneStore.getState().load("topo-open", { role: "tenant" });
+    expect(useSceneStore.getState().error).toBeNull();
+    expect(useSceneStore.getState().document?.platform?.topologyId).toBe("topo-open");
+    expect(useSceneStore.getState().document?.rootAssetId).toBeUndefined();
+    expect(mocks.hydrateRootModelFromPlatform).not.toHaveBeenCalled();
+  });
+
+  it("hydrates a platform glb when the browser has no local rootAssetId", async () => {
+    const stub = doc("topo-glb");
+    stub.platform = { ...stub.platform!, glb: { objectKey: "sites/site-1/topo-glb/model.glb", fileName: "天骄科技园.glb" } };
+    mocks.getSceneByTopologyId.mockResolvedValue(undefined);
+    mocks.getScene.mockResolvedValue(undefined);
+    mocks.inspectTopologyScene.mockResolvedValue({ status: "ok", document: stub });
+    mocks.hydrateRootModelFromPlatform.mockResolvedValue({ ...stub, rootAssetId: "asset-local-1" });
+    await useSceneStore.getState().load("topo-glb", { role: "tenant" });
+    expect(mocks.hydrateRootModelFromPlatform).toHaveBeenCalled();
+    expect(useSceneStore.getState().error).toBeNull();
+    expect(useSceneStore.getState().document?.rootAssetId).toBe("asset-local-1");
+  });
+
+  it("passes the customer id into inspect", async () => {
+    mocks.getSceneByTopologyId.mockResolvedValue(undefined);
+    mocks.getScene.mockResolvedValue(undefined);
+    mocks.inspectTopologyScene.mockResolvedValue({ status: "not-found" });
+    await useSceneStore.getState().load("topo-hidden", { role: "customer", customerId: "cust-1" });
+    expect(mocks.inspectTopologyScene).toHaveBeenCalledWith("topo-hidden", "cust-1");
+    expect(useSceneStore.getState().error).toBe(SCENE_OPEN_ERRORS["not-found"]);
   });
 });

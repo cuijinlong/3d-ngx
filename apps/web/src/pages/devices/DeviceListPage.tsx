@@ -21,7 +21,7 @@ export function DeviceListPage() {
         <div className="page-head">
           <div>
             <h1 className="page-title">模拟设备</h1>
-            <p className="page-sub">第一阶段全部为演示数据。也可在编辑器里根据 GLB 动态生成设备。</p>
+            <p className="page-sub">这里维护的是本地定义的模拟设备档案（用于离线设计）；线上场景请绑 guard-server 的真实设备。</p>
           </div>
           <Button type="primary" onClick={() => setOpen(true)}>新建模拟设备</Button>
         </div>

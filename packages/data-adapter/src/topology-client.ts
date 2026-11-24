@@ -22,6 +22,50 @@ export interface TopologyViewOption {
 
 export type TopologyBaseType = "auto" | "steel-rail" | "concrete-pad" | "none";
 
+/**
+ * 套装携带的**渲染规则**（2026-11-23）。
+ *
+ * <h2>为什么要有这份结构</h2>
+ *
+ * <p>此前套装只有 label / description 这类说明文字。`hvac-hud-v1` 的描述写着
+ * 「管三态」，但代码里没有任何实现 —— 选了套装，管道不流速、阀门不变色。
+ * 描述成了空话。
+ *
+ * <p>这份结构把它变成可执行契约：前端按 packId 取规则，应用到引擎。
+ *
+ * <h2>每一项都是可选的</h2>
+ *
+ * <p>平台可能只给一部分（旧版本、自定义套装）。前端必须能只拿到
+ * `pipe.flowSpeed` 就工作，其余走默认 —— 不能因为缺一个字段整份规则失效。
+ */
+export interface StylePackRenderRules {
+  pipe?: {
+    /** 流动动画播放速率。1.0 = 原始速度；<1 更慢更易观察 */
+    flowSpeed?: number;
+    /** 未流动管道的透明度（0~1）。1 = 与流动时一样亮 */
+    idleOpacity?: number;
+  };
+  valve?: {
+    /** 开启状态染色（#RRGGBB） */
+    openColor?: string;
+    /** 关闭状态染色 */
+    closedColor?: string;
+    /** 是否真的给关闭的阀门染色。false 时只播 open/close 动画片段 */
+    tintClosed?: boolean;
+  };
+  device?: {
+    /** 是否给设备加状态环 */
+    statusRing?: boolean;
+    /**
+     * 数据超过该毫秒数未更新时开始视觉淡出。0 = 不淡出。
+     *
+     * <p>这是「防止把陈旧数据当实时值」的保险：
+     * 曾出现库里停了 51 小时、画面仍显示 7.4℃ 的事故。
+     */
+    staleFadeMs?: number;
+  };
+}
+
 export interface TopologyStylePack {
   packId: string;
   packVersion: string;
@@ -31,6 +75,8 @@ export interface TopologyStylePack {
   suitability?: string;
   defaultBaseType: TopologyBaseType;
   requireWeatherSite: boolean;
+  /** 渲染规则；缺省时前端按内置默认值渲染（不是不渲染） */
+  render?: StylePackRenderRules;
 }
 
 export interface TopologyBaseTypeOption {
@@ -81,6 +127,13 @@ export interface TopologyListQuery {
   sceneInstance?: boolean;
 }
 
+export interface TopologyGlbRef {
+  objectKey: string;
+  fileName?: string;
+  size?: number;
+  url?: string;
+}
+
 export interface TopologyCard {
   id: string;
   name: string;
@@ -99,6 +152,7 @@ export interface TopologyCard {
   listOrder?: number;
   templateId?: string;
   templateVersion?: string;
+  glb?: TopologyGlbRef;
 }
 
 export interface TopologyListResult {
@@ -118,9 +172,28 @@ export interface TopologyGraph {
   id: string;
   name?: string;
   siteId?: string;
+  siteName?: string;
+  customerId?: string;
   viewType?: string;
   roots?: string[];
+  /**
+   * 风格套装引用（2026-11-23 补）。
+   *
+   * <p>类型里原来**没有这三个字段** —— 而 `RuntimeShell` 正是从
+   * `document.platform.stylePack` 读套装。走 graph 路径打开的场景
+   * 永远拿到 undefined，于是渲染规则回落到默认值：
+   * 管道流速、阀门染色全部「看起来没生效」。
+   *
+   * <p>平台拓扑接口是有这三个值的（实测 `hvac-hud-v1@1.0.0`），
+   * 只是解析时没取。典型的"后端给了、类型没声明、解析漏了"三连。
+   */
+  packId?: string;
+  packVersion?: string;
+  stylePack?: string;
   nodes: TopologyDeviceNode[];
+  sceneInstance?: boolean;
+  publishState?: string;
+  glb?: TopologyGlbRef;
 }
 
 const VIEW_FALLBACK: TopologyViewOption[] = [
@@ -171,6 +244,22 @@ function first(obj: Record<string, unknown>, keys: string[]): unknown {
   return undefined;
 }
 
+function assetRefOf(raw: unknown): TopologyGlbRef | undefined {
+  if (typeof raw === "string" && raw.trim()) return { objectKey: raw.trim() };
+  const row = asRecord(raw);
+  const objectKey = text(first(row, ["objectKey", "key"]));
+  if (!objectKey) return undefined;
+  const size = Number(first(row, ["size", "fileSize"]));
+  const fileName = text(first(row, ["fileName", "name"])) || undefined;
+  const url = text(first(row, ["url"])) || undefined;
+  return {
+    objectKey,
+    ...(fileName ? { fileName } : {}),
+    ...(Number.isFinite(size) && size > 0 ? { size } : {}),
+    ...(url ? { url } : {}),
+  };
+}
+
 function siteOf(raw: unknown): TopologySite | null {
   const row = asRecord(raw);
   const id = text(first(row, ["id", "siteId"]));
@@ -211,6 +300,7 @@ function cardOf(raw: unknown): TopologyCard | null {
     listOrder: Number.isFinite(Number(first(row, ["listOrder"]) ?? first(info, ["listOrder"]))) ? Number(first(row, ["listOrder"]) ?? first(info, ["listOrder"])) : undefined,
     templateId: text(first(row, ["templateId"]) || first(info, ["templateId"])) || undefined,
     templateVersion: text(first(row, ["templateVersion"]) || first(info, ["templateVersion"])) || undefined,
+    glb: assetRefOf(first(row, ["glb"]) ?? first(info, ["glb"])),
   };
 }
 
@@ -350,7 +440,7 @@ export class TopologyApi {
   async uploadAsset(file: File, input: { kind: "glb" | "pack"; siteId?: string; topologyId?: string }): Promise<TopologyAssetRef> {
     const form = new FormData();
     form.append("file", file);
-    form.append("kind", input.kind);
+    // kind 只放查询参数。表单里再附一份时，接口会把两个值拼成 "glb,glb" 并返回 400。
     const query = new URLSearchParams();
     query.set("kind", input.kind);
     if (input.siteId) query.set("siteId", input.siteId);
@@ -360,6 +450,11 @@ export class TopologyApi {
 
   assetUrl(objectKey: string): string {
     return `/api/energy/topology-assets?objectKey=${encodeURIComponent(objectKey)}`;
+  }
+
+  async downloadAsset(objectKey: string): Promise<ArrayBuffer> {
+    const asset = await this.client.requestBytes(this.assetUrl(objectKey));
+    return asset.blob.arrayBuffer();
   }
 
   async deleteAsset(objectKey: string): Promise<{ ok: boolean; deleted: string }> {
@@ -429,6 +524,7 @@ export class TopologyApi {
     weatherSite?: string;
     glb?: { objectKey: string; fileName?: string };
     styleFiles?: Array<{ objectKey: string; fileName?: string }>;
+    publishState?: string;
   }): Promise<TopologyCard> {
     const payload = await this.client.requestJson<unknown>(
       "POST",
@@ -451,9 +547,18 @@ export class TopologyApi {
       id: text(first(row, ["id"]) || first(graph, ["id"]), topologyId),
       name: text(first(row, ["name"]) || first(graph, ["name"])),
       siteId: text(first(row, ["siteId"]) || first(graph, ["siteId"])),
+      siteName: text(first(row, ["siteName"]) || first(graph, ["siteName"])) || undefined,
+      customerId: idOf(first(row, ["customerId"]) ?? first(graph, ["customerId"])) || undefined,
       viewType: text(first(row, ["viewType"]) || first(graph, ["viewType"])),
       roots: asArray(first(row, ["roots"]) || first(graph, ["roots"])).map((item) => text(item)).filter(Boolean),
+      /* 与 card 路径保持一致（见 TopologyGraph 类型的说明） */
+      packId: text(first(row, ["packId"]) || first(graph, ["packId"])) || undefined,
+      packVersion: text(first(row, ["packVersion"]) || first(graph, ["packVersion"])) || undefined,
+      stylePack: text(first(row, ["stylePack"]) || first(graph, ["stylePack"])) || undefined,
       nodes,
+      sceneInstance: flagTrue(first(row, ["sceneInstance"]) ?? first(graph, ["sceneInstance"])) || undefined,
+      publishState: text(first(row, ["publishState"]) || first(graph, ["publishState"])) || undefined,
+      glb: assetRefOf(first(row, ["glb"]) ?? first(graph, ["glb"])),
     };
   }
 

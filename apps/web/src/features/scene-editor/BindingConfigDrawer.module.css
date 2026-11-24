@@ -1,0 +1,193 @@
+.panel {
+  background: var(--ngx-color-surface);
+  border-left: 1px solid var(--ngx-color-border);
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--ngx-color-border);
+}
+
+.head h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+  flex: 1;
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.card {
+  border: 1px solid var(--ngx-color-border);
+  border-radius: var(--ngx-radius, 8px);
+  padding: 10px 12px;
+  background: var(--ngx-color-bg);
+}
+
+.cardActive {
+  border-color: var(--ngx-color-primary);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ngx-color-primary) 35%, transparent);
+}
+
+.cardTitle {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.hint, .empty {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ngx-color-muted);
+}
+
+.deviceList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.deviceItem {
+  text-align: left;
+  border: 1px solid var(--ngx-color-border);
+  background: var(--ngx-color-surface);
+  border-radius: 6px;
+  padding: 6px 8px;
+  cursor: pointer;
+  color: var(--ngx-color-text);
+}
+
+.deviceItemActive {
+  border-color: var(--ngx-color-primary);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+
+.field span {
+  color: var(--ngx-color-muted);
+}
+
+.field input,
+.field select {
+  height: 32px;
+  border: 1px solid var(--ngx-color-border);
+  border-radius: 6px;
+  padding: 0 8px;
+  background: var(--ngx-color-surface);
+  color: var(--ngx-color-text);
+}
+
+.regionBlock {
+  border: 1px solid var(--ngx-color-border);
+  border-radius: 8px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.regionHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.iface {
+  border-top: 1px dashed var(--ngx-color-border);
+  padding-top: 8px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.note {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--ngx-color-muted);
+  background: color-mix(in srgb, var(--ngx-color-primary) 6%, var(--ngx-color-bg));
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin: 0 0 12px;
+}
+
+.ok {
+  color: var(--ngx-color-success, #167a3a);
+  font-size: 12px;
+}
+
+.bad {
+  color: var(--ngx-color-danger, #c33);
+  font-size: 12px;
+}
+
+.muted {
+  color: var(--ngx-color-muted);
+  font-size: 12px;
+}
+
+.deviceItem {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+/* ── 待绑定清单：完成度进度条（2026-11-23）───────────────
+ * 清单面板只读，进度条只表达「配了多少」。
+ * 用 6px 细条而不是环形：这里的信息是「比例」，不需要吸引注意力，
+ * 真正要看的还是下面那份待办清单。
+ */
+.progressTrack {
+  height: 6px;
+  margin: 6px 0 2px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--ngx-color-text) 10%, transparent);
+  overflow: hidden;
+}
+.progressFill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--ngx-color-success);
+  transition: width 0.25s ease;
+}

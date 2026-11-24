@@ -46,6 +46,31 @@
   --ngx-glass-border-rgb: 220, 227, 237;
   --ngx-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
   --ngx-focus-ring: 0 0 0 3px rgba(22, 87, 232, 0.18);
+
+  /* 运行态 / 预览独立科技包。只定义 --ngx-hud-*，不要覆盖上面的 --ngx-*。 */
+  --ngx-hud-bg: #070d16;
+  --ngx-hud-viewport: #071018;
+  --ngx-hud-text: #e8f4ff;
+  --ngx-hud-muted: #7f9bb0;
+  /*
+   * 卡片标题色（2026-11-23）。原来标题和次要信息共用 muted(#7f9bb0)，
+   * 实测在 12px 字号下几乎融进深蓝背景 —— 「系统功率」四个字看不清。
+   * 标题是这一块的入口，必须比单位/说明更亮。
+   */
+  --ngx-hud-label: #b3d2ea;
+  --ngx-hud-accent: #2ec7f0;
+  --ngx-hud-accent-soft: rgba(46, 199, 240, 0.16);
+  --ngx-hud-gold: #e8b44c;
+  --ngx-hud-success: #19b37d;
+  --ngx-hud-warning: #e8930c;
+  --ngx-hud-danger: #e5484d;
+  --ngx-hud-frame: rgba(46, 199, 240, 0.65);
+  --ngx-hud-frame-glow: 0 0 24px rgba(46, 199, 240, 0.35), 0 0 64px rgba(46, 199, 240, 0.16);
+  --ngx-hud-corner: #5ce0ff;
+  --ngx-hud-glass-bg: rgba(8, 24, 42, 0.64);
+  --ngx-hud-glass-border: rgba(80, 200, 240, 0.35);
+  --ngx-hud-glass-blur: 16px;
+  --ngx-hud-glass-rgb: 8, 24, 42;
 }
 
 [data-theme="light"] {
@@ -161,4 +186,16 @@ textarea {
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.02em;
+}
+
+
+/* 运行态 / 预览皮肤：只在本容器启用，不改 data-theme，也不重写 --ngx-* 工作台变量。 */
+[data-ngx-hud] {
+  background: var(--ngx-hud-bg);
+  color: var(--ngx-hud-text);
+}
+
+[data-ngx-hud] .idt-demo-tag {
+  background: color-mix(in srgb, var(--ngx-hud-warning) 18%, var(--ngx-hud-bg));
+  color: var(--ngx-hud-warning);
 }

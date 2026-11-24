@@ -68,7 +68,10 @@ export function useBindByName(hmi: ParsedHmiScene | null, devices: Device[]) {
       }
       const entities = document.entities.map((e) => {
         const found = next.find((b: DeviceBinding) => b.sceneEntityId === e.id || b.sceneEntityId === e.nodeName);
-        return found ? { ...e, binding: { deviceId: found.deviceId } } : { ...e, binding: undefined };
+        /* 同上：只有带 deviceId 的绑定才能回写到 SceneEntity.binding。 */
+        return found?.deviceId
+          ? { ...e, binding: { deviceId: found.deviceId } }
+          : { ...e, binding: undefined };
       });
       setDocument({ ...document, bindings: next, entities }, "更新设备绑定");
       try {

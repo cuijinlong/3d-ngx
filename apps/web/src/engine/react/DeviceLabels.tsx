@@ -67,6 +67,8 @@ export function DeviceLabels({
               data-bound={item.bound ? "true" : "false"}
               data-kind={item.kind}
               data-running={item.running === null ? "" : item.running ? "true" : "false"}
+              data-status={item.status}
+              data-fault-code={item.faultCode ?? ""}
               className={`${styles.tag} ${item.kind === "badge" ? styles.tagBadge : ""} ${item.bound ? styles.tagBound : styles.tagMuted} ${selectedNode === item.node ? styles.tagSelected : ""}`}
               style={{ transform: `translate(${item.x}px, ${item.y}px) translate(-50%, calc(-100% - 8px))` }}
               onClick={() => onSelect?.(item.node)}
@@ -75,8 +77,26 @@ export function DeviceLabels({
             >
               <div className={styles.tagTitle}>
                 <span>{item.title}</span>
-                {item.kind === "board" && item.running === true ? <span className={styles.tagRun}>运行</span> : null}
-                {item.kind === "board" && item.running === false ? <span className={styles.tagStop}>停止</span> : null}
+                {/*
+                 * 状态徽标（2026-11-23 改）。
+                 *
+                 * <p>原来只有「运行 / 停止」两种（看 `running` 布尔）。
+                 * 客户要求「铭牌上也要提示」—— 关键是**故障**：
+                 * 故障停机与正常停机在旧模型里长得一模一样，
+                 * 而现场最需要分辨的就是这两种。
+                 *
+                 * <p>状态来自 `item.status`（与列表、 3D 染色同一套枚举），
+                 * 不在渲染层重新判一次 —— 两处判据一旦分叉，就会出现
+                 * 「列表写故障、铭牌写停止」。
+                 */}
+                {item.status === "running" ? <span className={styles.tagRun}>运行</span> : null}
+                {item.status === "stopped" ? <span className={styles.tagStop}>停止</span> : null}
+                {item.status === "fault" ? (
+                  <span className={styles.tagFault}>
+                    故障{item.faultCode ? ` ${item.faultCode}` : ""}
+                  </span>
+                ) : null}
+                {item.status === "offline" ? <span className={styles.tagStop}>离线</span> : null}
               </div>
               {item.lines.map((line) => (
                 <div key={line.label} className={`${styles.tagLine} ${line.missing ? styles.tagMissing : ""}`}>

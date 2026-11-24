@@ -41,7 +41,8 @@
   align-items: stretch;
 }
 
-.bodyEditing {
+.bodyEditing,
+.bodyConfig {
   grid-template-columns: minmax(0, 1fr) 360px;
 }
 
@@ -184,4 +185,66 @@
   color: var(--ngx-color-muted);
   font-size: var(--ngx-fs-caption, 12px);
   white-space: nowrap;
+}
+
+
+.shellPreview {
+  grid-template-rows: var(--ngx-toolbar) minmax(0, 1fr);
+  background: var(--ngx-hud-bg);
+}
+
+.shellPreview .body {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/*
+ * 作用域回显：组织 / 场站 / 分组（2026-11-23）。
+ *
+ * <p>客户要求「这三处名称字小点」—— 所以标签用 `em`（11px 弱色）、
+ * 名称用 12px 常规色。字号差要小但能分辨，否则会读成一串连续的词。
+ *
+ * <p>为什么不做成下拉：这次只要求**回显**当前作用域。切换场站要走
+ * 「返回场景管理」那条流程（那边有完整的选择器），在标题栏再放一个
+ * 下拉会让人以为可以原地换场站 —— 而换了场站整个场景都要重载。
+ */
+.scope {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding-left: 4px;
+  border-left: 1px solid var(--ngx-color-border);
+}
+
+.scopeItem {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--ngx-color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 150px;
+}
+
+.scopeItem em {
+  font-style: normal;
+  font-size: 10.5px;
+  color: var(--ngx-color-muted);
+  /* 标签不参与缩略，只有名称可以省略 */
+  flex: none;
+}
+
+/*
+ * 窄屏时三处一起收起来。
+ *
+ * <p>它们的信息在「场景设置」和「返回场景管理」里都能看到，
+ * 而顶栏 11 个按钮本身已经需要 ~1100px —— 优先保证按钮不被压扁。
+ */
+@media (max-width: 1500px) {
+  .scope {
+    display: none;
+  }
 }

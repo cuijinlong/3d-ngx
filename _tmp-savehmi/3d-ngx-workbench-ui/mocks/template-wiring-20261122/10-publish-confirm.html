@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<title>发布到平台</title>
+<link rel="stylesheet" href="_wb.css"/>
+<style></style>
+</head>
+<body>
+<div class="page">
+  <aside class="rail">
+    <div class="logo">3D</div>
+    <a><svg viewBox="0 0 24 24"><path d="M4 11.5 12 5l8 6.5V20H4z"/></svg>首页</a>
+    <a class="on"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7"/><rect x="13" y="4" width="7" height="7"/><rect x="4" y="13" width="7" height="7"/><rect x="13" y="13" width="7" height="7"/></svg>工作室</a>
+    <a><svg viewBox="0 0 24 24"><polygon points="8,6 18,12 8,18"/></svg>运行</a>
+    <a><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M16 16l4 4"/></svg>搜索</a>
+    <a><svg viewBox="0 0 24 24"><rect x="6" y="7" width="12" height="12"/><path d="M9 7V5h6v2"/></svg>设备</a>
+    <a><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg>设置</a>
+  </aside>
+  <div class="col">
+    <header class="top">
+      <div class="brand">3D-NGX 工作台</div>
+      <div class="scene">天骄科技园</div>
+      
+      <button class="ghost">撤销</button>
+      <button class="ghost">重做</button>
+      <div class="sp"></div>
+      <button class="ghost">模板配置</button>
+      <button class="ghost">核对绑定</button>
+      <button class="ghost pri">应用对接结果</button>
+      <button class="ghost">保存</button>
+      <button class="ghost pri">预览运行</button>
+      <button class="btn-pri">发布</button>
+    </header>
+    <div class="view">
+      <div class="frame"></div>
+      <div class="canvas-title">天骄科技园 · 综合态势</div>
+      <div class="wing left">
+        <div class="card">
+          <div class="hd"><div class="h">实时负荷</div></div>
+          <div class="twin">
+            <svg viewBox="0 0 280 130" style="position:absolute;inset:0;width:100%;height:100%">
+              <path d="M28,112 A52,52 0 0 1 28,18" fill="none" stroke="rgba(31,35,41,.08)" stroke-width="8" stroke-linecap="round"/>
+              <path d="M28,112 A52,52 0 0 1 28,18" fill="none" stroke="#1657e8" stroke-width="8" stroke-linecap="round" stroke-dasharray="120 163"/>
+              <path d="M252,18 A52,52 0 0 1 252,112" fill="none" stroke="rgba(31,35,41,.08)" stroke-width="8" stroke-linecap="round"/>
+              <path d="M252,18 A52,52 0 0 1 252,112" fill="none" stroke="#e8930c" stroke-width="8" stroke-linecap="round" stroke-dasharray="70 163"/>
+            </svg>
+            <div class="split" style="position:absolute;top:14px;left:52px;right:52px;width:auto;padding:0">
+              <span class="a">电 <b>210</b></span>
+              <span class="b">冷 <b>76</b></span>
+            </div>
+            <div class="kpi">286<small>kW</small></div>
+            <div class="kpi-sub">实时负荷</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="hd"><div class="h">设备状态</div></div>
+          <div class="total-row"><span class="lab">设备总数</span><span class="num">10</span></div>
+          <div class="counts">
+            <div class="item"><div class="lab">运行</div><div class="num ok">9</div></div>
+            <div class="item"><div class="lab">离线</div><div class="num warn">1</div></div>
+            <div class="item"><div class="lab">故障</div><div class="num bad">0</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="wing right">
+        <div class="card">
+          <div class="hd"><div class="h">运行台数</div></div>
+          <div class="rings">
+            <div class="ring">
+              <svg width="72" height="72" viewBox="0 0 72 72">
+                <circle cx="36" cy="36" r="28" fill="none" stroke="rgba(31,35,41,.08)" stroke-width="6"/>
+                <circle cx="36" cy="36" r="28" fill="none" stroke="#1657e8" stroke-width="6" stroke-linecap="round" stroke-dasharray="131.9 175.9" transform="rotate(-90 36 36)"/>
+              </svg>
+              <div class="nm">9<span>/12</span></div>
+              <div class="lab">主机</div>
+            </div>
+            <div class="ring">
+              <svg width="72" height="72" viewBox="0 0 72 72">
+                <circle cx="36" cy="36" r="28" fill="none" stroke="rgba(31,35,41,.08)" stroke-width="6"/>
+                <circle cx="36" cy="36" r="28" fill="none" stroke="#5b8def" stroke-width="6" stroke-linecap="round" stroke-dasharray="117.3 175.9" transform="rotate(-90 36 36)"/>
+              </svg>
+              <div class="nm">4<span>/6</span></div>
+              <div class="lab">循环泵</div>
+            </div>
+            <div class="ring">
+              <svg width="72" height="72" viewBox="0 0 72 72">
+                <circle cx="36" cy="36" r="28" fill="none" stroke="rgba(31,35,41,.08)" stroke-width="6"/>
+                <circle cx="36" cy="36" r="28" fill="none" stroke="#e8930c" stroke-width="6" stroke-linecap="round" stroke-dasharray="131.9 175.9" transform="rotate(-90 36 36)"/>
+              </svg>
+              <div class="nm">18<span>/24</span></div>
+              <div class="lab">阀门</div>
+            </div>
+          </div>
+          <div class="bar-row"><span>负荷率</span><b>75%</b><span>已用</span><div class="bar"><i class="used"></i><i class="free"></i></div><span>可用</span></div>
+        </div>
+        <div class="card">
+          <div class="hd"><div class="h">用能趋势</div></div>
+          <svg viewBox="0 0 280 110" width="100%" height="110" preserveAspectRatio="none" style="display:block;margin-top:4px">
+            <path d="M0,78 C30,72 50,64 80,62 C110,58 130,42 160,40 C190,36 220,28 250,26 C265,24 274,30 280,28 L280,110 L0,110 Z" fill="rgba(22,87,232,.16)"/>
+            <path d="M0,78 C30,72 50,64 80,62 C110,58 130,42 160,40 C190,36 220,28 250,26 C265,24 274,30 280,28" fill="none" stroke="#1657e8" stroke-width="2"/>
+            <path d="M0,96 C40,92 80,88 130,82 C180,76 230,80 280,84" fill="none" stroke="#e8930c" stroke-width="2"/>
+          </svg>
+        </div>
+      </div>
+      <div class="drawer"><div class="handle"></div></div>
+      <button class="fab">总览</button>
+      <div class="mask">
+        <div class="dialog">
+          <div class="dialog-hd">发布到平台 <span class="dialog-x">×</span></div>
+          <div class="dialog-bd">
+            <p style="margin-bottom:12px">发布会把这些内容写到平台，并把这个场景标成已发布：</p>
+            <div class="kv">
+              <div class="k">三维模型</div><div>传到平台已有的文件存储（天骄科技园.glb）</div>
+              <div class="k">画面模板</div><div>综合态势，以及当前场景里的对接结果</div>
+              <div class="k">绑定和文档</div><div>画面卡片接口和三维设备绑定一并写入平台</div>
+            </div>
+            <p class="note">发布成功后，局域网里另一台电脑用同一账号登录（走平台接口），就可以打开这个已发布且已有模型的场景。没有模型时不能发布。</p>
+          </div>
+          <div class="dialog-ft">
+            <button class="ghost">取消</button>
+            <button class="btn-pri">发布</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="statusbar">
+        <span>草稿已保存 · 模型 天骄科技园.glb · 已应用对接结果</span>
+        <span>工作台 · --ngx-*</span>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

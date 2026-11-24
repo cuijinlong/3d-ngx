@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<title>工作台 · 模板就位未对接</title>
+<link rel="stylesheet" href="_wb.css"/>
+<style>
+.banner-lite{height:36px;flex:none;display:flex;align-items:center;justify-content:center;gap:6px;padding:0 16px;background:#f3f7ff;border-bottom:1px solid #d6e0f5;font-size:12px;color:#5f6e84;}
+.banner-lite b{color:#1f2329;font-weight:650;}
+</style>
+</head>
+<body>
+<div class="page">
+  <aside class="rail">
+    <div class="logo">3D</div>
+    <a><svg viewBox="0 0 24 24"><path d="M4 11.5 12 5l8 6.5V20H4z"/></svg>首页</a>
+    <a class="on"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7"/><rect x="13" y="4" width="7" height="7"/><rect x="4" y="13" width="7" height="7"/><rect x="13" y="13" width="7" height="7"/></svg>工作室</a>
+    <a><svg viewBox="0 0 24 24"><polygon points="8,6 18,12 8,18"/></svg>运行</a>
+    <a><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M16 16l4 4"/></svg>搜索</a>
+    <a><svg viewBox="0 0 24 24"><rect x="6" y="7" width="12" height="12"/><path d="M9 7V5h6v2"/></svg>设备</a>
+    <a><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg>设置</a>
+  </aside>
+  <div class="col">
+    <header class="top">
+      <div class="brand">3D-NGX 工作台</div>
+      <div class="scene">天骄科技园</div>
+      <button class="ghost">撤销</button>
+      <button class="ghost">重做</button>
+      <div class="sp"></div>
+      <button class="ghost">模板配置</button>
+      <button class="ghost">核对绑定</button>
+      <button class="btn-pri">应用对接结果</button>
+      <button class="ghost">保存</button>
+      <button class="ghost pri">预览运行</button>
+      <button class="ghost">发布</button>
+    </header>
+    <div class="banner-lite">周围卡片已按「<b>综合态势</b>」模板自动就位。按接口说明生成对接文件后，点右上角「<b>应用对接结果</b>」加载。</div>
+    <div class="view">
+      <div class="frame"></div>
+      <div class="canvas-title">天骄科技园 · 综合态势</div>
+      <div class="wing left">
+        <div class="card dash">
+          <div class="hd"><div class="h">实时负荷</div></div>
+          <div class="empty"><div class="msg">还没有绑定设备</div><div class="sub">应用对接结果后会在这里显示读数</div></div>
+        </div>
+        <div class="card dash">
+          <div class="hd"><div class="h">设备状态</div></div>
+          <div class="empty"><div class="msg">还没有绑定设备</div><div class="sub">应用对接结果后会在这里显示读数</div></div>
+        </div>
+      </div>
+      <div class="wing right">
+        <div class="card dash">
+          <div class="hd"><div class="h">运行台数</div></div>
+          <div class="empty"><div class="msg">还没有绑定设备</div><div class="sub">应用对接结果后会在这里显示读数</div></div>
+        </div>
+        <div class="card dash">
+          <div class="hd"><div class="h">用能趋势</div></div>
+          <div class="empty"><div class="msg">还没有绑定设备</div><div class="sub">应用对接结果后会在这里显示读数</div></div>
+        </div>
+      </div>
+      <div class="drawer"><div class="handle"></div></div>
+      <button class="fab">总览</button>
+
+      <div class="statusbar">
+        <span>模板「综合态势」· 模型 天骄科技园.glb · 还没有应用对接结果</span>
+        <span>工作台 · --ngx-*</span>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

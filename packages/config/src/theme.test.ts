@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   NGX_THEME_STORAGE_KEY,
+  NGX_HUD_ATTR,
+  HUD_DEFAULT_GLASS_OPACITY,
   applyDocumentTheme,
+  applyHudSkin,
   createAntdThemeTokens,
+  isNgxThemeName,
+  ngxHudTokens,
   ngxThemePalettes,
   readStoredTheme,
   themeTokens,
@@ -72,5 +77,47 @@ describe("ngx theme", () => {
     expect(dark.fontSize).toBe(13);
     expect(light.borderRadius).toBe(8);
     expect(dark.borderRadius).toBe(8);
+  });
+});
+
+describe("ngx hud skin isolation", () => {
+  it("does not treat hud as a workbench theme and keeps hud tokens off ngx-theme / data-theme", () => {
+    expect(isNgxThemeName("hud")).toBe(false);
+    expect(isNgxThemeName("light")).toBe(true);
+    expect(ngxHudTokens.bg).toBe("#070d16");
+    expect(ngxHudTokens.viewport).toBe("#071018");
+    expect(ngxHudTokens.accent).toBe("#2ec7f0");
+    expect(ngxHudTokens.glassBg).toBe("rgba(8, 24, 42, 0.64)");
+    expect(HUD_DEFAULT_GLASS_OPACITY).toBe(0.64);
+
+    const storage = new MemoryStorage();
+    storage.setItem(NGX_THEME_STORAGE_KEY, "light");
+    const written: string[] = [];
+    const el = {
+      attrs: new Map<string, string>(),
+      setAttribute(name: string, value: string) {
+        this.attrs.set(name, value);
+        written.push(`${name}=${value}`);
+      },
+      removeAttribute(name: string) {
+        this.attrs.delete(name);
+      },
+      getAttribute(name: string) {
+        return this.attrs.get(name) ?? null;
+      },
+    } as unknown as HTMLElement;
+
+    applyHudSkin(true, { root: el, storage });
+    expect((el as unknown as { getAttribute: (n: string) => string | null }).getAttribute(NGX_HUD_ATTR)).toBe("on");
+    expect(written.some((item) => item.startsWith("data-theme="))).toBe(false);
+    expect(storage.getItem(NGX_THEME_STORAGE_KEY)).toBe("light");
+
+    applyDocumentTheme("dark", { root: el, storage });
+    expect(storage.getItem(NGX_THEME_STORAGE_KEY)).toBe("dark");
+    expect(written.filter((item) => item.startsWith("data-theme="))).toEqual(["data-theme=dark"]);
+
+    applyHudSkin(false, { root: el, storage });
+    expect((el as unknown as { getAttribute: (n: string) => string | null }).getAttribute(NGX_HUD_ATTR)).toBe(null);
+    expect(storage.getItem(NGX_THEME_STORAGE_KEY)).toBe("dark");
   });
 });

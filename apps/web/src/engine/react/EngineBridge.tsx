@@ -28,6 +28,8 @@ export function EngineBridge(props: EngineBridgeProps) {
   const resolveRef = useRef(props.resolveNode);
   const selectRef = useRef(props.onSelect);
   const hoverRef = useRef(props.onHover);
+  const appliedGeneration = useRef(-1);
+  const appliedBindingKey = useRef("");
   resolveRef.current = props.resolveNode;
   selectRef.current = props.onSelect;
   hoverRef.current = props.onHover;
@@ -162,9 +164,13 @@ export function EngineBridge(props: EngineBridgeProps) {
 
   useAppEvent("update", (dt: number) => {
     EngineManager.instance.tickAnimations(dt);
-    if (props.mode === "runtime" || props.bindings?.length) {
-      applyBindingsToScene(props.hmi ?? null, props.bindings ?? [], telemetryRuntime.latest);
-    }
+    if (!(props.mode === "runtime" || props.bindings?.length)) return;
+    const bindingKey = `${props.mode}:${props.hmi?.name ?? ""}:${(props.bindings ?? []).map((item) => item.id).join(",")}`;
+    const generation = telemetryRuntime.generation;
+    if (appliedGeneration.current === generation && appliedBindingKey.current === bindingKey) return;
+    appliedGeneration.current = generation;
+    appliedBindingKey.current = bindingKey;
+    applyBindingsToScene(props.hmi ?? null, props.bindings ?? [], telemetryRuntime.latest);
   });
 
   return null;

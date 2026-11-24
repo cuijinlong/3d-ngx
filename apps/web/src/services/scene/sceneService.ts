@@ -1,7 +1,7 @@
 
 import type { ParsedHmiScene, SceneDocument, SceneListItem, SceneVersion } from "@idt/shared-types";
 import { parseSceneDocument, safeParseSceneDocument, SCHEMA_VERSION } from "@idt/scene-schema";
-import { getTopologyApi } from "@idt/data-adapter";
+import { getTopologyApi, type TopologyCard, type TopologyGraph } from "@idt/data-adapter";
 import { db, patchPrefs } from "../storage/db";
 import { createId } from "../../utils/id";
 
@@ -196,7 +196,85 @@ export type TopologySceneInspect =
   | { status: "not-scene" }
   | { status: "unavailable"; error: string };
 
-export async function inspectTopologyScene(topologyId: string): Promise<TopologySceneInspect> {
+export function sceneDocumentFromTopologyInspect(input: {
+  topologyId: string;
+  card?: Pick<TopologyCard, "name" | "siteId" | "siteName" | "customerId" | "viewType" | "roots" | "rootNames" | "packId" | "packVersion" | "stylePack" | "publishState" | "glb"> | null;
+  graph?: Pick<
+    TopologyGraph,
+    | "name" | "siteId" | "siteName" | "customerId" | "viewType" | "roots"
+    | "publishState" | "glb" | "packId" | "packVersion" | "stylePack"
+  > | null;
+}): SceneDocument {
+  const { topologyId, card, graph } = input;
+  const name = card?.name || graph?.name || "未命名场景";
+  const doc = emptyScene(name);
+  const glb = card?.glb || graph?.glb;
+  return {
+    ...doc,
+    platform: {
+      siteId: card?.siteId || graph?.siteId || "",
+      siteName: card?.siteName || graph?.siteName,
+      customerId: card?.customerId || graph?.customerId,
+      topologyId,
+      topologyName: name,
+      viewType: card?.viewType || graph?.viewType || "",
+      roots: card?.roots || graph?.roots,
+      rootNames: card?.rootNames,
+      /*
+       * ★ 四项都要 `card ?? graph` 回落（2026-11-23）。
+       *
+       * <p>实测：天骄场景的平台拓扑返回了 `stylePack: 'hvac-hud-v1@1.0.0'`，
+       * 但前端 `document.platform.stylePack` 是 null —— 因为原来只读 `card`，
+       * 而这个场景走的是 graph 那条路径。
+       *
+       * <p>后果很隐蔽：风格套装的渲染规则链路（取 render → 应用流速/阀门颜色）
+       * 全部写好了、日志也对，但因为 stylePack 是 null，规则回落到默认值，
+       * **看起来像"套装没生效"**，实际是字段没读到。
+       *
+       * <p>`roots` 那行本来就有回落，`packId/packVersion/stylePack` 三条漏了。
+       * 这类"部分字段有回落、部分没有"是白名单解析最典型的坑。
+       */
+      packId: card?.packId ?? graph?.packId,
+      packVersion: card?.packVersion ?? graph?.packVersion,
+      stylePack: card?.stylePack ?? graph?.stylePack,
+      sceneInstance: true,
+      publishState: card?.publishState || graph?.publishState,
+      ...(glb ? { glb } : {}),
+    },
+  };
+}
+
+/** 纯函数：根据 load/list 结果判断打开结果。有三维实例时即使列表漏卡、也没有模型，也不能判成找不到。 */
+export function inspectTopologySceneResult(input: {
+  topologyId: string;
+  graph?: TopologyGraph | null;
+  loadFailed?: unknown;
+  sceneCard?: TopologyCard | null;
+  graphCard?: TopologyCard | null;
+}): TopologySceneInspect {
+  if (!input.topologyId) return { status: "not-found" };
+  const { graph, loadFailed, sceneCard, graphCard } = input;
+  const isScene = sceneCard?.sceneInstance === true || graph?.sceneInstance === true;
+  if (isScene) {
+    return {
+      status: "ok",
+      document: sceneDocumentFromTopologyInspect({ topologyId: input.topologyId, card: sceneCard, graph }),
+    };
+  }
+  if (graphCard) return { status: "not-scene" };
+  if (sceneCard && sceneCard.sceneInstance !== true) return { status: "not-scene" };
+  if (loadFailed) {
+    const message = loadFailed instanceof Error ? loadFailed.message : "";
+    const missing = /404|not found|不存在|找不到/i.test(message);
+    return missing
+      ? { status: "not-found" }
+      : { status: "unavailable", error: message || "暂时无法打开该场景，平台服务不可用或超时。" };
+  }
+  if (graph) return { status: "not-scene" };
+  return { status: "not-found" };
+}
+
+export async function inspectTopologyScene(topologyId: string, customerId?: string): Promise<TopologySceneInspect> {
   if (!topologyId) return { status: "not-found" };
   try {
     const api = getTopologyApi();
@@ -207,46 +285,21 @@ export async function inspectTopologyScene(topologyId: string): Promise<Topology
     } catch (error) {
       loadFailed = error;
     }
-    const listed = await api.listAll({ sceneInstance: true });
-    let card = listed.items.find((item) => item.id === topologyId);
-    if (!card) {
-      const graphs = await api.listAll({ sceneInstance: false });
-      const graphCard = graphs.items.find((item) => item.id === topologyId);
-      if (graphCard) return { status: "not-scene" };
+    const query = customerId ? { customerId } : undefined;
+    const listed = await api.listAll({ ...query, sceneInstance: true });
+    const sceneCard = listed.items.find((item) => item.id === topologyId);
+    let graphCard: TopologyCard | undefined;
+    if (!sceneCard) {
+      const graphs = await api.listAll({ ...query, sceneInstance: false });
+      graphCard = graphs.items.find((item) => item.id === topologyId);
     }
-    if (!card && loadFailed) {
-      const message = loadFailed instanceof Error ? loadFailed.message : "";
-      const missing = /404|not found|不存在|找不到/i.test(message);
-      return missing ? { status: "not-found" } : { status: "unavailable", error: message || "暂时无法打开该场景，平台服务不可用或超时。" };
-    }
-    if (!card) return { status: "not-found" };
-    if (card.sceneInstance !== true) return { status: "not-scene" };
-    if (!graph) {
-      return { status: "unavailable", error: "暂时无法打开该场景，平台服务不可用或超时。" };
-    }
-    const name = card.name || graph.name || "未命名场景";
-    const doc = emptyScene(name);
-    return {
-      status: "ok",
-      document: {
-        ...doc,
-        platform: {
-          siteId: card.siteId || graph.siteId || "",
-          siteName: card.siteName,
-          customerId: card.customerId,
-          topologyId,
-          topologyName: name,
-          viewType: card.viewType || graph.viewType || "",
-          roots: card.roots || graph.roots,
-          rootNames: card.rootNames,
-          packId: card.packId,
-          packVersion: card.packVersion,
-          stylePack: card.stylePack,
-          sceneInstance: true,
-          publishState: card.publishState,
-        },
-      },
-    };
+    return inspectTopologySceneResult({
+      topologyId,
+      graph,
+      loadFailed,
+      sceneCard,
+      graphCard,
+    });
   } catch (error) {
     return {
       status: "unavailable",

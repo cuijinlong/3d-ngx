@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<title>从新建场景到发布 · 流程总图</title>
+<style>
+@font-face{font-family:"Noto Sans CJK SC";src:url("file:///usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc") format("truetype");font-weight:400;font-display:block;}
+@font-face{font-family:"Noto Sans CJK SC";src:url("file:///usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc") format("truetype");font-weight:600;font-display:block;}
+:root{
+  --text:#1f2329; --muted:#5f6e84; --pri:#1657e8; --line:#d8e0ea;
+  --bg:#edf1f7; --card:#fff; --ok:#0f7a52; --danger:#b42318;
+  --font:"Noto Sans CJK SC",sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1600px;height:1000px;overflow:hidden;background:var(--bg);font-family:var(--font);color:var(--text);font-size:13px;line-height:1.5;}
+.page{width:1600px;height:1000px;padding:22px 28px 18px;display:flex;flex-direction:column;}
+.head{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:12px;}
+.brand{font-size:12px;font-weight:650;color:var(--pri);letter-spacing:.06em;}
+h1{font-size:26px;font-weight:700;letter-spacing:.02em;line-height:1.2;margin:2px 0 4px;}
+.lead{font-size:13px;color:var(--muted);max-width:980px;}
+.strip{display:flex;align-items:center;gap:8px;margin:0 0 14px;padding:8px 12px;background:#fff;border:1px solid var(--line);border-radius:10px;}
+.strip .s{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:650;color:var(--text);}
+.strip .n{width:20px;height:20px;border-radius:50%;background:var(--pri);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;}
+.strip .s.opt .n{background:#6b7c93;}
+.strip .s.opt{color:var(--muted);font-weight:600;}
+.strip .arr{color:#9aa8b8;font-size:16px;flex:none;}
+.grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px 16px;flex:1;min-height:0;}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 12px 10px;display:flex;flex-direction:column;min-height:0;box-shadow:0 2px 8px rgba(31,35,41,.04);}
+.card.opt{border-style:dashed;}
+.meta{display:flex;align-items:center;gap:8px;margin-bottom:4px;}
+.num{width:24px;height:24px;border-radius:8px;background:var(--pri);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex:none;}
+.card.opt .num{background:#6b7c93;}
+.card h2{font-size:16px;font-weight:700;line-height:1.2;}
+.badge{margin-left:auto;font-size:11px;color:#5f6e84;background:#eef2f7;border-radius:4px;padding:1px 7px;}
+.card p{font-size:12px;color:var(--muted);line-height:1.55;margin:2px 0 8px;min-height:38px;}
+.thumb{flex:1;min-height:0;border-radius:8px;overflow:hidden;border:1px solid var(--line);background:#d9e2ec;}
+.thumb img{width:100%;height:100%;object-fit:cover;object-position:top center;display:block;}
+.foot{display:flex;gap:12px;margin-top:14px;}
+.note{flex:1;background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-size:12px;color:var(--muted);line-height:1.55;}
+.note b{color:var(--text);font-weight:700;}
+.note.bad{border-color:#f0c4c2;background:#fff7f6;}
+.note.bad b{color:var(--danger);}
+.note.ok{border-color:#bfe6d4;background:#f3fbf7;}
+.note.ok b{color:var(--ok);}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="head">
+    <div>
+      <div class="brand">3D-NGX · 工作台流程</div>
+      <h1>从新建场景到发布</h1>
+      <p class="lead">选模板、挂模型、用代码对接，看过预览再发布到平台。工作台始终是浅色工业风；客户看到的深色外观只出现在「预览运行」和正式运行里。本轮画面模板先只有「综合态势」。</p>
+    </div>
+  </div>
+
+  <div class="strip">
+    <div class="s"><span class="n">1</span>新建场景</div>
+    <span class="arr">→</span>
+    <div class="s"><span class="n">2</span>选 / 挂模型</div>
+    <span class="arr">→</span>
+    <div class="s"><span class="n">3</span>应用对接结果</div>
+    <span class="arr">→</span>
+    <div class="s opt"><span class="n">4</span>核对 / 改模板（可选）</div>
+    <span class="arr">→</span>
+    <div class="s"><span class="n">5</span>预览运行</div>
+    <span class="arr">→</span>
+    <div class="s"><span class="n">6</span>发布到平台</div>
+  </div>
+
+  <div class="grid">
+    <article class="card">
+      <div class="meta"><span class="num">1</span><h2>新建场景</h2></div>
+      <p>按向导选客户和范围，并必选画面模板「综合态势」。选中后，顶中标题和左右翼卡片按稿图自动就位，不用再拖卡片搭屏。</p>
+      <div class="thumb"><img src="01-scene-new-pick-template.jpg" alt="新建场景选模板"/></div>
+    </article>
+    <article class="card">
+      <div class="meta"><span class="num">2</span><h2>选 / 挂模型</h2></div>
+      <p>创建时就可以挂上 GLB；没挂的，进工作台后点「导入模型 / 导入示例」。没有模型时，中间写「还没有模型」，周围卡片可以留着。</p>
+      <div class="thumb"><img src="07-workbench-no-model.jpg" alt="还没有模型"/></div>
+    </article>
+    <article class="card">
+      <div class="meta"><span class="num">3</span><h2>应用对接结果</h2></div>
+      <p>按接口说明生成对接文件，在工作台点「应用对接结果」加载。成功进入草稿；虚拟设备、对不上的对象会被丢掉，并说清楚原因。</p>
+      <div class="thumb"><img src="03-apply-wiring-dialog.jpg" alt="应用对接结果"/></div>
+    </article>
+    <article class="card opt">
+      <div class="meta"><span class="num">4</span><h2>核对 / 改模板</h2><span class="badge">可选，不是必填向导</span></div>
+      <p>「核对绑定」只查看结果。模板在线配置可以增删区域、改接口，并保存到当前场景，不会改仓库里的内置模板。</p>
+      <div class="thumb"><img src="05-review-bindings.jpg" alt="核对绑定"/></div>
+    </article>
+    <article class="card">
+      <div class="meta"><span class="num">5</span><h2>预览运行</h2></div>
+      <p>用「预览运行」看客户将看到的深色外观，退出后回到浅色工作台。进入预览不会重新加载模型，也不会把镜头打回默认。</p>
+      <div class="thumb"><img src="09-preview-runtime.jpg" alt="预览运行"/></div>
+    </article>
+    <article class="card">
+      <div class="meta"><span class="num">6</span><h2>发布到平台</h2></div>
+      <p>把模型传到平台已有文件存储，把绑定和文档写到平台，并标成已发布。成功提示「已发布到平台」。本地和平台都没有模型时，不能假发布。</p>
+      <div class="thumb"><img src="11-publish-success.jpg" alt="已发布到平台"/></div>
+    </article>
+  </div>
+
+  <div class="foot">
+    <div class="note bad"><b>还没有三维模型，无法发布到平台。</b>本地和平台都没有模型时点「发布」，会看到这条提示，场景不会被标成已发布。请先在创建时挂上模型，或在工作台里导入。</div>
+    <div class="note ok"><b>已发布到平台。</b>发布成功后，局域网里另一台电脑用同一账号登录（接口 /api），就可以打开这个已发布且已有模型的场景。</div>
+    <div class="note"><b>预览和工作台分开。</b>编排始终浅色；深色科技包只给预览和客户运行。两套不要混用同一套发光壳。</div>
+  </div>
+</div>
+</body>
+</html>

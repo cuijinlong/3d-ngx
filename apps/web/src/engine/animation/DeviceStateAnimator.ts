@@ -1,5 +1,5 @@
 
-import type { ActionMapping, DeviceBinding, ParsedHmiScene, TelemetryRecord } from "@idt/shared-types";
+import type { ActionMapping, DeviceBinding, DeviceStatus, ParsedHmiScene, TelemetryRecord } from "@idt/shared-types";
 import { evalStatus } from "../../utils/status";
 import { STATUS_COLOR } from "../../utils/status";
 import { bindingRunningState, isTruthyState, readLatest } from "../../utils/device-plates";
@@ -20,6 +20,24 @@ function independentlyBound(mapping: ActionMapping | undefined): boolean {
   return Boolean(mapping?.telemetryKey);
 }
 
+/**
+ * 3D 模型染色策略（2026-11-24 客户要求）。
+ *
+ * <p>客户原话：「我希望 3D 中的设备告警和故障才有对应的颜色，
+ * 其他的状态在 3D 里面不要颜色」。
+ *
+ * <p>原来 `evalStatus` 的四种状态全部上色（正常=绿、离线=灰），
+ * 整排机组都带色，真正需要被看到的故障反而淹没在色块里。
+ * 现在只给 `alarm`（故障/告警）与 `warning`（预警）染色：
+ * 正常与离线一律传 null，`tintStatus` 会把材质写回模型原色。
+ *
+ * <p>注意：阀门开闭色（`setValveTint`）与停流变暗（`setPipeFlowing`）
+ * 是另一套语义（工艺状态，不是设备健康度），不在这里改动。
+ */
+export function statusTint(status: DeviceStatus): string | null {
+  return status === "alarm" || status === "warning" ? STATUS_COLOR[status] : null;
+}
+
 export function applyBindingsToScene(
   hmi: ParsedHmiScene | null,
   bindings: DeviceBinding[],
@@ -34,7 +52,7 @@ export function applyBindingsToScene(
   for (const binding of bindings) {
     const entity = binding.sceneEntityId;
     const status = evalStatus(binding, latest);
-    engine.tintStatus(entity, STATUS_COLOR[status]);
+    engine.tintStatus(entity, statusTint(status));
 
     for (const action of binding.actionMappings) {
       if (!isVisualDriveAction(action.actionId, action.label)) continue;
@@ -85,6 +103,17 @@ export function applyBindingsToScene(
     }
     if (valve.clips?.open) engine.playNamedAnimation(valve.clips.open, valveOpen.get(valve.node) === true, valve.node);
     if (valve.clips?.close) engine.playNamedAnimation(valve.clips.close, valveOpen.get(valve.node) === false, valve.node);
+    /*
+     * 阀门状态染色（2026-11-23，对应风格套装的「管三态」）。
+     *
+     * <p>只播 open/close 片段是不够的：`closedColor` 让关掉的阀门
+     * 在扫视时一眼可见。原来这段逻辑不存在 —— 套装描述里的「管三态」
+     * 是一句空话，阀门关了和开着只有几帧动画差别。
+     *
+     * <p>规则里 `tintClosed: false` 时这个方法内部会退化成「清除染色」，
+     * 所以这里无条件调用即可。
+     */
+    engine.setValveTint(valve.node, valveOpen.get(valve.node) === true);
   }
 
   for (const pipe of hmi.pipes) {
@@ -98,6 +127,16 @@ export function applyBindingsToScene(
       on = closers.every((id) => valveOpen.get(id) !== false);
     }
     if (pipe.flowClip) engine.playNamedAnimation(pipe.flowClip, on, pipe.node);
+    /*
+     * 停流管道变暗（2026-11-23，对应套装的 `pipe.idleOpacity`）。
+     *
+     * <p>只把动画停掉，管子看起来和流动时一模一样（只是纹理不走了），
+     * 远看不出来哪条支路被切断。降低不透明度让"死管"退到背景。
+     *
+     * <p>这是每帧都会跑的（`applyBindingsToScene` 由 update 事件驱动），
+     * 所以 `setPipeFlowing` 内部必须做幂等判断，否则每帧都在写材质。
+     */
+    engine.setPipeFlowing(pipe.node, on);
   }
 
   for (const instrument of hmi.instruments) {

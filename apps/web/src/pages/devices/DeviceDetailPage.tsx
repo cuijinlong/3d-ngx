@@ -24,7 +24,7 @@ export function DeviceDetailPage() {
         <div className="page-head">
           <div>
             <h1 className="page-title">{formatPlatformDeviceName(device)}</h1>
-            <p className="page-sub">测点可增删。这些配置会用于场景绑定，数据源仍是演示数据。</p>
+            <p className="page-sub">测点可增删。这些配置会用于场景绑定，数值来自 guard-server 实时遥测。</p>
           </div>
           <Button onClick={() => nav(routes.devices)}>返回列表</Button>
         </div>
@@ -50,12 +50,19 @@ export function DeviceDetailPage() {
               <Button type="primary" onClick={() => void saveDevice(device).then(setDevice)}>保存</Button>
             </Space>
           </Card>
-          <Card title={<Space>实时演示 <span className="idt-demo-tag">演示数据</span></Space>}>
+          {/*
+           * 标题原来写「实时演示」+ 硬编码的「演示数据」标签（2026-11-23 改）。
+           *
+           * <p>那个标签是**写死的**，与实际数据源无关 —— 而 `TelemetryPanel`
+           * 读的是 `useTelemetryStore`，也就是 guard-server 的真实遥测。
+           * 明明是真数据却标「演示」，比不标更糟：客户会以为整块不可信。
+           */}
+          <Card title="实时数据">
             <TelemetryPanel device={device} />
           </Card>
         </div>
         <Typography.Paragraph type="secondary" style={{ marginTop: 16 }}>
-          网关指令与真实遥测将通过 DeviceDataProvider / DeviceCommandProvider 接入，当前未连接 guard-server。
+          数据来自 guard-server 实时遥测；未订阅到的测点显示「—」。
         </Typography.Paragraph>
       </div>
     </div>

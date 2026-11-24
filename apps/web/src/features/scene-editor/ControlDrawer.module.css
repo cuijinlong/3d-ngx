@@ -123,6 +123,278 @@
   cursor: not-allowed;
 }
 
+/* ==================================================================== */
+/* 大圆按钮（2026-11-23）                                                */
+/* ==================================================================== */
+
+/*
+ * 启停做成两颗直径 56px 的圆钮。
+ *
+ * <h3>为什么是 56px</h3>
+ *
+ * <p>抽屉总高受底部空间限制（展开约 200px）。56px 的圆在 1080p 大屏上
+ * 隔着 3 米仍能点到，同时两颗并排只占 130px 宽 —— 不会把「设备数据」
+ * 那一栏挤没。
+ *
+ * <h3>为什么用圆形而不是圆角矩形</h3>
+ *
+ * <p>圆形是工业控制面板的通用语言（按钮/指示灯/急停）。
+ * 圆角矩形看起来像普通网页按钮，操作员会当成「切换视图」这类无害操作。
+ * 形状本身就在提示「这是有物理后果的东西」。
+ */
+.roundBtns {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.roundBtn {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  font: inherit;
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 160ms ease, opacity 160ms ease;
+  /* 内层高光：工业按钮的「凸起」感，纯平色块会显得像贴纸 */
+  background-image: radial-gradient(circle at 50% 34%, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0) 62%);
+}
+
+.roundBtn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.roundBtn:focus-visible {
+  outline: 2px solid var(--ngx-color-primary);
+  outline-offset: 3px;
+}
+
+.roundGlyph {
+  font-size: 15px;
+  line-height: 1;
+  /* 播放/方块的渲染基线在部分字体里偏移，压一行对齐 */
+  transform: translateY(1px);
+}
+
+.roundText {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.5px;
+}
+
+/*
+ * 启动：绿色。
+ *
+ * <p>绿色在工业语境里是「安全动作」，但**启动同样有后果**（水力冲击、
+ * 突然加载），所以不用「成功绿」那种明亮色，取偏深一档，
+ * 视觉重量比停止键略低 —— 紧急情况下手该先摸到红的那颗。
+ */
+.roundStart {
+  background-color: #1f9d6b;
+  color: #f2fffa;
+  box-shadow:
+    0 0 0 4px rgba(31, 157, 107, 0.16),
+    0 6px 18px rgba(18, 92, 62, 0.35);
+}
+
+.roundStart:hover:not(:disabled) {
+  box-shadow:
+    0 0 0 6px rgba(31, 157, 107, 0.24),
+    0 8px 22px rgba(18, 92, 62, 0.42);
+}
+
+/*
+ * 停止：红色。
+ *
+ * <p>比启动键更亮、光晕更大 —— 它是**需要被一眼找到**的那颗。
+ */
+.roundStop {
+  background-color: #d93a3f;
+  color: #fff5f5;
+  box-shadow:
+    0 0 0 4px rgba(217, 58, 63, 0.18),
+    0 6px 20px rgba(140, 28, 32, 0.42);
+}
+
+.roundStop:hover:not(:disabled) {
+  box-shadow:
+    0 0 0 6px rgba(217, 58, 63, 0.28),
+    0 8px 24px rgba(140, 28, 32, 0.5);
+}
+
+/*
+ * 禁用态：**保留颜色但去饱和 + 压暗**。
+ *
+ * <p>完全变灰会让「运行中的设备」看起来像「不可用的设备」。
+ * 操作员需要看到「启动——现在不行（已在运行）」，而不是「启动——坏了」。
+ */
+.roundBtn:disabled {
+  cursor: not-allowed;
+  background-color: color-mix(in srgb, currentColor 12%, var(--ngx-color-bg));
+  color: var(--ngx-color-muted);
+  box-shadow: none;
+  opacity: 0.5;
+  background-image: none;
+}
+
+/* ==================================================================== */
+/* 数值控制滑块（2026-11-23）                                            */
+/* ==================================================================== */
+
+.numeric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 240px;
+  max-width: 340px;
+}
+
+.numericHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.numericLabel {
+  font-size: 11px;
+  font-weight: 550;
+  color: var(--ngx-color-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/*
+ * 当前值：大号 + 等宽数字。
+ *
+ * <p>操作员拖动时要能**持续读到**目标值，所以它必须比滑块本身更显眼。
+ */
+.numericValue {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ngx-color-text);
+  white-space: nowrap;
+}
+
+.numericRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/*
+ * 滑块本体。
+ *
+ * <p>原生 `input[type=range]` 各浏览器外观差异很大，这里只统一
+ * 「轨道高度 / 圆点大小 / 强调色」，不做完整自绘 ——
+ * 完整自绘（`-webkit-slider-thumb` + `-moz-range-thumb` 各写一套）
+ * 在触屏和键盘下容易丢掉了原生行为。
+ */
+.numericSlider {
+  flex: 1;
+  min-width: 100px;
+  height: 22px;
+  margin: 0;
+  accent-color: var(--ngx-color-primary);
+  cursor: pointer;
+}
+
+.numericSlider:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.numericSend {
+  height: 26px;
+  padding: 0 12px;
+  border-radius: 6px;
+  border: 1px solid var(--ngx-color-primary);
+  background: color-mix(in srgb, var(--ngx-color-primary) 16%, transparent);
+  color: var(--ngx-color-primary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.numericSend:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ngx-color-primary) 28%, transparent);
+}
+
+.numericSend:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+  border-color: var(--ngx-color-border);
+  background: transparent;
+  color: var(--ngx-color-muted);
+}
+
+/*
+ * 「下发原始值」那行说明。
+ *
+ * <p>客户明确问过「文档是接收什么数字」，所以这行是**功能**不是装饰：
+ * 它把「70 % → 下发 70」「20.0℃ → 下发 200」当场写出来。
+ */
+.numericHint {
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--ngx-color-muted);
+}
+
+.numericHint b {
+  color: var(--ngx-color-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- HUD 皮肤下的圆钮与滑块 ---------- */
+
+:global([data-ngx-hud]) .roundStart {
+  background-color: #1f9d6b;
+  color: #f2fffa;
+}
+
+:global([data-ngx-hud]) .roundStop {
+  background-color: #d93a3f;
+  color: #fff5f5;
+}
+
+:global([data-ngx-hud]) .roundBtn:disabled {
+  background-color: rgba(20, 44, 70, 0.75);
+  color: var(--ngx-hud-muted, #7f9bb0);
+  opacity: 0.7;
+}
+
+:global([data-ngx-hud]) .numericValue {
+  color: var(--ngx-hud-text, #e8f4ff);
+}
+
+:global([data-ngx-hud]) .numericSlider {
+  accent-color: var(--ngx-hud-accent, #5ce0ff);
+}
+
+:global([data-ngx-hud]) .numericSend {
+  border-color: rgba(92, 224, 255, 0.5);
+  background: rgba(24, 91, 150, 0.45);
+  color: #dff0ff;
+}
+
+:global([data-ngx-hud]) .numericSend:hover:not(:disabled) {
+  background: rgba(36, 133, 218, 0.6);
+}
+
+:global([data-ngx-hud]) .numericHint b {
+  color: var(--ngx-hud-accent, #5ce0ff);
+}
+
 .chips {
   display: flex;
   flex-wrap: wrap;
@@ -189,3 +461,114 @@
   color: var(--ngx-color-muted);
   font-weight: 550;
 }
+
+/*
+ * HUD 皮肤（2026-11-23）。
+ *
+ * 抽屉在深色大屏上默认是「纯白胶囊」—— 截图里非常突兀（模板也到 97.7%，
+ * 但模板底部没有这个胶囊）。折叠态改成深色半透明、更小更淡，
+ * 只在需要时显眼。
+ */
+:global([data-ngx-hud]) .drawer {
+  background: var(--ngx-hud-glass-bg, rgba(8, 24, 42, 0.64));
+  border-color: var(--ngx-hud-glass-border, rgba(80, 200, 240, 0.35));
+  color: var(--ngx-hud-text, #e8f4ff);
+  backdrop-filter: blur(var(--ngx-hud-glass-blur, 12px));
+}
+
+:global([data-ngx-hud]) .handle {
+  background: var(--ngx-hud-muted, #7f9bb0);
+  opacity: 0.6;
+}
+
+/* 折叠态再收小一点：它只是入口，不该在底部中央占一块白色 */
+:global([data-ngx-hud]) .collapsed {
+  width: 56px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  opacity: 0.72;
+}
+
+:global([data-ngx-hud]) .collapsed:hover {
+  opacity: 1;
+}
+
+/* ==================================================================== */
+/* 运行状态：单一状态标（2026-11-23）                                     */
+/* ==================================================================== */
+
+/*
+ * 一行：状态标 + 其余 chips。
+ *
+ * <p>状态标是「唯一答案」，其余 chips 是「并列计数」，
+ * 所以中间留 8px 让它们读起来是两组。
+ */
+.statusRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/*
+ * 状态标。
+ *
+ * <p>五态五色，但**只有当前那一个存在** —— 不再并列。
+ * 底色用状态色 14% 混合、字用状态色本身：比纯色块克制，
+ * 又比纯文字更醒目（大屏 3 米外要能看出「这格在亮」）。
+ */
+.statusPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  background: color-mix(in srgb, currentColor 14%, transparent);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+/* 圆点：实心当前色，直径 7px —— 与列表里的状态圆点同一视觉语言 */
+.statusPill i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 6px currentColor;
+  flex: none;
+}
+
+/* 故障码：等宽 + 描边，与告警跑马灯里的码保持一致 */
+.statusPill em {
+  margin-left: 2px;
+  padding: 0 4px;
+  border-radius: 3px;
+  border: 1px solid currentColor;
+  font-style: normal;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.4px;
+}
+
+.statusPill[data-kind="running"] { color: #19b37d; }
+.statusPill[data-kind="stopped"] { color: #8fa6bb; }
+.statusPill[data-kind="fault"] { color: #e5484d; }
+.statusPill[data-kind="offline"] { color: #b08000; }
+.statusPill[data-kind="unknown"] { color: #7f9bb0; }
+
+/*
+ * 未知不发光：圆点的 glow 会让人以为「有状态在活跃」，
+ * 而未知恰恰是「不知道」。
+ */
+.statusPill[data-kind="unknown"] i {
+  box-shadow: none;
+  opacity: 0.7;
+}
+
+/* HUD 皮肤下略微提亮，深色玻璃底上实色才够跳 */
+:global([data-ngx-hud]) .statusPill[data-kind="running"] { color: #37d99b; }
+:global([data-ngx-hud]) .statusPill[data-kind="fault"] { color: #ff7184; }

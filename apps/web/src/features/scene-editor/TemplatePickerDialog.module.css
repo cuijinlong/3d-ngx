@@ -1,0 +1,490 @@
+/*
+ * 模板中心弹框 —— 视觉对齐 `数字孪生大屏工坊/templates.html`（2026-11-23）。
+ *
+ * <h2>为什么整块自绘</h2>
+ *
+ * <p>项目主体是 antd 亮色主题，而原型是深色玻璃质感。把原型的观感
+ * 塞进 antd 的 List/Table 是不可能的 —— 会得到一个「表单里的表格」。
+ * 所以弹框内层全部自定义，只借 antd Modal 的 portal、ESC 与焦点陷阱。
+ *
+ * <h2>取色</h2>
+ *
+ * <p>色值直接取自原型的 `:root`，不另调一套：
+ * 背景 `#050b16 / #08162b`、面板 `#0b1729`、描边 `#1d3b5d`、
+ * 主蓝 `#278cff`、青 `#38d9ef`、绿 `#27d69a`、金 `#f2bd55`、弱 `#8299b7`。
+ * 好处是原型改了以后这里能一眼对回去，不用猜「这个颜色是哪来的」。
+ */
+
+/* Modal 外壳：压掉 antd 的白底与内边距，让深色面板自己撑满 */
+.modalShell :global(.ant-modal-content) {
+  background: transparent;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
+  padding: 0;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.modalShell :global(.ant-modal-close) {
+  color: #9fb8d4;
+  top: 16px;
+  right: 16px;
+}
+
+.modalShell :global(.ant-modal-close):hover {
+  color: #eaf4ff;
+  background: rgba(56, 217, 239, 0.12);
+}
+
+.shell {
+  --tp-bg: #050b16;
+  --tp-panel: #0b1729;
+  --tp-panel2: #0e2037;
+  --tp-line: #1d3b5d;
+  --tp-blue: #278cff;
+  --tp-cyan: #38d9ef;
+  --tp-gold: #f2bd55;
+  --tp-green: #27d69a;
+  --tp-muted: #8299b7;
+  --tp-text: #eaf4ff;
+
+  color: var(--tp-text);
+  background:
+    radial-gradient(ellipse at 50% -20%, #173d70 0, #08162b 38%, #040914 78%),
+    var(--tp-bg);
+  padding: 22px 26px 16px;
+  max-height: min(86vh, 900px);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  font: 14px/1.5 Inter, "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+/* ---------------- 头部 ---------------- */
+
+.head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.title {
+  margin: 0 0 4px;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+/* 原型里的 panel-head 装饰角，纯装饰不进可读文本 */
+.titleMark {
+  color: var(--tp-cyan);
+  font-weight: 400;
+  opacity: 0.75;
+}
+
+.lead {
+  margin: 0;
+  color: var(--tp-muted);
+  font-size: 12.5px;
+  max-width: 620px;
+}
+
+.headRight {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+/*
+ * 搜索框：覆盖 antd 的白底，改成原型的深底输入。
+ * `.ant-input-affix-wrapper` 是 Search 的实际边框层，必须一起改，
+ * 只改 input 会留一圈白边。
+ */
+.search {
+  width: 240px;
+}
+
+.search :global(.ant-input-affix-wrapper),
+.search:global(.ant-input-affix-wrapper) {
+  background: #071426;
+  border-color: #244565;
+}
+
+.search :global(.ant-input) {
+  background: transparent;
+  color: var(--tp-text);
+}
+
+.search :global(.ant-input::placeholder) {
+  color: #5f7d9b;
+}
+
+.search :global(.ant-input-search-button) {
+  background: linear-gradient(180deg, #173a61, #102743);
+  border-color: #2a527b;
+  color: #dff4ff;
+}
+
+/* ---------------- 提示条 ---------------- */
+
+.notice {
+  border: 1px solid #2c5f7d;
+  background: rgba(39, 140, 255, 0.1);
+  color: #a9d8f5;
+  border-radius: 9px;
+  padding: 8px 12px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.noticeError {
+  border-color: #713349;
+  background: rgba(255, 102, 123, 0.1);
+  color: #ffb3c0;
+}
+
+/* ---------------- 卡片网格 ---------------- */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  overflow-y: auto;
+  padding: 2px;
+  margin: -2px;
+  min-height: 0;
+}
+
+.skeletonGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.skeletonCard {
+  height: 300px;
+  border-radius: 13px;
+  border: 1px solid #17304a;
+  background: linear-gradient(100deg, #0c1b2e 30%, #142a43 50%, #0c1b2e 70%);
+  background-size: 200% 100%;
+  animation: tpShimmer 1.4s linear infinite;
+}
+
+@keyframes tpShimmer {
+  from { background-position: 140% 0; }
+  to { background-position: -40% 0; }
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+  padding: 14px;
+  border-radius: 13px;
+  border: 1px solid #1b3b5d;
+  background: linear-gradient(145deg, #0e2036ef, #091729f2);
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.2);
+  transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+
+.card:hover {
+  border-color: #2f7fbf;
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.34), 0 0 22px rgba(38, 181, 255, 0.14);
+  transform: translateY(-1px);
+}
+
+/*
+ * 已选中：边框换主蓝 + 一圈外发光。
+ * 不用「填充色」区分 —— 深色卡片一旦填色，预览反而看不清。
+ */
+.cardActive {
+  border-color: var(--tp-blue);
+  box-shadow: 0 0 0 1px var(--tp-blue), 0 0 26px rgba(39, 140, 255, 0.28);
+}
+
+.cardTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 20px;
+}
+
+.cardVersion {
+  font-size: 10.5px;
+  color: #7893b1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 标签：原型的 tag 三色组 */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 5px;
+  padding: 2px 7px;
+  font-size: 10px;
+  background: #153957;
+  color: #8edaff;
+  border: 1px solid #245779;
+  white-space: nowrap;
+}
+
+.tagGreen {
+  background: #0e3a35;
+  color: #63e8c0;
+  border-color: #1c695a;
+}
+
+.tagGold {
+  background: #3b3020;
+  color: #ffd27c;
+  border-color: #69512d;
+}
+
+.tagMuted {
+  background: #10233a;
+  color: #8aa6c4;
+  border-color: #24486a;
+}
+
+/* ---------------- 预览 ---------------- */
+
+/*
+ * 预览区：顶部一条「CAMPUS DIGITAL TWIN」样式的状态条 + 下方线框舞台。
+ * 线框来自内置布局真实的 regions（见 template-picker.ts 的 previewRegions），
+ * 所以它和建完后的骨架一致 —— 不是画的假截图。
+ */
+.preview {
+  border: 1px solid #24527d;
+  border-radius: 10px;
+  overflow: hidden;
+  background: linear-gradient(180deg, #173a62, #0b1727);
+}
+
+/* 不同布局给不同底色，让两张卡在网格里能一眼分开 */
+.preview[data-layout="tianjiao-heat-pump"] {
+  background: linear-gradient(180deg, #254c6b, #142d3d);
+}
+
+.preview[data-layout="overview-situation"] {
+  background: linear-gradient(180deg, #1c4567, #132538);
+}
+
+.previewBar {
+  height: 24px;
+  background: #08172b;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px;
+  color: #88a8c9;
+  font-size: 9px;
+  letter-spacing: 1.2px;
+  border-bottom: 1px solid #21476b;
+}
+
+.previewDots {
+  color: #2f5f8a;
+  font-size: 7px;
+  letter-spacing: 2px;
+}
+
+/* 舞台按 16:9 撑开，线框用百分比定位，随卡片宽度自适应 */
+.previewStage {
+  position: relative;
+  height: 148px;
+  margin: 0;
+  background:
+    radial-gradient(ellipse at 50% 110%, rgba(75, 141, 91, 0.28) 0 22%, transparent 58%),
+    repeating-linear-gradient(0deg, transparent 0 23px, rgba(120, 190, 235, 0.06) 24px 25px);
+}
+
+.previewRegion {
+  position: absolute;
+  border: 1px solid rgba(92, 200, 255, 0.55);
+  border-radius: 3px;
+  background: rgba(21, 74, 118, 0.55);
+  box-shadow: inset 0 0 8px rgba(56, 217, 239, 0.16);
+}
+
+/* 标题区做成一条淡带，不画成卡片 —— 它在真实大屏上就是一条标题 */
+.previewTitle {
+  border: 0;
+  border-bottom: 1px solid rgba(92, 200, 255, 0.4);
+  background: rgba(56, 217, 239, 0.1);
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.previewEmpty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #6f8cab;
+  font-size: 11px;
+}
+
+/* ---------------- 卡片文字 ---------------- */
+
+.cardName {
+  margin: 2px 0 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--tp-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cardDesc {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: #8ba4c1;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 37px;
+}
+
+.cardMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 10.5px;
+}
+
+.layoutNote {
+  color: #8edaff;
+}
+
+.packNote {
+  color: #7893b1;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.cardFoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 4px;
+}
+
+.cardCount {
+  font-size: 10px;
+  color: #5f7d9b;
+}
+
+/* 「使用模板」：原型的 primary 按钮渐变 */
+.pickButton:global(.ant-btn) {
+  background: linear-gradient(135deg, #1678df, #13a9cb);
+  border: 0;
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 6px 16px rgba(19, 169, 203, 0.28);
+}
+
+.pickButton:global(.ant-btn):hover {
+  background: linear-gradient(135deg, #1b86f2, #17bcdd);
+  color: #fff;
+}
+
+/* ---------------- 空态 ---------------- */
+
+.empty {
+  border: 1px dashed #31516d;
+  border-radius: 10px;
+  padding: 34px 20px;
+  text-align: center;
+  color: #7894b3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+}
+
+.emptyIcon {
+  font-size: 24px;
+  color: #2f6f9c;
+}
+
+.emptyHint {
+  font-size: 11px;
+  color: #5f7d9b;
+}
+
+/* ---------------- 页脚 ---------------- */
+
+.foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  border-top: 1px solid #17304a;
+  padding-top: 11px;
+  font-size: 11px;
+  color: #6f8cab;
+}
+
+.foot code {
+  background: #0b2038;
+  border: 1px solid #244565;
+  border-radius: 4px;
+  padding: 0 4px;
+  color: #8edaff;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+}
+
+.footCount {
+  color: #5f7d9b;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ---------------- 响应式 ---------------- */
+
+@media (max-width: 1080px) {
+  .grid,
+  .skeletonGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .shell {
+    padding: 16px 14px 12px;
+  }
+  .grid,
+  .skeletonGrid {
+    grid-template-columns: 1fr;
+  }
+  .search {
+    width: 100%;
+  }
+  .headRight {
+    width: 100%;
+  }
+}
+
+/* 系统开了「减少动画」时不闪骨架屏 */
+@media (prefers-reduced-motion: reduce) {
+  .skeletonCard {
+    animation: none;
+  }
+}

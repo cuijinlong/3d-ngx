@@ -84,3 +84,100 @@ describe("TopologyApi customer list", () => {
     );
   });
 });
+
+describe("TopologyApi glb metadata", () => {
+  it("parses glb from list and load responses", async () => {
+    const requestJson = vi.fn()
+      .mockResolvedValueOnce({
+        items: [
+          {
+            id: "topo-a",
+            name: "场站总览",
+            customerId: "cust-1",
+            sceneInstance: true,
+            glb: { objectKey: "sites/site-1/topo-a/model.glb", fileName: "天骄科技园.glb", size: 12, url: "/api/energy/topology-assets?objectKey=sites/site-1/topo-a/model.glb" },
+          },
+          {
+            id: "topo-b",
+            name: "字符串模型",
+            sceneInstance: true,
+            additionalInfo: { glb: "sites/site-1/topo-b/model.glb" },
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        id: "topo-a",
+        name: "场站总览",
+        customerId: "cust-1",
+        sceneInstance: true,
+        publishState: "published",
+        glb: { objectKey: "sites/site-1/topo-a/model.glb", fileName: "天骄科技园.glb", size: 12 },
+      });
+    const api = new TopologyApi({ requestJson } as unknown as GuardClient);
+    const listed = await api.list(0, 100, { sceneInstance: true });
+    expect(listed.items[0]?.glb).toEqual({
+      objectKey: "sites/site-1/topo-a/model.glb",
+      fileName: "天骄科技园.glb",
+      size: 12,
+      url: "/api/energy/topology-assets?objectKey=sites/site-1/topo-a/model.glb",
+    });
+    expect(listed.items[1]?.glb).toEqual({ objectKey: "sites/site-1/topo-b/model.glb" });
+
+    const graph = await api.load("topo-a");
+    expect(graph.sceneInstance).toBe(true);
+    expect(graph.publishState).toBe("published");
+    expect(graph.customerId).toBe("cust-1");
+    expect(graph.glb).toEqual({
+      objectKey: "sites/site-1/topo-a/model.glb",
+      fileName: "天骄科技园.glb",
+      size: 12,
+    });
+  });
+
+  it("downloads a platform asset with the existing objectKey url", async () => {
+    const bytes = new Uint8Array([1, 2, 3]);
+    const requestBytes = vi.fn().mockResolvedValue({ blob: new Blob([bytes]), contentType: "model/gltf-binary" });
+    const api = new TopologyApi({ requestBytes } as unknown as GuardClient);
+    const got = await api.downloadAsset("sites/site-1/topo-a/model.glb");
+    expect(requestBytes).toHaveBeenCalledWith("/api/energy/topology-assets?objectKey=sites%2Fsite-1%2Ftopo-a%2Fmodel.glb");
+    expect(new Uint8Array(got)).toEqual(bytes);
+  });
+
+  it("sends publishState and glb on update", async () => {
+    const requestJson = vi.fn().mockResolvedValue({
+      id: "topo-a",
+      name: "场站总览",
+      sceneInstance: true,
+      publishState: "published",
+      glb: { objectKey: "topology/tenant/topo-a/model.glb", fileName: "model.glb" },
+    });
+    const api = new TopologyApi({ requestJson } as unknown as GuardClient);
+    const card = await api.update("topo-a", {
+      glb: { objectKey: "topology/tenant/topo-a/model.glb", fileName: "model.glb" },
+      publishState: "published",
+    });
+    expect(requestJson).toHaveBeenCalledWith(
+      "POST",
+      "/api/energy/topologies/topo-a",
+      { glb: { objectKey: "topology/tenant/topo-a/model.glb", fileName: "model.glb" }, publishState: "published" },
+    );
+    expect(card.publishState).toBe("published");
+    expect(card.glb?.objectKey).toBe("topology/tenant/topo-a/model.glb");
+  });
+
+  it("uploads a model with kind only in the query, not also in the form body", async () => {
+    const requestForm = vi.fn().mockResolvedValue({
+      kind: "glb",
+      objectKey: "topology/tenant/topo-a/model.glb",
+      fileName: "model.glb",
+    });
+    const api = new TopologyApi({ requestForm } as unknown as GuardClient);
+    const file = new File(["glb"], "model.glb", { type: "model/gltf-binary" });
+    await api.uploadAsset(file, { kind: "glb", topologyId: "topo-a", siteId: "site-1" });
+    expect(requestForm).toHaveBeenCalledTimes(1);
+    const [path, form] = requestForm.mock.calls[0] as [string, FormData];
+    expect(path).toBe("/api/energy/topology-assets?kind=glb&siteId=site-1&topologyId=topo-a");
+    expect(form.get("file")).toBe(file);
+    expect(form.get("kind")).toBeNull();
+  });
+});

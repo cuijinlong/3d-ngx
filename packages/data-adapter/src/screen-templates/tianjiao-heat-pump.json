@@ -1,0 +1,323 @@
+{
+  "schemaVersion": "1.0.0",
+  "id": "tianjiao-heat-pump",
+  "name": "天骄冷热站",
+  "version": 18,
+  "description": "热泵机组监控大屏：左翼 9 台机组列表，中间三维场景，右翼选中机组与系统汇总，底部功率趋势与加载率对比。系统级点位读网关设备，机组级点位读各模块机。",
+  "regions": [
+    {
+      "id": "title",
+      "type": "title",
+      "zone": "title",
+      "x": 20.0,
+      "y": 1.0,
+      "w": 60.0,
+      "h": 6.5,
+      "defaultTitle": "{sceneName} · 冷热站监控",
+      "defaultSubtitle": "CHILLED WATER PLANT DIGITAL TWIN",
+      "interfaces": []
+    },
+    {
+      "id": "system-power",
+      "type": "metric-card",
+      "zone": "left",
+      "x": 3.13,
+      "y": 13.43,
+      "w": 11.35,
+      "h": 24.12,
+      "defaultTitle": "系统功率",
+      "defaultSubtitle": "SYSTEM POWER",
+      "filterText": "模块机",
+      "interfaces": [
+        {
+          "key": "filter",
+          "name": "取数范围",
+          "valueType": "scope",
+          "allowedSources": [
+            "site",
+            "scene-topology"
+          ]
+        },
+        {
+          "key": "main",
+          "name": "系统功率",
+          "valueType": "number",
+          "allowedSources": [
+            "device-point"
+          ]
+        },
+        {
+          "key": "left",
+          "name": "进水温度",
+          "valueType": "number",
+          "allowedSources": [
+            "asset-attribute",
+            "device-point"
+          ]
+        },
+        {
+          "key": "right",
+          "name": "出水温度",
+          "valueType": "number",
+          "allowedSources": [
+            "asset-attribute",
+            "device-point"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "plant-capacity",
+      "type": "metric-card",
+      "zone": "left",
+      "x": 3.13,
+      "y": 38.38,
+      "w": 11.35,
+      "h": 19.38,
+      "defaultTitle": "装机参数",
+      "defaultSubtitle": "PLANT CAPACITY",
+      "interfaces": [
+        {
+          "key": "main",
+          "name": "资产参数",
+          "valueType": "number",
+          "allowedSources": [
+            "asset-attribute"
+          ]
+        },
+        {
+          "key": "left",
+          "name": "制热量",
+          "valueType": "number",
+          "allowedSources": [
+            "asset-attribute",
+            "device-point"
+          ]
+        },
+        {
+          "key": "right",
+          "name": "压缩机功率",
+          "valueType": "number",
+          "allowedSources": [
+            "asset-attribute",
+            "device-point"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "unit-list",
+      "type": "device-list",
+      "zone": "left",
+      "x": 3.13,
+      "y": 58.59,
+      "w": 11.35,
+      "h": 22.61,
+      "defaultTitle": "机组状态",
+      "defaultSubtitle": "UNIT STATUS",
+      "filterText": "模块机",
+      "interfaces": [
+        {
+          "key": "scope",
+          "name": "范围",
+          "valueType": "scope",
+          "allowedSources": [
+            "site",
+            "scene-topology"
+          ]
+        },
+        {
+          "key": "value",
+          "name": "出水温度",
+          "valueType": "number",
+          "allowedSources": [
+            "device-point"
+          ]
+        },
+        {
+          "key": "opening",
+          "name": "开度",
+          "valueType": "number",
+          "allowedSources": [
+            "device-point"
+          ]
+        },
+        {
+          "key": "state",
+          "name": "运行状态",
+          "valueType": "number",
+          "allowedSources": [
+            "device-point"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "selected-unit",
+      "type": "selection-card",
+      "zone": "right",
+      "x": 85.51,
+      "y": 13.43,
+      "w": 11.35,
+      "h": 27.5,
+      "defaultTitle": "选中机组",
+      "defaultSubtitle": "SELECTED UNIT",
+      "interfaces": []
+    },
+    {
+      "id": "unit-summary",
+      "type": "summary-card",
+      "zone": "right",
+      "x": 85.51,
+      "y": 41.76,
+      "w": 11.35,
+      "h": 26.95,
+      "defaultTitle": "运行汇总",
+      "defaultSubtitle": "RUN SUMMARY",
+      "filterText": "模块机",
+      "interfaces": [
+        {
+          "key": "scope",
+          "name": "范围",
+          "valueType": "scope",
+          "allowedSources": [
+            "site",
+            "scene-topology"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "control-bar",
+      "type": "control-bar",
+      "zone": "right",
+      "x": 85.51,
+      "y": 69.54,
+      "w": 11.35,
+      "h": 11.66,
+      "defaultTitle": "系统控制",
+      "defaultSubtitle": "CONTROL",
+      "interfaces": []
+    },
+    {
+      "id": "power-trend",
+      "type": "trend-chart",
+      "zone": "bottom",
+      "x": 3.13,
+      "y": 84.63,
+      "w": 46.5,
+      "h": 14.17,
+      "defaultTitle": "机组总功率趋势",
+      "defaultSubtitle": "POWER TREND",
+      "interfaces": [
+        {
+          "key": "filter",
+          "name": "取数范围",
+          "valueType": "scope",
+          "allowedSources": [
+            "site",
+            "scene-topology"
+          ]
+        },
+        {
+          "key": "series-0",
+          "name": "9 台之和",
+          "valueType": "number-series",
+          "allowedSources": [
+            "device-point"
+          ]
+        }
+      ],
+      "filterText": "模块机"
+    },
+    {
+      "id": "load-compare",
+      "type": "bar-compare",
+      "zone": "bottom",
+      "x": 50.36,
+      "y": 84.63,
+      "w": 46.5,
+      "h": 14.17,
+      "defaultTitle": "机组功率对比",
+      "defaultSubtitle": "UNIT POWER",
+      "filterText": "模块机",
+      "interfaces": [
+        {
+          "key": "scope",
+          "name": "范围",
+          "valueType": "scope",
+          "allowedSources": [
+            "site",
+            "scene-topology"
+          ]
+        },
+        {
+          "key": "load",
+          "name": "功率",
+          "valueType": "number",
+          "allowedSources": [
+            "device-point"
+          ]
+        }
+      ]
+    }
+  ],
+  "objectBinding": {
+    "matchBy": "objectName",
+    "description": "三维对象按 GLB 里的节点名对接。9 台模块机 node 为 1~9，泵为「立式管道离心泵」「立式管道离心泵_2」。只绑平台实时设备，虚拟设备按既有规则失效。",
+    "fields": [
+      {
+        "key": "targetDevice",
+        "name": "目标设备",
+        "valueType": "realtime-device",
+        "required": true
+      },
+      {
+        "key": "nameplatePoints",
+        "name": "铭牌测点",
+        "valueType": "telemetry-mapping-list",
+        "optional": true
+      },
+      {
+        "key": "behaviors",
+        "name": "行为",
+        "valueType": "action-mapping-list",
+        "optional": true
+      },
+      {
+        "key": "controlCommands",
+        "name": "启停命令",
+        "valueType": "command-list",
+        "optional": true
+      },
+      {
+        "key": "status",
+        "name": "状态映射",
+        "valueType": "status-mapping",
+        "optional": true
+      }
+    ]
+  },
+  "aiExtension": {
+    "editableTargets": [
+      "widget.props",
+      "widget.layout",
+      "widget.style",
+      "widget.binding",
+      "scene.interaction",
+      "scene.layer"
+    ],
+    "protectedTargets": [
+      "templateId",
+      "mountPoints.scene",
+      "runtime.eventContract"
+    ],
+    "operations": [
+      "add-widget",
+      "update-widget",
+      "remove-widget",
+      "bind-telemetry"
+    ],
+    "requiresDiffReview": true
+  }
+}

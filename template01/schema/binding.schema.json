@@ -1,0 +1,72 @@
+{
+  "schemaVersion": "1.0.0",
+  "provider": "thingsboard",
+  "description": "Binding descriptors are examples only. Replace entity IDs and telemetry keys with actual ThingsBoard entities and keys after probing.",
+  "bindings": [
+    {
+      "path": "campus.name",
+      "source": "static-attribute",
+      "entityType": "ASSET",
+      "entityId": "${campusAssetId}",
+      "attributeKey": "name",
+      "fallback": "智慧医疗园区"
+    },
+    {
+      "path": "campus.totalArea",
+      "source": "static-attribute",
+      "entityType": "ASSET",
+      "entityId": "${campusAssetId}",
+      "attributeKey": "totalArea",
+      "unit": "㎡"
+    },
+    {
+      "path": "traffic.peopleNow",
+      "source": "telemetry",
+      "entityType": "DEVICE",
+      "entityId": "${peopleFlowDeviceId}",
+      "telemetryKey": "people_count",
+      "unit": "人",
+      "aggregation": "LATEST",
+      "staleAfterSec": 180,
+      "fallback": "—"
+    },
+    {
+      "path": "traffic.vehicles",
+      "source": "telemetry",
+      "entityType": "DEVICE",
+      "entityId": "${parkingDeviceId}",
+      "telemetryKey": "vehicle_count",
+      "unit": "辆",
+      "aggregation": "LATEST",
+      "staleAfterSec": 180,
+      "fallback": "—"
+    },
+    {
+      "path": "security.online",
+      "source": "derived",
+      "expression": "security.total - security.offline - security.fault",
+      "unit": "台"
+    },
+    {
+      "path": "equipment.camerasOnline",
+      "source": "telemetry",
+      "entityType": "DEVICE",
+      "entityId": "${securityGatewayId}",
+      "telemetryKey": "camera_online_count",
+      "aggregation": "LATEST",
+      "staleAfterSec": 300,
+      "fallback": "—"
+    },
+    {
+      "path": "meeting.usageRate",
+      "source": "telemetry",
+      "entityType": "DEVICE",
+      "entityId": "${meetingSystemId}",
+      "telemetryKey": "room_usage_rate",
+      "unit": "%",
+      "aggregation": "LATEST",
+      "staleAfterSec": 300,
+      "fallback": "—"
+    }
+  ]
+}

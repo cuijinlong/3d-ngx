@@ -119,6 +119,7 @@
 
 .tagRun,
 .tagStop,
+.tagFault,
 .tagDemo {
   flex: none;
   padding: 0 5px;
@@ -127,14 +128,37 @@
   font-weight: 500;
 }
 
+/*
+ * 运行徽标改中性底（2026-11-24）。
+ *
+ * <p>客户要求「3D 中只有设备告警和故障才有对应的颜色，其他状态不要颜色」。
+ * 原来「运行」是实心绿：9 台机组全在线时，3D 视图里是一片绿块，
+ * 真正需要被看到的故障红反而要仔细找。
+ * 现在运行/停止/离线都用中性底色，靠文字区分，红色只留给故障。
+ */
 .tagRun {
-  background: var(--ngx-color-success);
+  background: color-mix(in srgb, var(--ngx-color-on-primary, #fff) 18%, transparent);
   color: var(--ngx-color-on-primary);
 }
 
 .tagStop {
   background: var(--ngx-color-muted);
   color: var(--ngx-color-on-primary);
+}
+
+/*
+ * 故障徽标（2026-11-23）。
+ *
+ * <p>红底白字 + 轻微外发光：铭牌本身是半透明玻璃，
+ * 纯色块在深色 3D 背景上不够跳。故障是最高优先级信息，
+ * 必须比「运行」绿更抓眼 —— 但不做成闪烁动画：
+ * 大屏一开一整天，闪烁会让人烦躁，而红色静止本身已经足够醒目。
+ */
+.tagFault {
+  background: var(--ngx-color-danger, #e5484d);
+  color: #fff;
+  box-shadow: 0 0 8px color-mix(in srgb, var(--ngx-color-danger, #e5484d) 65%, transparent);
+  font-weight: 600;
 }
 
 .tagDemo {
@@ -221,4 +245,59 @@
 
 .tagCmdStop:disabled {
   background: var(--ngx-color-muted);
+}
+
+
+/*
+ * 运行态视口背景（2026-11-23）：纯色 → 径向光晕 + 纵向渐变。
+ *
+ * 纯深色底会让 3D 模型像「贴在黑板上的贴图」，缺少纵深。
+ * template01 的立体感就来自「中央偏上有一团冷光」——
+ * 模型周围亮、边角暗，视觉焦点自然落在场景上。
+ */
+.wrap[data-hud="on"] {
+  background:
+    radial-gradient(ellipse at 50% 38%, rgba(61, 141, 200, 0.18), transparent 58%),
+    linear-gradient(180deg, rgba(16, 52, 88, 0.28), rgba(4, 17, 34, 0.42)),
+    var(--ngx-hud-viewport);
+}
+
+/*
+ * 全息网格（2026-11-23 按 template01 移植）。
+ *
+ * <p>「科技感」很大一部分来自一层极淡的 48px 网格。三个要点缺一不可：
+ *
+ * <ol>
+ *   <li><b>必须叠在 canvas 之上</b>（z-index + pointer-events:none）。
+ *       放 background 里会被不透明的 3D 画面完全盖住，等于没加。</li>
+ *   <li><b>mask 上实下虚</b>：网格只在天区可见，到模型高度就淡掉。
+ *       否则线会横穿设备表面，看起来像屏幕脏了。</li>
+ *   <li><b>opacity 要低</b>（0.13 以下）。网格是氛围，一旦能「看清」就抢戏。</li>
+ * </ol>
+ */
+.wrap[data-hud="on"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0.13;
+  background-image:
+    linear-gradient(rgba(62, 139, 210, 0.55) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(62, 139, 210, 0.55) 1px, transparent 1px);
+  background-size: 48px 48px;
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 42%, transparent 85%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 42%, transparent 85%);
+}
+
+:global([data-ngx-hud]) .overviewBtn {
+  background: var(--ngx-hud-glass-bg);
+  border-color: var(--ngx-hud-glass-border);
+  color: var(--ngx-hud-text);
+  backdrop-filter: blur(var(--ngx-hud-glass-blur));
+}
+
+:global([data-ngx-hud]) .overviewBtn:hover {
+  border-color: var(--ngx-hud-accent);
+  color: var(--ngx-hud-accent);
 }

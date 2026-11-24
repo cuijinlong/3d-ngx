@@ -6,6 +6,8 @@ import {
   isSceneInstanceCard,
   probeSceneStorage,
   sceneRowMark,
+  sceneRootIssueOf,
+  type SceneRootIssue,
   type SceneRowMark,
   type TopologyCard,
 } from "@idt/data-adapter";
@@ -22,6 +24,11 @@ export interface CustomerSceneRow {
   fromPlatform: boolean;
   publishState?: string;
   mark: SceneRowMark;
+  /**
+   * 场景根状态。存量数据里大量场景 roots 为空或多个（历史 viewType 圈范围用法），
+   * 它们不满足「一资产一场景」，界面上必须标出来 —— 否则用户以为配置是好的。
+   */
+  rootIssue: SceneRootIssue;
 }
 
 export function mergeCustomerSceneRows(
@@ -42,6 +49,7 @@ export function mergeCustomerSceneRows(
       hasLocalDraft: false,
       fromPlatform: true,
       publishState: card.publishState,
+      rootIssue: sceneRootIssueOf({ roots: card.roots }),
       storageAvailable,
     }));
   }
@@ -59,6 +67,7 @@ export function mergeCustomerSceneRows(
       hasLocalDraft: true,
       fromPlatform: Boolean(prev?.fromPlatform),
       publishState: prev?.publishState || doc.platform?.publishState,
+      rootIssue: prev ? prev.rootIssue : sceneRootIssueOf({ roots: doc.platform?.roots }),
       storageAvailable,
     }));
   }

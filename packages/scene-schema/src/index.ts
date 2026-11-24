@@ -80,6 +80,14 @@ export const sceneMetaSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   description: z.string().optional(),
+  /*
+   * 缩略图 dataURL（2026-11-23）。
+   *
+   * <p>用 `data:image/` 前缀校验而不是只 `z.string()`：
+   * 这个字段会被直接塞进 `<img src>`，若混进 `javascript:` 之类
+   * 就是一个 XSS 面。校验前缀把它挡在 schema 层。
+   */
+  thumbnail: z.string().startsWith("data:image/").optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
   publishedAt: z.string().optional(),
@@ -90,6 +98,14 @@ export const sceneMetaSchema = z.object({
 const platformSchema = z.object({
   siteId: z.string(),
   siteName: z.string().optional(),
+  /*
+   * customerId / sceneInstance / publishState 必须显式声明。
+   * zod 的默认行为是把未声明字段 strip 掉，不是报错 —— 漏了这三个的后果是
+   * 导入场景 JSON 后「没有客户归属」：租户列表看不到、客户按 customerId
+   * 过滤也打不开，而且全程不报错（2026-11-22 实测复现）。
+   * 与 @idt/shared-types 的 ScenePlatformRef 保持一致。
+   */
+  customerId: z.string().optional(),
   topologyId: z.string().optional(),
   topologyName: z.string().optional(),
   viewType: z.string(),
@@ -112,7 +128,34 @@ const platformSchema = z.object({
     size: z.number().optional(),
     url: z.string().optional(),
   })).optional(),
+  sceneInstance: z.boolean().optional(),
+  publishState: z.string().optional(),
 }).optional();
+
+/**
+ * 场景数据源别名（2026-11-23）。
+ *
+ * <p>`kind` 与必填字段的对应关系在纯逻辑里校验
+ * （`resolveDataSourceEntities`）；这里只做形状约束，
+ * 保持「schema 管类型、业务规则管语义」的分工。
+ */
+export const sceneDataSourceSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  kind: z.enum(["device", "asset", "scope"]),
+  deviceId: z.string().optional(),
+  assetId: z.string().optional(),
+  scope: z
+    .object({
+      kind: z.enum(["site", "topology"]),
+      siteId: z.string().optional(),
+      siteName: z.string().optional(),
+      topologyId: z.string().optional(),
+      topologyName: z.string().optional(),
+    })
+    .optional(),
+  note: z.string().optional(),
+});
 
 export const sceneDocumentSchema = z.object({
   schemaVersion: z.literal(SCHEMA_VERSION),
@@ -122,6 +165,13 @@ export const sceneDocumentSchema = z.object({
   entities: z.array(sceneEntitySchema),
   bindings: z.array(deviceBindingSchema).default([]),
   platform: platformSchema,
+  /*
+   * 场景数据源别名（2026-11-23）。
+   *
+   * <p>不写进 schema 就会被 zod 在保存时**静默剥离** —— 界面上配了、
+   * 刷新就没了，而且不报错。这是「新增场景级字段」必须记得的一步。
+   */
+  dataSources: z.array(sceneDataSourceSchema).optional(),
   hmiSnapshot: z
     .object({
       source: z.enum(["hmi-extras", "node-graph"]),

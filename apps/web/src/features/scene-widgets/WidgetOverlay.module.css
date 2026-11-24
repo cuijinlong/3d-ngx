@@ -66,6 +66,7 @@
   flex: none;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
   margin-bottom: 6px;
   font-size: 11px;
@@ -73,6 +74,33 @@
   line-height: 1.3;
   text-align: left;
   color: var(--widget-muted, var(--ngx-color-muted));
+}
+
+.cardTitleText {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* `⌜` 角标：template01 每块面板标题都以它开头，是这套视觉的识别符号 */
+.cardTitleMark {
+  flex: none;
+  opacity: 0.75;
+}
+
+/* 右侧英文小字：7px + letter-spacing，与中文 11px 形成层级 */
+.cardSubtitle {
+  flex: none;
+  font-size: 7px;
+  font-weight: 400;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  opacity: 0.72;
+  white-space: nowrap;
 }
 
 .cardTitle span {
@@ -169,7 +197,8 @@
 }
 
 .muted,
-.empty {
+.empty,
+.hint {
   color: var(--widget-muted, var(--ngx-color-muted));
   font-size: 12px;
 }
@@ -177,6 +206,12 @@
 .empty {
   margin: auto 0;
   line-height: 1.45;
+}
+
+.hint {
+  margin: 0 0 10px;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .rows {
@@ -346,10 +381,185 @@
   color: var(--ngx-color-danger);
 }
 
+/*
+ * 设备专题抽屉的关闭按钮（2026-11-23）。
+ *
+ * <p>放在标题条最右侧。尺寸按 26px 标题条定：18×18 既不压标题，
+ * 也能在触摸屏/触摸笔上点中（>16px 是可用性下限）。
+ * 用文字 `×` 而不是图标字体 —— 图标字体缺失时这里会变成空白方块，
+ * 而 `×` 在任何字体下都能显示。
+ */
+.drawerClose {
+  flex: none;
+  margin-left: auto;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--ngx-hud-corner, #5ce0ff) 35%, transparent);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--widget-muted, var(--ngx-color-muted));
+  font: inherit;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.drawerClose:hover,
+.drawerClose:focus-visible {
+  border-color: var(--ngx-hud-corner, #5ce0ff);
+  color: var(--ngx-hud-text, #e8f6ff);
+  outline: none;
+}
+
 .chart {
   flex: 1;
   min-height: 0;
   width: 100%;
+}
+
+/*
+ * 趋势卡的「大数字 + 折线」布局（2026-11-23）。
+ *
+ * 对齐 template01 底部左块：左边一个大数字（今日人流 4830），右边一条折线。
+ * 之前趋势卡只有折线铺满整块，数字全靠 Y 轴刻度去读 —— 大屏三米外没人看得清。
+ */
+/*
+ * 「选中机组」空态（2026-11-23）。
+ *
+ * 这块和左侧「系统功率」同高（24%），对侧有个大数字撑着 ——
+ * 只有两行小字的话整屏重心会往左倒。所以给个真实计数当视觉锚点。
+ */
+.selectionHint {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+}
+
+/*
+ * 准星框：科技大屏的「此处可交互」视觉语言。
+ * 只表示「可以点」，不承载任何数量 —— 详见 SelectionCardBody 的注释。
+ */
+.selectionHintFrame {
+  position: relative;
+  width: 46px;
+  height: 46px;
+  margin-bottom: 10px;
+  border: 1px dashed rgba(100, 178, 239, 0.45);
+  border-radius: 3px;
+  display: grid;
+  place-items: center;
+}
+
+/* 框中心的十字准星 */
+.selectionHintFrame span {
+  position: relative;
+  width: 16px;
+  height: 16px;
+}
+
+.selectionHintFrame span::before,
+.selectionHintFrame span::after {
+  content: "";
+  position: absolute;
+  background: rgba(120, 200, 255, 0.7);
+}
+
+.selectionHintFrame span::before {
+  left: 50%;
+  top: 0;
+  width: 1px;
+  height: 100%;
+  transform: translateX(-50%);
+}
+
+.selectionHintFrame span::after {
+  top: 50%;
+  left: 0;
+  height: 1px;
+  width: 100%;
+  transform: translateY(-50%);
+}
+
+/*
+ * 趋势卡布局（遥测趋势用，2026-11-23）。
+ *
+ * <p>★ 这里不能用网格：它被**两种卡**共用 ——
+ * `WidgetCards.tsx` 的遥测趋势（左侧 KPI + 右侧图表）与
+ * `EnergyCards.tsx` 的能耗趋势（只有图表，已经没有左侧数字）。
+ *
+ * <p>第一版把这里改成网格后，能耗卡的单列规则会同时套在遥测卡上，
+ * 而遥测卡的 `.trendKpi` 没有 `grid-area` —— 两个子元素会挤到一行。
+ * 所以遥测卡保留 flex，能耗卡用下面独立的 `.energyTrendRow`。
+ */
+.trendRow {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+/*
+ * 能耗趋势卡（2026-11-23）：客户要求去掉左侧大数字后，图表独占整卡。
+ *
+ * <p>单列两行：粒度切换（右上对齐） + 图表。
+ */
+.energyTrendRow {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 2px;
+  align-items: start;
+}
+
+.energyTrendRow > [class*="chart"] {
+  min-width: 0;
+  min-height: 0;
+}
+
+.trendKpi {
+  flex: 0 0 auto;
+  min-width: 74px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+}
+
+/* 图表横跨两列，占满卡片宽度 */
+.trendRow > [class*="chart"] {
+  min-width: 0;
+  min-height: 0;
+}
+
+.trendKpi b {
+  /*
+   * 不写 color：继承卡片正文色。
+   * 显式写 `var(--ngx-color-text)` 在这个卡片里拿到的是暗色，
+   * 大数字几乎看不见（2026-11-23 实测）—— 与 `.summaryTotal b` 一致即可。
+   */
+  font-size: 26px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.trendKpi b i {
+  margin-left: 2px;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 400;
+  color: var(--widget-muted, var(--ngx-color-muted));
+}
+
+.trendKpi span {
+  font-size: 10px;
+  color: var(--widget-muted, var(--ngx-color-muted));
 }
 
 .glassControl {
@@ -387,4 +597,2750 @@
 /* 深色描边保持主题默认 0.08，不跟整屏玻璃滑杆，避免比 --ngx-glass-border 更实。浅色仍用整屏 alpha。 */
 [data-theme="dark"] .card {
   --widget-glass-border-alpha: var(--ngx-glass-border-alpha, 0.08);
+}
+
+
+.cardTitle::before {
+  content: "";
+  flex: none;
+  width: 3px;
+  height: 12px;
+  border-radius: 1px;
+  background: var(--ngx-color-primary);
+}
+
+.metricLayout {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.metricLayout .metricValue {
+  margin-top: 0;
+  justify-content: center;
+}
+
+.metricSide {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+  color: var(--widget-muted, var(--ngx-color-muted));
+}
+
+.metricSideRight {
+  align-items: flex-end;
+  text-align: right;
+}
+
+.metricSide strong {
+  color: var(--widget-text, var(--ngx-color-text));
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.metricSideLabel {
+  font-size: 11px;
+}
+
+.halfRing {
+  width: 40px;
+  height: 22px;
+}
+
+.ringTrack {
+  color: color-mix(in srgb, var(--widget-muted, var(--ngx-color-muted)) 35%, transparent);
+  stroke: currentColor;
+}
+
+.ringAccent {
+  color: var(--ngx-color-primary);
+  stroke: currentColor;
+}
+
+.ringGold {
+  color: var(--ngx-color-warning);
+  stroke: currentColor;
+}
+
+.ratioLayout {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ratioRow {
+  display: flex;
+  justify-content: space-around;
+  gap: 8px;
+  min-height: 0;
+}
+
+.ratioItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.ratioDial {
+  position: relative;
+  width: 64px;
+  height: 64px;
+}
+
+.ratioDial svg {
+  width: 100%;
+  height: 100%;
+}
+
+.ratioValue {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 1px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ratioValue b {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.ratioValue small {
+  font-size: 11px;
+  color: var(--widget-muted, var(--ngx-color-muted));
+}
+
+.ratioLabel {
+  font-size: 11px;
+  color: var(--widget-muted, var(--ngx-color-muted));
+  text-align: center;
+}
+
+.segmentBar {
+  display: flex;
+  height: 6px;
+  border-radius: 99px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--widget-muted, var(--ngx-color-muted)) 22%, transparent);
+}
+
+.segment {
+  height: 100%;
+  background: var(--ngx-color-primary);
+}
+
+.segment:nth-child(2) {
+  background: var(--ngx-color-success);
+}
+
+.segment:nth-child(3) {
+  background: var(--ngx-color-warning);
+}
+
+.segmentMeta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--widget-muted, var(--ngx-color-muted));
+}
+
+.summaryLayout {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  /*
+   * 横排 → 竖排（2026-11-23）。
+   *
+   * 卡片按 template01 收窄到 11.35%（约 219px）后：
+   * 「设备总数」占 72px + gap 12px，状态网格只剩 108px，
+   * 4 个状态格挤成一条看不出来（实测 cols=50.95px×2 但总宽仅 108px）。
+   *
+   * 竖排后：上面一行「设备总数 … 9」，下面 2×2 网格吃满 195px。
+   */
+  flex-direction: column;
+  align-items: stretch;
+  /*
+   * 内容整体垂直居中（2026-11-23）。
+   *
+   * 卡片加高后，「设备总数」和状态块如果各自撑开，中间会裂出一条空洞。
+   * 居中后它们是一个整体，多余空间均匀留在上下 —— 和模板里
+   * 「设备设施」那块（标题—图标组—在线率紧凑堆叠）观感一致。
+   */
+  justify-content: center;
+  gap: 8px;
+}
+
+/*
+ * 设备在线率（2026-11-23）：对齐模板「设备设施」里的「设备在线率 96.8%」。
+ *
+ * 这里是**算出来的**，不是占位：在线 = 运行 + 故障（故障机仍能通信），
+ * 离线与未知都算不在线。所以它和上面三格数字永远自洽 ——
+ * 不会出现「离线 4 台但在线率 100%」这种自相矛盾的画面。
+ */
+.summaryRate {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.summaryRateHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.summaryRateHead span {
+  font-size: 10px;
+  color: var(--widget-muted, var(--ngx-color-muted));
+}
+
+.summaryRateHead b {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.summaryRateTrack {
+  height: 4px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--widget-muted, var(--ngx-color-muted)) 22%, transparent);
+  overflow: hidden;
+}
+
+.summaryRateFill {
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #2878e8, #55dcff);
+  box-shadow: 0 0 6px rgba(85, 220, 255, 0.55);
+  transition: width 0.4s ease;
+}
+
+.summaryTotal {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.summaryTotal span {
+  font-size: 10px;
+  color: var(--widget-muted, var(--ngx-color-muted));
+}
+
+.summaryTotal b {
+  font-size: 26px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.summaryStatuses {
+  /*
+   * 不再用 `flex: 1` 撑满（2026-11-23）。
+   *
+   * <p>运行汇总卡从 17% 加高到 26% 后，`flex: 1` 把三个状态块拉成
+   * 又细又高的竖条 —— 数字沉到底部，整块像三根柱子。
+   * 状态块是「数字 + 一行小字」，本来就该是矮格。
+   *
+   * <p>改为固定行高 + 整组居中：卡片变高时上下留白，块本身不变形。
+   */
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: 58px;
+  gap: 6px;
+}
+
+
+
+.statusTile {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  /*
+   * 8px/4px/20px → 4px/2px/16px（2026-11-23）。
+   * 2×2 网格在 17% 高的卡里，按原间距第二行（「未知」）会被裁掉 ——
+   * 而「未知」恰恰是最该看到的：它说明有几台没上报。
+   */
+  gap: 2px;
+  padding: 4px 6px;
+  border-radius: var(--ngx-radius-tag, 4px);
+  background: color-mix(in srgb, var(--widget-muted, var(--ngx-color-muted)) 8%, transparent);
+  font-size: 9px;
+  line-height: 1.2;
+}
+
+.statusTile b {
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.statusRun { color: var(--ngx-color-success); }
+.statusOff { color: var(--ngx-color-warning); }
+.statusFault { color: var(--ngx-color-danger); }
+
+/*
+ * 运行态大屏卡片（2026-11-23 对齐 template01 视觉）。
+ *
+ * 三处关键改动，都是为了「3D 周围透明、卡片像浮在场景上」：
+ *   1. alpha 0.72 → 0.42：原来太实，3D 透不出来，看着像普通网页表格；
+ *   2. 加 clip-path 切角 + 顶部发光彩条：这是 template01 最明显的识别特征，
+ *      只有边框和圆角的话，无论怎么调透明度都不像科技大屏；
+ *   3. 内发光 + saturate：玻璃质感来自「内侧有一层微光」，
+ *      单纯 blur 会显得脏。
+ *
+ * ⚠ 切角与 border-radius 不能共存（clip-path 会把圆角切掉），
+ * 所以这里 radius 归零。要改回圆角风格就整段删掉即可。
+ */
+:global([data-ngx-hud]) .card {
+  /*
+   * 透明度走 JS 内联的 `--widget-glass-alpha`（见 `widgetStyle`），
+   * 这里写的值只是没内联时的兜底 —— 改默认值要改
+   * `HUD_DEFAULT_GLASS_OPACITY` 常量，不是改这里。
+   */
+  --widget-glass-alpha: 0.3;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(5, 29, 61, var(--widget-glass-alpha)),
+      rgba(4, 17, 40, calc(var(--widget-glass-alpha) * 0.78))
+    );
+  border: 1px solid rgba(81, 160, 226, 0.5);
+  border-radius: 0;
+  clip-path: polygon(0 9px, 9px 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 0 100%);
+  /*
+   * ★ blur 9px → 2px（2026-11-23）。
+   *
+   * 这是本次「不遮挡 3D」的**决定性改动**：9px 会把卡片背后的模型糊成色斑，
+   * 光靠降背景 alpha 根本看不到模型轮廓（实测：alpha 降到 0.25 仍是一块毛玻璃）。
+   * 2px 能看清机组轮廓与管路走向，同时仍能压制地面高光对文字的干扰。
+   *
+   * saturate 135% → 110%：减少「背后颜色更艳更抢眼」的效果。
+   */
+  backdrop-filter: blur(2px) saturate(110%);
+  -webkit-backdrop-filter: blur(2px) saturate(110%);
+  color: var(--ngx-hud-text);
+  /*
+   * 去掉 `inset 0 0 20px` 内发光：它在边缘形成一圈淡蓝雾，
+   * 让卡片看起来「更厚更实」。大屏上「薄」比「厚」更高级，也更不遮挡。
+   * 外投影保留 —— 它让卡片从背景里浮出来，反而帮助区分层次。
+   */
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+  /*
+   * 内边距 10px 12px → 8px 10px（2026-11-23）。
+   * 同尺寸下多出内容空间，等价于「不放大也更大」。
+   * ★ 改这里必须同步 `.cardTitle` 的负 margin（上面），否则标题条错位。
+   */
+  padding: 8px 10px 6px;
+}
+
+/*
+ * 顶部彩条：template01 每张卡左上角都有一道 2px 发光短线。
+ * 标题卡与说明卡不加（它们本来就是透明无框的）。
+ */
+:global([data-ngx-hud]) .card::before {
+  content: "";
+  position: absolute;
+  left: 10px;
+  top: 0;
+  width: 45px;
+  height: 2px;
+  background: var(--ngx-hud-corner, #5ce0ff);
+  box-shadow: 0 0 9px var(--ngx-hud-corner, #5ce0ff);
+  pointer-events: none;
+}
+:global([data-ngx-hud]) .titleCard::before,
+:global([data-ngx-hud]) .captionCard::before {
+  display: none;
+}
+
+:global([data-ngx-hud]) .titleCard,
+:global([data-ngx-hud]) .captionCard {
+  background: transparent;
+  border-color: transparent;
+}
+
+:global([data-ngx-hud]) .titleText {
+  color: var(--ngx-hud-text);
+}
+
+:global([data-ngx-hud]) .captionText,
+:global([data-ngx-hud]) .muted,
+:global([data-ngx-hud]) .empty,
+:global([data-ngx-hud]) .hint,
+:global([data-ngx-hud]) .metricUnit,
+:global([data-ngx-hud]) .ratioLabel,
+:global([data-ngx-hud]) .segmentMeta {
+  color: var(--ngx-hud-muted);
+}
+
+/*
+ * 卡片标题单独一档（2026-11-23）。
+ * 它原来和单位/说明共用 muted —— 在深蓝底 + 12px 下几乎看不见，
+ * 卡片等于没有标题。参考 template01 的 panel-head 明显比正文亮一档。
+ */
+:global([data-ngx-hud]) .cardTitle {
+  color: var(--ngx-hud-label, #b3d2ea);
+  font-weight: 700;
+  letter-spacing: 1px;
+  /*
+   * 对齐 template01 的 panel-head（2026-11-23）：
+   *   height / 下边线 rgba(100,178,239,.27) / 横向渐变底
+   * 原来只有一个 11px 文字，没有分隔线 —— 卡片看起来像「漂浮的文字块」
+   * 而不是「一块面板」，这是和参考图最直观的差别之一。
+   *
+   * ★ 31px → 26px（2026-11-23 客户要求「部件尽量大点」配套改动）：
+   * 217px 宽 × 227px 高的小卡上，31px 标题条占卡片高度 1/6，纯浪费。
+   * 收到 26px 仍装得下 11px 中文 + 英文副标题，又给内容多 5px。
+   *
+   * ⚠ 负 margin 必须等于 `.card` 在 HUD 下的 padding（8px 10px 6px），
+   * 否则标题条会从卡片边缘缩进去。两者是死锁的，改一个必须改另一个。
+   */
+  height: 26px;
+  margin: -8px -10px 6px;
+  padding: 0 10px;
+  border-bottom: 1px solid rgba(100, 178, 239, 0.27);
+  background: linear-gradient(90deg, rgba(35, 111, 183, 0.24), transparent);
+}
+
+:global([data-ngx-hud]) .cardSubtitle {
+  color: var(--ngx-hud-muted, #7f9bb0);
+  font-weight: 400;
+  letter-spacing: 1px;
+}
+
+:global([data-ngx-hud]) .cardTitle::before,
+:global([data-ngx-hud]) .ringAccent,
+:global([data-ngx-hud]) .segment {
+  color: var(--ngx-hud-accent);
+  background: var(--ngx-hud-accent);
+}
+
+:global([data-ngx-hud]) .cardTitle::before {
+  background: var(--ngx-hud-accent);
+}
+
+:global([data-ngx-hud]) .ringAccent {
+  color: var(--ngx-hud-accent);
+  background: none;
+}
+
+:global([data-ngx-hud]) .ringGold {
+  color: var(--ngx-hud-gold);
+}
+
+:global([data-ngx-hud]) .segment:nth-child(2) {
+  background: var(--ngx-hud-success);
+}
+
+:global([data-ngx-hud]) .segment:nth-child(3) {
+  background: var(--ngx-hud-gold);
+}
+
+:global([data-ngx-hud]) .statusRun { color: var(--ngx-hud-success); }
+:global([data-ngx-hud]) .statusOff { color: var(--ngx-hud-warning); }
+:global([data-ngx-hud]) .statusFault { color: var(--ngx-hud-danger); }
+
+:global([data-ngx-hud]) .statusTile {
+  background: var(--ngx-hud-accent-soft);
+}
+
+:global([data-ngx-hud]) .palette,
+:global([data-ngx-hud]) .inspector {
+  background: var(--ngx-hud-glass-bg);
+  border-color: var(--ngx-hud-glass-border);
+  color: var(--ngx-hud-text);
+}
+
+/* ── device-list（逐台列表）──────────────────────────────────
+ * 9 台机组要在有限高度里列完：不滚动、不省略名字，行高压小。
+ * 名字用 ellipsis + title 兜底，避免长名把右侧读数挤掉。
+ */
+.deviceList {
+  display: flex;
+  flex-direction: column;
+  /*
+   * gap 2px → 0（2026-11-23）。
+   * 9 台 × 2px = 16px，正好把内容顶到 194px 而可见区只有 184px ——
+   * 最后一行被裁掉半截（实测 scrollH 194 / listH 184）。
+   * 行本身有 border-bottom 做分隔，gap 是多余的。
+   */
+  gap: 0;
+  height: 100%;
+  overflow-y: auto;
+}
+.deviceRow {
+  display: grid;
+  grid-template-columns: 8px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  /*
+   * ★ flex: none 是「滚动」的前提（2026-11-23 补）。
+   *
+   * <p>`.deviceList` 是 `display: flex; flex-direction: column`，
+   * 行作为 flex item 默认 `flex-shrink: 1` —— **内容超出时行会被压扁，
+   * 而不是溢出**。于是 `scrollHeight` 永远约等于 `clientHeight`，
+   * 滚动条永远不出现，客户看到的正是「机组状态没有滚动效果」。
+   *
+   * <p>实测：9 行 × 29px ≈ 261px，容器 259px → 行被压缩 2px 而不是滚动。
+   * 设备再多（20 台）时会一直压到文字重叠。
+   *
+   * <p>加上 `flex: none` 后行高锁定，超出部分才真正溢出、才需要滚动条。
+   */
+  flex: none;
+  /*
+   * 2026-11-23 放大：卡片从 289px 长到 313px，且客户点名「机组状态太小」。
+   * 行距 1px → 5px、字号 11 → 12.5px。
+   * 9 行 × 约 29px ≈ 261px，仍在 313px 卡内；再多就出滚动条。
+   */
+  padding: 5px 3px;
+  font-size: 12.5px;
+  line-height: 1.35;
+  border-bottom: 1px solid var(--widget-border, var(--ngx-glass-border));
+}
+.deviceRow:last-child { border-bottom: 0; }
+
+/*
+ * 一行里多个读数（2026-11-23）。
+ * 主值（:first-child）字号正常，其余副值小一号并降饱和 ——
+ * 一屏 27 个数字若同权重，眼睛找不到主次。
+ */
+.deviceValues {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  justify-content: flex-end;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  /* 不许换行：窄卡里「7.4℃ 运行」一旦折成两行，行高会撑破 9 台的可用高度 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.deviceValues em {
+  font-style: normal;
+  font-size: 10px;
+  opacity: 0.72;
+}
+.deviceDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ngx-color-muted);
+}
+.deviceDot[data-status="running"] { background: var(--ngx-color-success); }
+.deviceDot[data-status="offline"] { background: var(--ngx-color-warning); }
+.deviceDot[data-status="fault"] { background: var(--ngx-color-danger); }
+.deviceName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--widget-text, var(--ngx-color-text));
+}
+.deviceRow b {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ── bar-compare（横向对比条）──────────────────────────────── */
+.barCompare {
+  display: flex;
+  flex-direction: column;
+  /*
+   * 行距 3 → 1（2026-11-23）。底部卡按模板收到 14.17% 高（约 153px），
+   * 去掉标题后绘图区只剩 ~110px。9 台设备按原来的 3px 间距要 144px，
+   * 最后两台被裁掉 —— 而「9 台对比」少两台就没有对比意义了。
+   */
+  gap: 1px;
+  height: 100%;
+  overflow-y: auto;
+}
+/*
+ * 排名/对比条的一行（2026-11-23 放大）。
+ *
+ * <p>客户原话：「特别一些条形图和进度条图，比如设备用电排名和机组状态
+ * 是特殊的小，应该大点」。
+ *
+ * <p>实测改前：字号 9px、条高 8px、无行距。357px 宽的卡里 9 行只占 207px，
+ * 卡片下方空着一大块，而字小到 3 米外看不清。现在字号 12px、条高 10px、
+ * 行距 5px —— 9 行约 252px，正好把 352px 的卡填满。
+ *
+ * <p>名称列从 30% 放到 `minmax(72px, 38%)`：设备名带型号（
+ * `正泰三相电表 DTSD3366D`），30% 只能显示到「正泰三相电…」。
+ */
+.barRow {
+  display: grid;
+  grid-template-columns: minmax(72px, 38%) 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 12px;
+  line-height: 1.3;
+}
+.barName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--widget-muted, var(--ngx-color-muted));
+}
+.barTrack {
+  /* span 默认 inline —— 不设 block 时 height 会被浏览器忽略（实测条高恒为 0/4px 的根源之一） */
+  display: block;
+  height: 10px;
+  border-radius: 5px;
+  /*
+   * 轨道底色再深一档（原型是 rgba(23,52,81,.85)）。
+   * 透明轨道在 3D 亮背景上会「消失」，看起来像只有一段彩色条浮着；
+   * 有明确的凹槽才能读出「这条占了多少比例」。
+   */
+  background: rgba(23, 52, 81, 0.72);
+  overflow: hidden;
+}
+.barFill {
+  display: block;
+  height: 100%;
+  border-radius: 5px;
+  background: linear-gradient(90deg, #2878e8, #55dcff);
+  /* 原型 `.bar i` 的发光：让彩色条在深色玻璃上「亮」起来 */
+  box-shadow: 0 0 8px rgba(76, 202, 255, 0.45);
+  transition: width 0.3s ease;
+}
+.barFill[data-status="running"] { background: var(--ngx-color-success); }
+.barFill[data-status="offline"] { background: var(--ngx-color-warning); }
+.barFill[data-status="fault"] { background: var(--ngx-color-danger); }
+.barRow b {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  min-width: 44px;
+  text-align: right;
+}
+
+/*
+ * 名次配色（2026-11-23）。
+ *
+ * <p>客户要求「从原型图片中挖掘一些好看样式」。原型里对比条只有单一蓝色，
+ * 而排名这个场景真正需要的是**一眼看出前三名** —— 金色/银色/铜色是最省的
+ * 表达方式，不需要额外图例。
+ *
+ * <p>为什么用 `data-rank` 而不是三套 class：名次是**位置**决定的，
+ * 不是部件的属性；用属性选择器让「第 1 名是金色」只写在一处。
+ */
+.barRow[data-rank="1"] .barFill {
+  background: linear-gradient(90deg, #b8791f, #e6a23c, #ffd580);
+  box-shadow: 0 0 10px rgba(230, 162, 60, 0.55);
+}
+
+.barRow[data-rank="2"] .barFill {
+  background: linear-gradient(90deg, #6f8ba8, #a7c4de);
+  box-shadow: 0 0 8px rgba(167, 196, 222, 0.45);
+}
+
+.barRow[data-rank="3"] .barFill {
+  background: linear-gradient(90deg, #8a5a3b, #c98a5b);
+  box-shadow: 0 0 8px rgba(201, 138, 91, 0.45);
+}
+
+/* 名次数字加粗，金色；其余保持弱色 —— 一屏 9 行只有前 3 行抢眼才不乱 */
+.barRow[data-rank="1"] .barName {
+  color: #f2c66d;
+  font-weight: 600;
+}
+
+.barRow[data-rank="2"] .barName {
+  color: #c3d8ea;
+}
+
+/*
+ * 最低用电那台仍标成冷色（原型 `.barFill` 的蓝）。
+ * 语义与「前三名」不冲突：它回答的是「谁最省」，与「谁用得最多」并列。
+ */
+.barRow[data-lowest="true"] .barFill {
+  background: linear-gradient(90deg, #2b6cb0, #5b8ff9);
+  box-shadow: 0 0 8px rgba(91, 143, 249, 0.45);
+}
+
+/*
+ * 纵向滚动条（2026-11-23）。
+ *
+ * <p>数据多时才出现，出现时要**看得见但不刺眼**：默认滚动条在深色玻璃卡上
+ * 是浅灰粗条，非常突兀。这里收窄到 4px，用卡片强调色。
+ *
+ * <p>`scrollbar-width: thin` 是标准属性（Firefox），
+ * `::-webkit-scrollbar` 覆盖 Chromium/Safari —— 两个都写才能真正生效。
+ */
+.barCompare,
+.deviceList {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(92, 224, 255, 0.45) transparent;
+}
+
+.barCompare::-webkit-scrollbar,
+.deviceList::-webkit-scrollbar {
+  width: 4px;
+}
+
+.barCompare::-webkit-scrollbar-thumb,
+.deviceList::-webkit-scrollbar-thumb {
+  border-radius: 2px;
+  background: rgba(92, 224, 255, 0.45);
+}
+
+.barCompare::-webkit-scrollbar-track,
+.deviceList::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* HUD 皮肤：沿用大屏配色 */
+:global([data-ngx-hud]) .deviceDot[data-status="running"] { background: var(--ngx-hud-success); }
+:global([data-ngx-hud]) .deviceDot[data-status="offline"] { background: var(--ngx-hud-warning); }
+:global([data-ngx-hud]) .deviceDot[data-status="fault"] { background: var(--ngx-hud-danger); }
+:global([data-ngx-hud]) .barFill { background: var(--ngx-hud-accent); }
+:global([data-ngx-hud]) .barFill[data-status="running"] { background: var(--ngx-hud-success); }
+:global([data-ngx-hud]) .barFill[data-status="offline"] { background: var(--ngx-hud-warning); }
+:global([data-ngx-hud]) .barFill[data-status="fault"] { background: var(--ngx-hud-danger); }
+
+/*
+ * 控制条（2026-11-23）。
+ * 用 wrap 而不是单行：右翼卡片宽度有限，两个按钮（系统启停 + 报警复位）
+ * 挤在一行会把文字截断成「停 系…」，比换行更难读。
+ */
+.controlBar {
+  /*
+   * `flex: 1` 是居中生效的前提 —— 不加的话容器高度就是按钮高度，
+   * `align-content: center` 无处可居中（2026-11-23 实测：加了居中仍贴顶）。
+   */
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 0;
+  overflow: auto;
+  /*
+   * 顶部对齐 → 垂直居中（2026-11-23）。
+   *
+   * 系统控制卡只有 1~2 个按钮，卡片头下方还有一百多像素。
+   * 贴顶时整块头重脚轻，下方一片空白 —— 居中后视觉重量落在卡片中部，
+   * 和右侧另外两块（内容居中）一致。
+   */
+  align-content: center;
+}
+
+/* 按钮继承玻璃卡配色，避免 antd 默认白底在深色大屏上突兀 */
+.controlBar :global(.ant-btn) {
+  background: color-mix(in srgb, var(--ngx-glass-bg) 60%, transparent);
+  border-color: var(--ngx-glass-border);
+  color: inherit;
+  font-size: 12px;
+}
+
+.controlBar :global(.ant-btn:hover) {
+  border-color: var(--ngx-color-primary);
+  color: var(--ngx-color-primary);
+}
+
+.controlBar :global(.ant-btn:disabled) {
+  opacity: 0.55;
+}
+
+/*
+ * 侧边子块（2026-11-23）。
+ *
+ * <p>对齐 template01 的 `.traffic-box` / `.equip`：面板内每个数据点都包在
+ * 「细边框 + 微底色」的小块里。原来左右侧是一排裸数字，
+ * 卡片内部看起来「空」，即使塞了三个值也不像仪表盘。
+ *
+ * <p>只在运行态生效，编辑态保持轻量（编辑时要能看清拖拽边框）。
+ */
+:global([data-ngx-hud]) .metricSide {
+  padding: 5px 7px;
+  border: 1px solid rgba(65, 130, 190, 0.48);
+  background: rgba(7, 27, 49, 0.38);
+  border-radius: 5px;
+  align-items: center;
+  text-align: center;
+  gap: 1px;
+}
+
+:global([data-ngx-hud]) .metricSideRight {
+  align-items: center;
+  text-align: center;
+}
+
+:global([data-ngx-hud]) .metricSide strong {
+  font-size: 13px;
+  color: var(--ngx-hud-text, #e8f4ff);
+}
+
+:global([data-ngx-hud]) .metricSideLabel {
+  font-size: 9px;
+  color: var(--ngx-hud-muted, #7f9bb0);
+  letter-spacing: 0.5px;
+}
+
+/* 主值列：上方小标签 + 大数字，居中（对齐 template01 的 info-metrics strong/span） */
+.metricMain {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  min-width: 0;
+}
+
+.metricMainLabel {
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  color: var(--widget-muted, var(--ngx-color-muted));
+}
+
+:global([data-ngx-hud]) .metricMainLabel {
+  color: var(--ngx-hud-muted, #7f9bb0);
+}
+
+/* 大标题下的英文副标题：7~9px + 宽字距，与 h1 形成主次（对齐 template01 .top-center div） */
+.titleSubtitle {
+  margin-top: 2px;
+  font-size: 9px;
+  letter-spacing: 2px;
+  text-align: center;
+  text-transform: uppercase;
+  color: var(--widget-muted, var(--ngx-color-muted));
+  opacity: 0.8;
+}
+
+:global([data-ngx-hud]) .titleSubtitle {
+  color: var(--ngx-hud-muted, #7f9bb0);
+}
+
+/*
+ * 空卡「在等什么」（2026-11-23）。
+ * 标题 + 小字两行：标题说结论（暂无数据），小字说去哪查（哪台设备哪个点、停了多久）。
+ */
+.pendingBlock {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  min-height: 0;
+  padding: 4px 0;
+}
+
+.pendingTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--widget-muted, var(--ngx-color-muted));
+}
+
+.pendingDetail {
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--widget-muted, var(--ngx-color-muted));
+  opacity: 0.85;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+:global([data-ngx-hud]) .pendingTitle {
+  color: var(--ngx-hud-text, #e8f4ff);
+  opacity: 0.62;
+}
+
+:global([data-ngx-hud]) .pendingDetail {
+  color: var(--ngx-hud-muted, #7f9bb0);
+}
+
+/* 「（n 台未知）」：跟在「设备总数」后面的小字，说明差值去哪了 */
+.summaryUnknown {
+  font-style: normal;
+  font-size: 9px;
+  margin-left: 4px;
+  color: var(--widget-muted, var(--ngx-color-muted));
+  opacity: 0.85;
+}
+
+:global([data-ngx-hud]) .summaryUnknown {
+  color: var(--ngx-hud-warning, #e8930c);
+  opacity: 0.9;
+}
+
+/*
+ * 逐台进度条（2026-11-23）—— 对齐 template01 的 .bar / .bar-row。
+ *
+ * 参考模板：.bar{height:4px;background:rgba(23,52,81,.85);border-radius:9px}
+ *           .bar i{background:linear-gradient(90deg,#2878e8,#55dcff);box-shadow:0 0 7px #4ccaff77}
+ * 4px 高的细条 + 右向渐变 + 外发光，是这套视觉的标志性元素。
+ */
+/*
+ * 有进度条时的列宽（2026-11-23，卡片收窄到 219px 后实测调过）。
+ *
+ * 219px 里要放 dot + 名称 + 条 + 读数 四样，按 auto 分配会让「停机」
+ * 这类两字状态被裁掉右半边（截图确认）。固定成：
+ *   dot 8px | 名称 68px | 条 1fr | 读数 auto
+ * 状态不再占文字位 —— dot 颜色和条颜色已经表达了运行/停机/故障，
+ * 参考模板的 .bar-row 本身也只有「名称 | 条 | 数值」三列。
+ */
+.deviceRowWithBar {
+  grid-template-columns: 8px 62px minmax(0, 1fr) minmax(34px, auto);
+  gap: 4px;
+}
+
+/* 有进度条时，读数统一小一号（温度这类量级小，不必抢眼） */
+.deviceRowWithBar .deviceValues b,
+.deviceRowWithBar .deviceValues em {
+  font-size: 9px;
+  opacity: 0.85;
+}
+
+.deviceBars {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+/*
+ * ★ 这里原有一份重复的 `.barTrack` / `.barFill`（height 4px / radius 9px），
+ * 写在后文，把前面放大后的 10px 又覆盖回去 —— 表现是「明明改了条高，
+ * 屏幕上还是细线」。CSS 里同名类靠后覆盖，而这份是历史遗留（给
+ * `.deviceBars` 的进度条列写的，但选择器没有限定作用域）。
+ *
+ * <p>2026-11-23 删除：两处视觉设定本来就该一致，统一由上面那份管。
+ */
+
+/* 停机/故障的条子降饱和：数据还在，但不是「在出力」的状态 */
+.barFill[data-status="offline"] {
+  background: linear-gradient(90deg, #6b7a8c, #98a8b8);
+  box-shadow: none;
+}
+
+.barFill[data-status="fault"] {
+  background: linear-gradient(90deg, #b4453f, #e5484d);
+}
+
+.barFill[data-status="unknown"] {
+  background: linear-gradient(90deg, #3a4a5c, #56697d);
+  box-shadow: none;
+}
+
+/*
+ * 数据延迟标记（2026-11-23）。
+ *
+ * 琥珀色 = 「值是对的，但不是现在的」。用红色会让人以为设备故障，
+ * 而这两件事完全不同：数据延迟要查网关上报，设备故障要查机组。
+ */
+.dataStale {
+  flex: none;
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid color-mix(in srgb, var(--ngx-hud-warning, #e8930c) 60%, transparent);
+  background: color-mix(in srgb, var(--ngx-hud-warning, #e8930c) 16%, transparent);
+  color: var(--ngx-hud-warning, #e8930c);
+  font-size: 8px;
+  font-weight: 400;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+:global([data-ngx-hud]) .dataStale {
+  color: var(--ngx-hud-warning, #e8930c);
+}
+
+/* ==================================================================== */
+/* 能耗统计（2026-11-23）                                                */
+/* ==================================================================== */
+
+/*
+ * 粒度切换（时/日/月/年）。
+ *
+ * <p>它现在位于 `.energyTrendRow` 的第一行、右对齐（2026-11-23 改）。
+ * 原先是 `position: absolute` 钉在卡片右上角 —— 在 893px 宽的底部横卡上
+ * 看不出问题，但卡片移到侧栏变成 326px 后，标题条（标题 + 英文副标题 + 延迟标记）
+ * 已经占满一行，粒度条直接叠在延迟标记上（实测：1787~1865 vs 1815~1861）。
+ */
+.granSwitch {
+  justify-self: end;
+  align-self: center;
+  display: inline-flex;
+  gap: 2px;
+  z-index: 2;
+}
+.granBtn,
+.granBtnActive {
+  min-width: 18px;
+  height: 15px;
+  padding: 0 3px;
+  font-size: 9px;
+  line-height: 15px;
+  border-radius: 2px;
+  border: 1px solid color-mix(in srgb, var(--ngx-color-text) 18%, transparent);
+  background: transparent;
+  color: var(--widget-muted, var(--ngx-color-muted));
+  cursor: pointer;
+}
+.granBtnActive {
+  border-color: var(--widget-accent, #5b8ff9);
+  color: var(--widget-accent, #5b8ff9);
+  font-weight: 600;
+}
+.granBtn:hover {
+  color: var(--ngx-color-text);
+}
+
+/*
+ * 能耗 KPI 卡（2026-11-23）。
+ *
+ * ★ 不能复用 `.metricLayout`：那是给「主值 + 左右两个半环」设计的三列 grid
+ *   （`1fr auto 1fr`），主数字只分到三分之一宽。能耗卡只有「一个大数字 + 一行小字」，
+ *   套进去实测会把 `593.17万` 裁成 `3.17万` —— 少了首位，读起来仍像个正常数字，
+ *   比空白危险得多（597.75 显示成 7.75 那次就是这么来的）。
+ *
+ * 单列纵向居中，和 metric-card 的视觉重心一致（大数字压在中间偏下），
+ * 但宽度用满整块卡。
+ */
+/*
+ * 能耗 KPI 卡主体（2026-11-23 按原型重构）。
+ *
+ * <h3>层级（对应原型）</h3>
+ *
+ * ```
+ * energyHero
+ *   energyKpiValue    ← 原型 `ring-inner b`：50px 大数字 + 小单位
+ *   energyKpiMeta     ← 原型 `.info-lines`：标签 · 说明，一行小字
+ * ─────────────────    ← 分隔线（原型 `.info-metrics` 的 border-top）
+ * rollupGrid / energyMetricGrid   ← 原型 `.info-metrics`：网格
+ * ```
+ *
+ * <h3>为什么必须 `overflow: hidden` + `min-height: 0`</h3>
+ *
+ * <p>客户报「右侧第一个部件内容超出边界」。实测内容高 146px / 卡内正文 146px，
+ * 刚好顶格 —— 任何一点字号或间距变化就会溢到卡片外，而
+ * **卡片有 clip-path 切角，溢出部分会被切掉一半**，看起来像排版错乱。
+ *
+ * <p>加 `overflow: hidden` 是兜底：宁可把最后一行裁掉一点，
+ * 也不能让它压到卡片边框外（那会在视觉上撕开切角）。
+ * 真正让内容放得下的是下面 `energyHero` 的紧凑化。
+ */
+.energyKpi {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow: hidden;
+}
+
+.energyHero {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.energyKpiValue {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  font-weight: 700;
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ngx-color-primary);
+  white-space: nowrap;
+}
+
+:global([data-ngx-hud]) .energyKpiValue {
+  color: #69caff;
+  text-shadow: 0 0 12px rgba(50, 142, 255, 0.42);
+}
+
+.energyKpiUnit {
+  font-size: 0.36em;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--widget-muted, var(--ngx-color-muted));
+  text-shadow: none;
+}
+
+/*
+ * 标签 · 说明（合并成一行）。
+ *
+ * <p>原来标签和占比各占一行，在 146px 的正文高度里白白吃掉两行。
+ * 合并后省下的空间让指标网格能完整显示。
+ */
+.energyKpiMeta {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 10.5px;
+  line-height: 1.3;
+  color: var(--widget-muted, var(--ngx-color-muted));
+  min-width: 0;
+}
+
+.energyKpiLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.energyKpiSide {
+  flex: none;
+  white-space: nowrap;
+  opacity: 0.9;
+}
+
+.energyKpiSide b {
+  color: var(--ngx-color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+:global([data-ngx-hud]) .energyKpiSide b {
+  color: #b3d2ea;
+}
+
+/*
+ * 今日 / 本周 / 本月 / 本年 用电汇总（2026-11-23）。
+ *
+ * <h3>为什么是 2×2 而不是一行四格</h3>
+ *
+ * <p>卡片正文可用宽约 335px。四格并排时每格只剩 ~80px，
+ * 「625135.88」这类数字必然折行或被截。2×2 每格 ~165px，
+ * 足够放「本月」+「62.51万 kW·h」。
+ *
+ * <p>这也是它替换「峰值 / 谷值」的原因之一：峰谷是两行文本，
+ * 四区间汇总占同样的高度，但信息量是 4 倍。
+ */
+.rollupGrid {
+  width: 100%;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid color-mix(in srgb, var(--widget-muted, var(--ngx-color-muted)) 22%, transparent);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 10px;
+}
+
+.rollupCell {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.rollupLabel {
+  font-size: 10px;
+  line-height: 1.2;
+  color: var(--widget-muted, var(--ngx-color-muted));
+}
+
+.rollupCell b {
+  font-size: 16px;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+:global([data-ngx-hud]) .rollupCell b {
+  color: #69caff;
+  text-shadow: 0 0 9px rgba(50, 142, 255, 0.35);
+}
+
+.rollupCell b em {
+  margin-left: 2px;
+  font-style: normal;
+  font-size: 0.62em;
+  font-weight: 400;
+  color: var(--widget-muted, var(--ngx-color-muted));
+}
+
+/*
+ * 空值（窗口内无数据）。
+ *
+ * <p>不只是把文字变灰 —— 数字本身就是「—」。灰色只强调
+ * 「这不是一个真实读数」，避免值班员把它当成 0 继续往下算。
+ */
+.rollupCell[data-empty="true"] b {
+  color: var(--widget-muted, var(--ngx-color-muted));
+  text-shadow: none;
+}
+
+/*
+ * 三格指标（2026-11-23）。
+ *
+ * <p>对应原型的 `info-metrics`：三列、上数值下小标签、上方一条分隔线。
+ * 列数用 `auto-fit` 而不是写死 3 —— 排放强度拿不到电量时会只有两格，
+ * 写死 3 列会空出一块。
+ */
+.energyMetricGrid {
+  width: 100%;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid color-mix(in srgb, var(--widget-muted, var(--ngx-color-muted)) 22%, transparent);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  gap: 4px;
+  text-align: center;
+}
+
+.energyMetricGrid strong {
+  display: block;
+  font-size: 14px;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  color: var(--ngx-color-primary);
+}
+
+:global([data-ngx-hud]) .energyMetricGrid strong {
+  color: #69caff;
+  text-shadow: 0 0 9px rgba(50, 142, 255, 0.4);
+}
+
+.energyMetricGrid span {
+  display: block;
+  margin-top: 1px;
+  font-size: 8.5px;
+  line-height: 1.2;
+  color: var(--widget-muted, var(--ngx-color-muted));
+}
+
+/*
+ * 设备聚焦态（2026-11-23）。
+ *
+ * 点三维场景里的设备后，其余统计卡退到背景，选中的那张前置。
+ * 只改视觉，不改 layout 坐标 —— 见 WidgetOverlay 里 deviceFocused 的说明。
+ *
+ * transition 用 160ms：快到不觉得在等，慢到能看出「它退下去了」，
+ * 而不是"闪了一下"。这两件事对人的感受差别很大。
+ */
+.cardReceded {
+  opacity: 0.42;
+  transform: scale(0.975);
+  filter: saturate(0.6);
+  transition: opacity 160ms ease, transform 160ms ease, filter 160ms ease;
+  z-index: 1;
+}
+.cardSpotlight {
+  outline: 1px solid var(--ngx-color-primary);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ngx-color-primary) 35%, transparent),
+              0 6px 24px color-mix(in srgb, var(--ngx-color-primary) 18%, transparent);
+  transform: scale(1.015);
+  transition: transform 160ms ease, box-shadow 160ms ease;
+  z-index: 3;
+}
+/* 退出聚焦时也要有过渡，否则是"啪"地弹回来 */
+.card {
+  transition: opacity 160ms ease, transform 160ms ease, filter 160ms ease;
+  z-index: 2;
+}
+
+/* 设备专题卡的设备名抬头（2026-11-23） */
+.spotlightHead {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-bottom: 5px;
+  margin-bottom: 3px;
+  border-bottom: 1px solid color-mix(in srgb, var(--ngx-color-text) 12%, transparent);
+}
+.spotlightHead b {
+  font-size: 12.5px;
+  font-weight: 650;
+  line-height: 1.2;
+}
+.spotlightHead span {
+  font-size: 9.5px;
+  color: var(--widget-muted, var(--ngx-color-muted));
+}
+
+/* ==================================================================== */
+/* 设备专题的 24h 趋势（2026-11-23）                                     */
+/* ==================================================================== */
+
+/*
+ * 两块小图上下排。卡片正文已经有一列参数（6~10 行），
+ * 趋势区只占剩余高度，不抢参数的位置 —— 参数是"现在"，趋势是"最近"，
+ * 先看现在。
+ */
+.spotlightTrend {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 5px;
+  padding-top: 5px;
+  border-top: 1px solid color-mix(in srgb, var(--ngx-color-text) 10%, transparent);
+}
+.sparkBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.sparkHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: 9.5px;
+  color: var(--widget-muted, var(--ngx-color-muted));
+}
+.sparkHead b {
+  font-size: 11.5px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--widget-text, var(--ngx-color-text));
+}
+.sparkHead b i {
+  font-style: normal;
+  font-size: 8.5px;
+  font-weight: 400;
+  margin-left: 2px;
+  color: var(--widget-muted, var(--ngx-color-muted));
+}
+/*
+ * SVG 高度固定 26px：卡片高度有限，趋势图是"扫一眼"用途。
+ * width 100% + preserveAspectRatio=none 让线条横向拉满，
+ * 纵向不缩放（否则 100x28 的 viewBox 会把波形压扁到看不出起伏）。
+ */
+.spark {
+  width: 100%;
+  height: 26px;
+  display: block;
+  overflow: visible;
+}
+.sparkFoot {
+  font-size: 8.5px;
+  color: var(--widget-muted, var(--ngx-color-muted));
+  opacity: 0.85;
+}
+.sparkEmpty {
+  margin-top: 4px;
+  font-size: 9.5px;
+  color: var(--widget-muted, var(--ngx-color-muted));
+  opacity: 0.8;
+}
+
+/*
+ * 进度条旁的数值（2026-11-23）。
+ *
+ * 与 .deviceValues em 同字号：一行里「条 | 功率 | 温度」三段视觉权重相同，
+ * 只有 dot 和名称用更重的颜色。用 nowrap 防止「19.3 kW」折行撑高。
+ */
+.barValue {
+  font-style: normal;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  opacity: 0.85;
+}
+
+/*
+ * 「另有 N 项无数据」（2026-11-23）。
+ *
+ * 一行小字，不是列表 —— 它的作用是「提示存在缺失」，不是「让你逐项读」。
+ * 具体缺哪几项放在 title 里，悬停可查。
+ */
+.rowsMore {
+  margin-top: 2px;
+  font-size: 9px;
+  color: var(--widget-muted, var(--ngx-color-muted));
+  opacity: 0.7;
+  cursor: help;
+}
+
+/* ==================================================================== */
+/* 设备专题的诊断判读（2026-11-23）                                      */
+/* ==================================================================== */
+
+/*
+ * 行内异常标记（偏高 / 偏低）。
+ *
+ * <p>用 `<i>` 而不是新元素：它和值在同一行、跟在数字后面，
+ * 语义上是「这个值的注记」。不做成大色块 —— 右翼每行只有一行高，
+ * 加了背景会把列表变成花板子。
+ */
+.rowFlag {
+  margin-left: 4px;
+  padding: 0 3px;
+  font-style: normal;
+  font-size: 9px;
+  line-height: 1.4;
+  border-radius: 2px;
+  color: var(--ngx-color-warning, #e6a23c);
+  border: 1px solid color-mix(in srgb, var(--ngx-color-warning, #e6a23c) 45%, transparent);
+  background: color-mix(in srgb, var(--ngx-color-warning, #e6a23c) 14%, transparent);
+}
+
+/*
+ * 异常判读说明（卡片底部）。
+ *
+ * <p>左侧一条竖线把它和参数列表区分开：它不是参数，是解释。
+ * 字号比参数小一档 —— 主要在需要时看一眼，不抢主数据的位置。
+ */
+.diagnosisNote {
+  margin-top: 4px;
+  padding: 4px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 9.5px;
+  line-height: 1.5;
+  color: var(--widget-muted, var(--ngx-color-muted));
+  border-left: 2px solid color-mix(in srgb, var(--ngx-color-warning, #e6a23c) 55%, transparent);
+  background: color-mix(in srgb, var(--ngx-color-warning, #e6a23c) 7%, transparent);
+  border-radius: 0 3px 3px 0;
+}
+.diagnosisNote b {
+  font-weight: 600;
+  color: var(--ngx-color-text);
+  margin-right: 3px;
+}
+
+/* ==================================================================== */
+/* 科技面板精修（2026-11-23，对照参考效果图）                             */
+/* ==================================================================== */
+/*
+ * 目标：把「能看」提升到「像专业大屏」。
+ *
+ * 参考图的视觉语言可归纳为五条，全部是**通用样式**（不含任何业务数据），
+ * 改在这里＝所有模板、所有客户一起变，符合模板库铁律：
+ *
+ *   1. 面板四角有折线光角（一眼就认出是「仪表盘」而不是「网页卡片」）
+ *   2. 面板标题是「双斜线 + 亮字」，不是一个灰扑扑的小字
+ *   3. 主数值极大、带轻微光晕，单位小一号跟在后面
+ *   4. 数据行之间有极淡的分隔线，列表有节奏
+ *   5. 大标题有一条横向光带收口
+ *
+ * 全部限定在 [data-ngx-hud] 作用域内 —— 编辑器与亮色主题零影响。
+ */
+
+/*
+ * ① 四角折线光角。
+ *
+ * 用 8 条 linear-gradient 拼四个 L 形（每角一横一竖），
+ * 不用额外 DOM：伪元素只有 ::before / ::after 两个，::before 已被顶部彩条占用。
+ *
+ * 为什么内缩 5px：卡片本身有 1px 边框，光角压在边框上会糊成一团；
+ * 内缩一点才有「框内还有一层结构」的层次感。
+ */
+:global([data-ngx-hud]) .card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  --corner-color: var(--ngx-hud-corner, #5ce0ff);
+  --corner-len: 11px;
+  --corner-thick: 1px;
+  --corner-inset: 5px;
+  background-image:
+    linear-gradient(var(--corner-color), var(--corner-color)),
+    linear-gradient(var(--corner-color), var(--corner-color)),
+    linear-gradient(var(--corner-color), var(--corner-color)),
+    linear-gradient(var(--corner-color), var(--corner-color)),
+    linear-gradient(var(--corner-color), var(--corner-color)),
+    linear-gradient(var(--corner-color), var(--corner-color)),
+    linear-gradient(var(--corner-color), var(--corner-color)),
+    linear-gradient(var(--corner-color), var(--corner-color));
+  background-position:
+    left var(--corner-inset) top var(--corner-inset),
+    left var(--corner-inset) top var(--corner-inset),
+    right var(--corner-inset) top var(--corner-inset),
+    right var(--corner-inset) top var(--corner-inset),
+    left var(--corner-inset) bottom var(--corner-inset),
+    left var(--corner-inset) bottom var(--corner-inset),
+    right var(--corner-inset) bottom var(--corner-inset),
+    right var(--corner-inset) bottom var(--corner-inset);
+  background-size:
+    var(--corner-len) var(--corner-thick),
+    var(--corner-thick) var(--corner-len),
+    var(--corner-len) var(--corner-thick),
+    var(--corner-thick) var(--corner-len),
+    var(--corner-len) var(--corner-thick),
+    var(--corner-thick) var(--corner-len),
+    var(--corner-len) var(--corner-thick),
+    var(--corner-thick) var(--corner-len);
+  background-repeat: no-repeat;
+  opacity: 0.7;
+}
+/* 标题卡与说明卡没有边框，加光角会变成四个孤零零的短横线 */
+:global([data-ngx-hud]) .titleCard::after,
+:global([data-ngx-hud]) .captionCard::after {
+  display: none;
+}
+
+/*
+ * ② 标题双斜线装饰。
+ *
+ * 原来是一个 `⌜` 字符 —— 字形随字体变化，各家系统上粗细不一。
+ * 改用 CSS 画两条平行斜线：任何字体、任何缩放都一致，
+ * 也才能加发光（参考图的装饰是发光的）。
+ *
+ * 原字符靠 font-size: 0 隐藏，不动 DOM 结构。
+ */
+:global([data-ngx-hud]) .cardTitleMark {
+  position: relative;
+  display: inline-block;
+  width: 8px;
+  height: 11px;
+  font-size: 0;
+  opacity: 1;
+  color: var(--ngx-hud-corner, #5ce0ff);
+}
+:global([data-ngx-hud]) .cardTitleMark::before,
+:global([data-ngx-hud]) .cardTitleMark::after {
+  content: "";
+  position: absolute;
+  top: 0.5px;
+  width: 1.5px;
+  height: 10px;
+  background: currentColor;
+  transform: skewX(-20deg);
+  box-shadow: 0 0 5px currentColor;
+}
+:global([data-ngx-hud]) .cardTitleMark::before {
+  left: 1px;
+}
+:global([data-ngx-hud]) .cardTitleMark::after {
+  left: 4.5px;
+}
+
+/* 标题字本身提亮一档 + 细微发光，和双斜线呼应 */
+:global([data-ngx-hud]) .cardTitleText {
+  color: #dff0ff;
+  text-shadow: 0 0 12px rgba(92, 224, 255, 0.28);
+}
+
+/*
+ * ③ 主数值：更大、收紧字距、带光晕。
+ *
+ * 字号比原来提升约 15%。大屏上「主数字」是唯一需要站在 3 米外也读到的东西，
+ * 参考图的数字占比明显更高。字距收到 -0.01em 是为了让「62.51万」更紧凑 ——
+ * 默认字距在 40px+ 时会让数字散开。
+ */
+/*
+ * 主数值字号 30~46px → 34~50px（2026-11-23）。
+ *
+ * 大屏第一职责是远距离可读，主数字是唯一需要 3 米外看清的东西。
+ * 但**不能单独提字号**：卡片宽 217px 时 46px 已接近溢出，
+ * 提到 50px 必须配合卡片变宽（同步改的模板：217px → 317px）。
+ * 这两个改动是绑死的，只提字号会溢出，只变宽会显得空。
+ */
+:global([data-ngx-hud]) .metricValue {
+  font-size: clamp(34px, 3.4vw, 50px);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-shadow: 0 0 22px rgba(46, 199, 240, 0.32);
+}
+:global([data-ngx-hud]) .metricUnit {
+  font-size: 0.34em;
+  font-weight: 500;
+  letter-spacing: 0;
+  opacity: 0.85;
+  text-shadow: none;
+}
+
+/* 侧边小环里的数值也提亮，避免「中间亮、两边灰」 */
+:global([data-ngx-hud]) .metricSide strong {
+  color: #dff0ff;
+}
+:global([data-ngx-hud]) .metricSideLabel,
+:global([data-ngx-hud]) .metricMainLabel {
+  color: var(--ngx-hud-label, #b3d2ea);
+  opacity: 0.85;
+}
+
+/*
+ * ④ 数据行分隔线。
+ *
+ * 参考图的设备列表每一行都有极淡的横线 —— 不是装饰，
+ * 是让人「一眼数得清有几行」。没有分隔线时 9 台模块机挤成一坨，
+ * 客户实测反馈过「看串行」。
+ *
+ * 透明度取 0.12：能看见结构，但不会把行切成表格。
+ */
+:global([data-ngx-hud]) .row {
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(100, 178, 239, 0.12);
+}
+:global([data-ngx-hud]) .row:last-child {
+  border-bottom: none;
+}
+/* 行内的标签弱一点、数值亮一点，形成「标签 ←→ 数值」的对比 */
+:global([data-ngx-hud]) .row > span:first-child {
+  color: var(--ngx-hud-label, #b3d2ea);
+  opacity: 0.9;
+}
+:global([data-ngx-hud]) .row > b {
+  color: #eaf6ff;
+  font-weight: 650;
+}
+
+/*
+ * ⑤ 大标题的横向光带。
+ *
+ * 参考图的顶部标题不是「一行字」，下面有一条两端渐隐的光带收口。
+ * 用 ::after 画：中间亮、两端透明，比实线更像「光」。
+ */
+:global([data-ngx-hud]) .titleCard {
+  position: relative;
+}
+:global([data-ngx-hud]) .titleCard::after {
+  content: "";
+  /*
+   * 必须显式重置 display：上面「四角光角」那段给 titleCard::after 设了
+   * display:none（标题卡没边框，光角会是四个孤零零的短横线），
+   * 而这条规则要用同一个伪元素画光带。不重设就永远不显示。
+   */
+  display: block;
+  /*
+   * inset / opacity 也要重置：`.card::after` 设了 inset:0（四角光角铺满整卡）
+   * 与 opacity:0.7，不重置的话这条光带会被拉成满屏、且偏暗。
+   */
+  inset: auto;
+  opacity: 1;
+  position: absolute;
+  left: 50%;
+  bottom: 2px;
+  width: min(72%, 620px);
+  height: 1px;
+  transform: translateX(-50%);
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(92, 224, 255, 0.75) 22%,
+    rgba(92, 224, 255, 0.95) 50%,
+    rgba(92, 224, 255, 0.75) 78%,
+    transparent
+  );
+  box-shadow: 0 0 12px rgba(92, 224, 255, 0.45);
+}
+:global([data-ngx-hud]) .titleText {
+  text-shadow:
+    0 0 24px rgba(92, 224, 255, 0.35),
+    0 2px 12px rgba(0, 0, 0, 0.45);
+}
+
+/*
+ * ⑥ 标题条的三处让位（2026-11-23，放大验证后修）。
+ *
+ * 局部放大 3 倍截图暴露了三个问题，都是「元素太多、挤在同一行」：
+ *
+ *   1. 既有 `.cardTitle::before` 已经有一条 3px 竖条装饰，
+ *      我又加了双斜线 —— 两条装饰并排，视觉上像两根柱子。
+ *      参考图只有一组斜角，所以 HUD 下隐藏竖条，保留双斜线。
+ *   2. 标题 + 延迟标记 + 英文副标题三者争 200 多 px，
+ *      结果标题被 ellipsis 切成「场站用电」，用户看不到完整名称。
+ *      延迟标记是**运维关键信息**（数据不新鲜），英文副标题只是装饰，
+ *      所以有延迟时让副标题让位。
+ *   3. 标题文本本身要允许收缩，否则它会把右侧元素挤出边界。
+ */
+:global([data-ngx-hud]) .cardTitle::before {
+  display: none;
+}
+:global([data-ngx-hud]) .cardTitleText {
+  flex: 1 1 auto;
+}
+:global([data-ngx-hud]) .cardTitle:has(.dataStale) .cardSubtitle {
+  display: none;
+}
+/* 延迟标记在窄卡上也要能收一点，否则小卡片标题全被它挤掉 */
+:global([data-ngx-hud]) .dataStale {
+  font-size: 8.5px;
+  padding: 0 4px;
+  letter-spacing: 0;
+}
+
+/*
+ * ⑦ 主数值的渐变高光（2026-11-23）。
+ *
+ * 参考图的大数字不是纯白：从顶端亮白过渡到底部淡青，
+ * 光从上方打下来照在数字上 —— 这是「LED 大屏」和「网页 h1」最直观的分界。
+ *
+ * ★ 必须包在 @supports 里：`color: transparent` 配合 `background-clip: text`，
+ * 不支持裁剪时文字会**完全消失**（不是降级成普通颜色）。宁可不上渐变，
+ * 也不能让大屏上最重要的数字看不见。
+ *
+ * text-shadow 换成 drop-shadow：背景裁剪的文字上，text-shadow 会被裁掉，
+ * 只有 filter 的 drop-shadow 能作用在裁剪后的字形轮廓上。
+ */
+@supports ((background-clip: text) or (-webkit-background-clip: text)) {
+  :global([data-ngx-hud]) .metricValue > span {
+    background: linear-gradient(180deg, #ffffff 0%, #e4f7ff 42%, #8fdcf7 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    /* 渐变文字不需要 text-shadow（会被裁），用 filter 描一圈幽光 */
+    text-shadow: none;
+    filter: drop-shadow(0 0 14px rgba(46, 199, 240, 0.35));
+  }
+}
+
+/*
+ * ⑧ 标题光带加粗（2026-11-23）。
+ *
+ * 1px 在 1920 宽的大屏上几乎看不见（实测整屏截图里完全消失），
+ * 提到 2px 并加一层外发光 —— 参考图那条收口线是能「看出发光」的。
+ */
+:global([data-ngx-hud]) .titleCard::after {
+  height: 2px;
+  box-shadow:
+    0 0 14px rgba(92, 224, 255, 0.6),
+    0 0 32px rgba(92, 224, 255, 0.28);
+}
+
+/*
+ * ⑨ 卡片内容的垂直呼吸（2026-11-23）。
+ *
+ * 实测：系统功率卡高 228px，数字只占中间一条，上下各空一半。
+ * 根因是**模板给的区域高度**大于内容所需（布局问题，不是样式能填满的）——
+ * 所以这里不做“把内容拉开”（那会把字距拉成丑的分布），
+ * 只给主区一点内边距，让数字不贴在上半区的顶端。
+ */
+:global([data-ngx-hud]) .metricMain {
+  padding: 2px 0;
+}
+
+
+/* ==================================================================== */
+/* 环形仪表 gauge-ring（2026-11-23）                                     */
+/* ==================================================================== */
+/*
+ * 视觉目标（对照参考效果图的「人车通行 / 出租状态」）：
+ *   粗环 + 渐变 + 环尾光点 + 刻度 + 中心大数字 + 环下标签。
+ *
+ * 为什么粗环（9px / 半径 50）：细环在 4K 大屏缩放后像一条 hairline，
+ * 分不清「62%」和「6%」；粗环的比例差一眼可见 —— 这正是仪表的意义。
+ *
+ * ★ 结构约定：**先写亮色（编辑器）基础样式，再用 [data-ngx-hud] 覆盖成科技风**。
+ * 反过来写会踩坑：无作用域的选择器与带作用域的规则优先级相同时，
+ * 后写的赢 —— 于是「亮色退让」那段会把 HUD 的渐变/发光全盖掉，
+ * 大屏上看起来「跟没做一样」，而且不报错。
+ */
+
+/* ---------- 基础（亮色 / 编辑器） ---------- */
+.gaugeLayout {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-evenly;
+  gap: 6px;
+  overflow: hidden;
+}
+
+.gaugeItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 0;
+}
+
+/*
+ * 盘面：宽高比锁 1，卡片比例不同时圆不会被压成椭圆。
+ * max-width 防止单环仪表撑满整卡 —— 环大到失真反而看不出比例。
+ */
+.gaugeDialWrap {
+  position: relative;
+  width: min(100%, 148px);
+  aspect-ratio: 1 / 1;
+  display: grid;
+  place-items: center;
+}
+.gaugeSvg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  /* overflow:visible 让环尾光点的外发光不被 viewBox 裁掉 */
+  overflow: visible;
+}
+
+.gaugeTrack {
+  stroke: var(--ngx-color-border, #dce3ed);
+}
+.gaugeProgress {
+  filter: none;
+}
+.gaugeDot {
+  fill: var(--ngx-color-primary, #2ec7f0);
+  filter: none;
+}
+.gaugeTick {
+  stroke: color-mix(in srgb, var(--ngx-color-muted, #8c9bab) 40%, transparent);
+  stroke-width: 1;
+}
+.gaugeTickMajor {
+  stroke: color-mix(in srgb, var(--ngx-color-muted, #8c9bab) 70%, transparent);
+  stroke-width: 1.4;
+}
+
+.gaugeCenter {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  text-align: center;
+}
+.gaugeCenter b {
+  font-size: clamp(17px, 1.7vw, 24px);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  color: var(--ngx-color-text);
+}
+.gaugeCenter small {
+  margin-top: 1px;
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--ngx-color-muted);
+}
+/*
+ * 量程。默认来源（没配过）用更暗的色 ——
+ * 用户改模板时看到这个色就知道「满刻度不是我配的」。
+ */
+.gaugeMax {
+  margin-top: 2px;
+  font-style: normal;
+  font-size: 9px;
+  line-height: 1;
+  color: var(--ngx-color-muted);
+  opacity: 0.7;
+}
+.gaugeMax[data-origin="default"] {
+  opacity: 0.42;
+}
+
+.gaugeLabel {
+  font-size: 10px;
+  line-height: 1.2;
+  letter-spacing: 0.5px;
+  color: var(--ngx-color-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* ---------- HUD（运行态大屏） ---------- */
+:global([data-ngx-hud]) .gaugeTrack {
+  stroke: color-mix(in srgb, var(--ngx-hud-accent, #2ec7f0) 16%, transparent);
+}
+/* 进度弧发光：这是「仪表」与「普通圆环」的分界 */
+:global([data-ngx-hud]) .gaugeProgress {
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--ngx-hud-corner, #5ce0ff) 70%, transparent));
+}
+/* 环尾光点：亮白 + 外发光，指出「当前值到这儿」 */
+:global([data-ngx-hud]) .gaugeDot {
+  fill: #ffffff;
+  filter: drop-shadow(0 0 6px var(--ngx-hud-corner, #5ce0ff));
+}
+:global([data-ngx-hud]) .gaugeTick {
+  stroke: color-mix(in srgb, var(--ngx-hud-label, #b3d2ea) 28%, transparent);
+}
+:global([data-ngx-hud]) .gaugeTickMajor {
+  stroke: color-mix(in srgb, var(--ngx-hud-label, #b3d2ea) 55%, transparent);
+}
+:global([data-ngx-hud]) .gaugeCenter b {
+  color: #eaf6ff;
+  text-shadow: 0 0 14px rgba(92, 224, 255, 0.4);
+}
+:global([data-ngx-hud]) .gaugeCenter small,
+:global([data-ngx-hud]) .gaugeMax {
+  color: var(--ngx-hud-muted, #7f9bb0);
+}
+:global([data-ngx-hud]) .gaugeLabel {
+  color: var(--ngx-hud-label, #b3d2ea);
+}
+
+/* ==================================================================== */
+/* 设备聚焦：外围滑出 + 选中卡展开成抽屉（2026-11-23）                   */
+/* ==================================================================== */
+/*
+ * 客户原话：「点击里面的设备，要把周围的统计部件缩回去，
+ * 然后把设备维度相关的统计部件和操作部件抽屉出来」。
+ *
+ * 为什么不是「变淡」（原来的 cardReceded）：
+ * 变淡的卡仍然占着面积，3D 依旧被压着 —— 视觉上「还在那儿」。
+ * 滑出视野才真正把空间让出来。
+ *
+ * 为什么用 transform 而不是改 left/top：
+ * transform 不触发重排，走合成层，滑出更顺；而且不动 inline 的百分比定位，
+ * 退出时把类名一摘就回到原位（零状态残留）。
+ */
+
+/* 左侧卡：向左边滑出视野 */
+.cardExitLeft {
+  opacity: 0;
+  transform: translateX(-118%) scale(0.96);
+  pointer-events: none;
+  transition:
+    opacity 260ms cubic-bezier(0.4, 0, 0.2, 1),
+    transform 320ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 右侧卡：向右边滑出 */
+.cardExitRight {
+  opacity: 0;
+  transform: translateX(118%) scale(0.96);
+  pointer-events: none;
+  transition:
+    opacity 260ms cubic-bezier(0.4, 0, 0.2, 1),
+    transform 320ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 底部卡：向下滑出 */
+.cardExitDown {
+  opacity: 0;
+  transform: translateY(120%) scale(0.96);
+  pointer-events: none;
+  transition:
+    opacity 260ms cubic-bezier(0.4, 0, 0.2, 1),
+    transform 320ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/*
+ * 选中卡 → 抽屉。
+ *
+ * 几何由 JS 的 DEVICE_DRAWER_RECT 给（left/top/width/height 会变），
+ * 所以这里必须给这四个属性加过渡 —— 不加就是「啪」地跳过去。
+ *
+ * ★ 为什么 left/width 也能平滑过渡：它们是从百分比到百分比的变化，
+ * 浏览器会插值。实测 320ms 足够顺，再长会显得「拖」。
+ */
+.cardDrawer {
+  z-index: 5;
+  transition:
+    left 320ms cubic-bezier(0.4, 0, 0.2, 1),
+    top 320ms cubic-bezier(0.4, 0, 0.2, 1),
+    width 320ms cubic-bezier(0.4, 0, 0.2, 1),
+    height 320ms cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 200ms ease,
+    box-shadow 200ms ease;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--ngx-hud-corner, #5ce0ff) 45%, transparent),
+    0 12px 48px rgba(0, 0, 0, 0.45);
+}
+
+/*
+ * 抽屉展开后内容区要能滚动（设备参数 + 趋势 + 命令可能超出高度）。
+ * 只在抽屉态生效，不影响全景时的卡片。
+ */
+.cardDrawer > [class*="cardBody"] {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/*
+ * 退出过渡：摘掉 exit 类时卡片要滑回来，而不是瞬间出现。
+ * `.card` 原本的过渡是 160ms（只含 opacity/transform/filter），
+ * 比滑出的 320ms 快一倍 —— 进出节奏不一致会显得「弹跳」。
+ * 这里把它的过渡也拉到 320ms，并补上 left/top/width/height
+ * （抽屉退出时这四个属性也要平滑回去）。
+ */
+:global([data-ngx-hud]) .card {
+  transition:
+    opacity 320ms cubic-bezier(0.4, 0, 0.2, 1),
+    transform 320ms cubic-bezier(0.4, 0, 0.2, 1),
+    filter 320ms cubic-bezier(0.4, 0, 0.2, 1),
+    left 320ms cubic-bezier(0.4, 0, 0.2, 1),
+    top 320ms cubic-bezier(0.4, 0, 0.2, 1),
+    width 320ms cubic-bezier(0.4, 0, 0.2, 1),
+    height 320ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/*
+ * 减少动态：系统开了「减少动画」时直接切，不做滑出。
+ * 这不是可选优化 —— 前庭功能敏感的人会被大幅位移动画影响。
+ */
+@media (prefers-reduced-motion: reduce) {
+  .cardExitLeft,
+  .cardExitRight,
+  .cardExitDown,
+  .cardDrawer,
+  :global([data-ngx-hud]) .card {
+    transition: opacity 120ms linear;
+    transform: none;
+  }
+}
+
+/* 设备专题卡里的「操作」区（2026-11-23） */
+.spotlightActions {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid color-mix(in srgb, var(--ngx-color-text) 10%, transparent);
+}
+.spotlightActionsHead {
+  margin-bottom: 4px;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: var(--widget-muted, var(--ngx-color-muted));
+}
+:global([data-ngx-hud]) .spotlightActionsHead {
+  color: var(--ngx-hud-label, #b3d2ea);
+}
+
+/* ==================================================================== */
+/* 告警跑马灯（2026-11-23）                                              */
+/* ==================================================================== */
+
+/*
+ * 整体：标题栏由 WidgetOverlay 渲染，这里只排正文。
+ *
+ * 布局是「工具栏 + 常驻区 + 滚动区」三段纵向。
+ * 滚动区必须 `flex: 1; min-height: 0` —— 否则内容撑高卡片，
+ * 把标题栏挤出可视区（flex 子项的默认 min-height:auto 会阻止收缩）。
+ */
+.tickerWrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  /*
+   * gap 4px → 0（2026-11-23）。
+   *
+   * <p>条目现在自己带 `border-bottom` 分隔线，再叠 4px 间距会让
+   * 行距显得忽宽忽窄；由分隔线统一定义节奏更整齐。
+   */
+  gap: 0;
+  position: relative;
+}
+
+/*
+ * 等级筛选（右上角）。
+ *
+ * <p>**不用 `position: absolute`**：上一轮粒度切换条就是绝对定位到卡片右上角，
+ * 结果在 326px 宽的卡里直接压在「延迟 N 天」标记上（实测重叠 50px）。
+ * 这里是流式布局的一行，右对齐，永远不会和标题栏抢位置。
+ */
+.tickerToolbar {
+  flex: none;
+  display: flex;
+  justify-content: flex-end;
+  gap: 3px;
+}
+
+.tickerFilterBtn,
+.tickerFilterActive {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid color-mix(in srgb, var(--widget-muted, var(--ngx-color-muted)) 35%, transparent);
+  background: transparent;
+  color: var(--widget-muted, var(--ngx-color-muted));
+  font: inherit;
+  font-size: 9px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.tickerFilterActive {
+  border-color: var(--ngx-hud-accent, #5ce0ff);
+  background: color-mix(in srgb, var(--ngx-hud-accent, #5ce0ff) 18%, transparent);
+  color: var(--ngx-hud-text, #e8f6ff);
+}
+
+.tickerFilterBtn b,
+.tickerFilterActive b {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.tickerFilterBtn:hover {
+  border-color: color-mix(in srgb, var(--ngx-hud-accent, #5ce0ff) 55%, transparent);
+  color: var(--ngx-hud-text, #e8f6ff);
+}
+
+/*
+ * 最严重的那条常驻。
+ *
+ * <p>客户要求「把最严重的常驻，然后其他的跑马灯」——
+ * 理由很实际：跑马灯在滚，最要紧的那条会滚出视野；
+ * 而值班员多数时间只是扫一眼屏幕，最严重的那条必须一直在。
+ *
+ * <p>左边框加一道色条，和滚动区区分开：它不参与动画。
+ */
+/*
+ * 常驻容器（2026-11-23 改）。
+ *
+ * <p>★ 这里**不能再加左边框和左内边距** —— 原来它自己有一层 2px 红线 +
+ * 5px padding，而里面的 `.tickerItem` 也有一条左边框，于是常驻那条
+ * 显示成「双线」，正是客户说的「每个告警有边线…看起来很乱」的一部分。
+ *
+ * <p>现在所有边框/底色都由内部的 `.tickerItem` 负责（常驻条 3px），
+ * 容器只做布局约束。
+ */
+.tickerPinned {
+  flex: none;
+}
+
+/*
+ * 滚动区。
+ *
+ * <p>`overflow: hidden` 是动画的裁剪容器；`min-height: 0` 让它能在
+ * flex 里真正收缩（默认 auto 会按内容撑开，滚动就失效了）。
+ */
+.tickerScrollArea {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.tickerTrack {
+  display: flex;
+  flex-direction: column;
+  /* 同上：间隔由条目自己的 border-bottom 表达 */
+  gap: 0;
+}
+
+/*
+ * 无限滚动：0 → -50%。
+ *
+ * <p>列表被复制了一份接在后面（见组件里的 `list`），所以走到 -50%
+ * 时正好是副本的开头，首尾位置重合，视觉上察觉不到跳变。
+ * 不复制的话走到末尾会「闪」回顶部 —— 那种跳变比不滚更难看。
+ */
+.tickerScroll {
+  animation: tickerUp linear infinite;
+}
+
+@keyframes tickerUp {
+  from { transform: translateY(0); }
+  to { transform: translateY(-50%); }
+}
+
+/*
+ * 顶部渐隐，让滚出视野的条目淡出而不是被硬切一刀。
+ * 纯装饰，不承载信息，所以 `pointer-events: none` + `aria-hidden`。
+ */
+.tickerFadeTop {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 18px;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(4, 18, 40, 0.9), transparent);
+}
+
+/*
+ * 减少动态：系统开了「减少动画」时停掉跑马灯。
+ *
+ * <p>这不只是无障碍要求 —— 现场大屏常常一开一整天，持续位移动画
+ * 对长时间盯屏的人是真的难受。停掉后所有条目静态列出（滚动区可滚）。
+ */
+@media (prefers-reduced-motion: reduce) {
+  .tickerScroll {
+    animation: none;
+  }
+  .tickerScrollArea {
+    overflow-y: auto;
+  }
+}
+
+/* ---------- 单条告警 ---------- */
+
+/*
+ * 单条告警（2026-11-23 重做视觉）。
+ *
+ * <h3>客户反馈</h3>
+ *
+ * <p>「告警跑马灯中的样式不好看，因为每个告警有边线和底色的原因导致看起来很乱」。
+ *
+ * <h3>为什么原来会「乱」</h3>
+ *
+ * <p>每条都带「左侧 2px 彩条 + 整条半透明底色」，条与条之间只有 5px 间隙。
+ * 在 341px 高、装着 8+ 条滚动告警的卡里，就变成 **一排密集的彩色色块**——
+ * 眼睛找不到起点，也分不出哪条是哪条。这和"表格每行都加边框"是同一类问题：
+ * 分隔靠底色堆叠，密度一高就成了噪声。
+ *
+ * <h3>改法：去掉色块，改用「左侧细线 + 行间细线」的表格式分隔</h3>
+ *
+ * <p>参考原型 `.side .panel` 的做法 —— 面板本身有边框，内部靠留白和
+ * 极细的分隔线组织信息，不再给每个子项套一层底色。
+ *
+ * <ul>
+ *   <li>去掉整条底色与圆角；</li>
+ *   <li>左侧保留 2px 状态色细线（等级仍要能一眼分辨）；</li>
+ *   <li>行间用 1px 极淡分隔线（`color-mix` 12%）代替底色块；</li>
+ *   <li>仅 **常驻的最严重那条**保留极淡底色 —— 它需要被立刻找到。</li>
+ * </ul>
+ */
+.tickerItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 5px 8px 5px 7px;
+  /*
+   * 分隔线用 `border-bottom`，第一条也画（`border-top` 画在容器上会更难控制）。
+   * 12% 透明度的细线在深色玻璃上"看得见但不抢眼"——
+   * 比底色块的视觉噪声低一个量级。
+   */
+  border-bottom: 1px solid color-mix(in srgb, var(--ngx-hud-label, #b3d2ea) 12%, transparent);
+  border-left: 2px solid color-mix(in srgb, var(--ngx-hud-warning, #e8930c) 65%, transparent);
+  background: transparent;
+  border-radius: 0;
+  /*
+   * 条目现在是 <button>（点开详情），需要重置浏览器默认样式：
+   * 浅灰底、系统字体、居中文字都会毁掉大屏观感；
+   * 不写 width 会让按钮缩到内容宽度、左右不对齐。
+   */
+  width: 100%;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 140ms ease, border-left-color 140ms ease;
+}
+
+/*
+ * 悬停才给底色。
+ *
+ * <p>静止时无底色 → 列表干净；指向时给一层淡淡的反馈 → 明确「这行能点」。
+ * 这与「每条都有底色」的区别在于：**同一时刻只有一条有底色**。
+ */
+.tickerItem:hover {
+  background: color-mix(in srgb, var(--ngx-hud-accent, #5ce0ff) 8%, transparent);
+}
+
+.tickerItem:focus-visible {
+  outline: 1px solid var(--ngx-hud-accent, #5ce0ff);
+  outline-offset: -1px;
+}
+
+/* 告警级：左侧线更实、更红 */
+.tickerItemAlarm {
+  border-left-color: var(--ngx-hud-danger, #e5484d);
+}
+
+.tickerItemAlarm:hover {
+  background: color-mix(in srgb, var(--ngx-hud-danger, #e5484d) 10%, transparent);
+}
+
+/*
+ * 常驻的最严重那条（容器上带 `tickerPinned`）。
+ *
+ * <p>它**保留**一层极淡底色 —— 这是全卡唯一有底色的一条，
+ * 作用是"这不是滚动内容，这条一直在"。去掉它会让常驻与滚动条目
+ * 在视觉上完全一样，用户不知道哪条是固定的。
+ */
+.tickerPinned .tickerItem {
+  border-left-width: 3px;
+  background: color-mix(in srgb, var(--ngx-hud-danger, #e5484d) 9%, transparent);
+  border-bottom-color: color-mix(in srgb, var(--ngx-hud-danger, #e5484d) 22%, transparent);
+}
+
+.tickerPinned[data-level="warning"] .tickerItem {
+  background: color-mix(in srgb, var(--ngx-hud-warning, #e8930c) 9%, transparent);
+  border-left-color: var(--ngx-hud-warning, #e8930c);
+  border-bottom-color: color-mix(in srgb, var(--ngx-hud-warning, #e8930c) 22%, transparent);
+}
+
+/* 列表最后一条不画分隔线，否则会在底部多一条悬空的线 */
+.tickerTrack > .tickerItem:last-child {
+  border-bottom: 0;
+}
+
+.tickerHead {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 9px;
+  line-height: 1.3;
+  min-width: 0;
+}
+
+.tickerBadge {
+  flex: none;
+  padding: 0 3px;
+  border-radius: 2px;
+  background: var(--ngx-hud-warning, #e8930c);
+  color: #10233a;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.tickerItemAlarm .tickerBadge {
+  background: var(--ngx-hud-danger, #e5484d);
+  color: #fff;
+}
+
+.tickerDevice {
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: var(--ngx-hud-text, #e8f6ff);
+}
+
+/*
+ * 故障码：等宽字体 + 描边。
+ *
+ * <p>码是给人**抄下来去查手册**的（`TH702`），必须和旁边中文一眼分得开。
+ * 用等宽字体而不是放大字号 —— 卡片只有 326px，放大会挤掉设备名。
+ */
+.tickerCode {
+  flex: none;
+  padding: 0 3px;
+  border-radius: 2px;
+  border: 1px solid color-mix(in srgb, var(--ngx-hud-accent, #5ce0ff) 55%, transparent);
+  color: var(--ngx-hud-accent, #5ce0ff);
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 8.5px;
+  letter-spacing: 0.4px;
+}
+
+.tickerAge {
+  flex: none;
+  margin-left: auto;
+  color: var(--widget-muted, var(--ngx-color-muted));
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.tickerAck {
+  flex: none;
+  color: var(--ngx-color-success, #19b37d);
+  font-size: 8px;
+  white-space: nowrap;
+}
+
+/*
+ * 摘要只一行（2026-11-23）。
+ *
+ * <p>上一版这里是「描述 + 原因 + 处理」三块，一条 5~6 行。
+ * 现在详情搬进弹层，列表只留**这一句是什么** —— 一行，
+ * 长了截断，完整内容点开看。
+ */
+.tickerDesc {
+  font-size: 10.5px;
+  line-height: 1.35;
+  color: var(--ngx-hud-text, #e8f6ff);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+}
+
+/* ---------- 无告警空态 ---------- */
+
+.tickerEmpty {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  text-align: center;
+}
+
+/*
+ * 「当前无告警」用绿色对勾 + 正向措辞。
+ *
+ * <p>这块卡在无告警时同样渲染（判据见 `widgetHasResolvableValue`）——
+ * 「一切正常」是个好消息，必须看得见。整块消失会让人以为卡片坏了。
+ */
+.tickerOkMark {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--ngx-color-success, #19b37d) 60%, transparent);
+  color: var(--ngx-color-success, #19b37d);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.tickerOkTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ngx-hud-text, #e8f6ff);
+}
+
+.tickerOkDetail {
+  font-size: 9.5px;
+  color: var(--widget-muted, var(--ngx-color-muted));
+}
+
+/* ==================================================================== */
+/* 告警详情弹层（2026-11-23，类 TB）                                     */
+/* ==================================================================== */
+
+/*
+ * 遮罩层。
+ *
+ * <p>portal 到 body，`position: fixed` 覆盖整屏 —— 卡片内部的绝对定位
+ * 会被 `clip-path` 切角裁掉，弹层只能挂到 body。
+ *
+ * <p>底色用 `rgba(2,7,17,.72)` 而不是全黑：大屏后面还有 3D 场景，
+ * 全黑会让人以为页面跳走了；暗蓝半透明保留「还在大屏上」的上下文。
+ */
+.alarmDialogMask {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(2, 7, 17, 0.72);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+
+/*
+ * 弹层本体。
+ *
+ * <p>宽度 560px、最大高 82vh：大屏常跑 1920×1080，560 大约是一屏的 29%，
+ * 够放属性表与手册，又不至于盖住整个 3D 场景。
+ * 内容超长时**内部滚动**（body 上 overflow-y），而不是让弹层长到出屏。
+ */
+.alarmDialog {
+  display: flex;
+  flex-direction: column;
+  width: min(560px, 92vw);
+  max-height: 82vh;
+  overflow: hidden;
+  border: 1px solid rgba(81, 160, 226, 0.55);
+  background:
+    linear-gradient(135deg, rgba(7, 33, 66, 0.97), rgba(4, 17, 40, 0.96));
+  box-shadow:
+    0 24px 80px rgba(0, 8, 22, 0.6),
+    inset 0 0 40px rgba(45, 135, 220, 0.08);
+  /* 与卡片同一套斜切角，视觉上属于同一个设计系统 */
+  clip-path: polygon(0 12px, 12px 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%);
+  color: #e8f6ff;
+}
+
+.alarmDialogHead {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(100, 178, 239, 0.27);
+  background: linear-gradient(90deg, rgba(35, 111, 183, 0.3), transparent);
+}
+
+.alarmDialogBadge {
+  flex: none;
+  padding: 2px 7px;
+  border-radius: 3px;
+  background: #e8930c;
+  color: #10233a;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.alarmDialogBadgeAlarm {
+  background: #e5484d;
+  color: #fff;
+}
+
+.alarmDialogTitle {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+.alarmDialogClose {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid rgba(92, 224, 255, 0.35);
+  border-radius: 3px;
+  background: transparent;
+  color: #b3d2ea;
+  font: inherit;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.alarmDialogClose:hover {
+  border-color: #5ce0ff;
+  color: #e8f6ff;
+}
+
+/* body 内部滚动：弹层高度锁在 82vh，内容长了在这层滚 */
+.alarmDialogBody {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(92, 224, 255, 0.45) transparent;
+}
+
+.alarmDialogBody::-webkit-scrollbar { width: 4px; }
+.alarmDialogBody::-webkit-scrollbar-thumb {
+  border-radius: 2px;
+  background: rgba(92, 224, 255, 0.45);
+}
+
+/* ---------- 属性表 ---------- */
+
+.alarmProps {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 14px;
+}
+
+.alarmProps > div {
+  min-width: 0;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(70, 123, 169, 0.28);
+}
+
+.alarmProps dt {
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  color: #7f9bb0;
+}
+
+.alarmProps dd {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  word-break: break-all;
+}
+
+.alarmSeverityAlarm { color: #ff7184; font-weight: 600; }
+.alarmSeverityWarn { color: #f1c05d; font-weight: 600; }
+
+.alarmAge {
+  margin-left: 6px;
+  font-size: 11px;
+  color: #7f9bb0;
+}
+
+.alarmCodes {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  color: #5ce0ff;
+}
+
+/* ---------- 手册区 ---------- */
+
+/*
+ * 手册块用左侧色条 + 略深的底，和属性表区分开。
+ * 这是弹层里最"有内容"的区域（客户要求的手册原型就落在这），
+ * 视觉上要能被一眼找到。
+ */
+.alarmManual {
+  padding: 10px 12px;
+  border-left: 2px solid #5ce0ff;
+  background: rgba(9, 40, 74, 0.55);
+}
+
+.alarmManual h4,
+.alarmAssign h4 {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  color: #9fc4e4;
+}
+
+.alarmManual p {
+  margin: 0 0 6px;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.alarmManual p:last-child { margin-bottom: 0; }
+
+.alarmManual p b {
+  margin-right: 6px;
+  color: #7f9bb0;
+  font-weight: 600;
+}
+
+.alarmManualDesc {
+  font-weight: 600;
+  color: #dff0ff;
+}
+
+.alarmManualSrc {
+  font-size: 11px !important;
+  color: #7f9bb0;
+}
+
+/* ---------- 指派处理人 ---------- */
+
+.alarmAssign {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.alarmAssignRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.alarmAssignSelect {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid rgba(81, 160, 226, 0.5);
+  border-radius: 3px;
+  background: rgba(4, 24, 47, 0.85);
+  color: #e8f6ff;
+  font: inherit;
+  font-size: 12.5px;
+}
+
+.alarmAssignSelect:disabled {
+  opacity: 0.55;
+}
+
+.alarmAssignBtn,
+.alarmActionBtn {
+  height: 30px;
+  padding: 0 14px;
+  border: 1px solid rgba(92, 224, 255, 0.5);
+  border-radius: 3px;
+  background: rgba(24, 91, 150, 0.45);
+  color: #dff0ff;
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease;
+}
+
+.alarmAssignBtn:hover:not(:disabled),
+.alarmActionBtn:hover:not(:disabled) {
+  border-color: #5ce0ff;
+  background: rgba(36, 133, 218, 0.55);
+}
+
+.alarmAssignBtn:disabled,
+.alarmActionBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.alarmActionDanger {
+  border-color: rgba(229, 72, 77, 0.6);
+  background: rgba(140, 35, 40, 0.45);
+}
+
+.alarmActionDanger:hover:not(:disabled) {
+  border-color: #ff7184;
+  background: rgba(180, 45, 52, 0.6);
+}
+
+/*
+ * 人员列表受限的提示。
+ *
+ * <p>必须显示 —— 客户看到下拉里只有自己一个人时，会以为系统坏了。
+ * 这行字说明「是平台没开放列表，不是没有别人」。
+ */
+.alarmAssignNote {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #e8930c;
+}
+
+.alarmDialogError {
+  margin: 0;
+  padding: 8px 10px;
+  border-left: 2px solid #e5484d;
+  background: rgba(140, 35, 40, 0.35);
+  font-size: 12px;
+  line-height: 1.5;
+  color: #ffb3bb;
+}
+
+/* ---------- 底部操作 ---------- */
+
+.alarmDialogFoot {
+  flex: none;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid rgba(100, 178, 239, 0.27);
+  background: rgba(4, 17, 40, 0.6);
+}
+
+/*
+ * 用能分项合计行（2026-11-23）。
+ *
+ * <p>跨品种唯一能相加的量纲是折标煤。没有这一行，用户看到
+ * 「电 62.51万 kW·h、热 12.59 GJ、蒸汽 2.99 t」无法判断总量。
+ *
+ * <p>用顶部一条细线和大一号数字跟上面的分项列表区分开 ——
+ * 它是「汇总」而不是「又一项」。
+ */
+.breakdownTotal {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid color-mix(in srgb, var(--widget-muted, var(--ngx-color-muted)) 26%, transparent);
+  font-size: 11px;
+  color: var(--widget-muted, var(--ngx-color-muted));
+}
+
+.breakdownTotal b {
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ngx-color-text);
+  white-space: nowrap;
+}
+
+:global([data-ngx-hud]) .breakdownTotal b {
+  color: #69caff;
+  text-shadow: 0 0 9px rgba(50, 142, 255, 0.35);
+}
+
+.breakdownTotal b i {
+  margin-left: 2px;
+  font-style: normal;
+  font-size: 0.62em;
+  font-weight: 400;
+  color: var(--widget-muted, var(--ngx-color-muted));
 }

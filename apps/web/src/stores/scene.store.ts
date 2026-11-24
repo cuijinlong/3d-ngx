@@ -11,6 +11,8 @@ import {
   type SceneWidgetsDocument,
 } from "@idt/data-adapter";
 import { getScene, getSceneByTopologyId, inspectTopologyScene, saveScene } from "../services/scene/sceneService";
+import { hydrateRootModelFromPlatform } from "../services/scene/hydrate-platform-model";
+import { publishSceneToPlatform } from "../services/scene/publish-scene-to-platform";
 import { resolveOpenScene, SCENE_OPEN_ERRORS, type SceneOpenAccess } from "../services/scene/open-scene";
 import { LOAD_TIMEOUT_MS } from "../constants/load-timeout";
 import { useEditorStore } from "./editor.store";
@@ -63,6 +65,7 @@ interface SceneState {
   undo: () => void;
   redo: () => void;
   persist: (note?: string) => Promise<void>;
+  publish: () => Promise<void>;
   reset: () => void;
 }
 
@@ -96,7 +99,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
         let stub = null;
         let cause: "not-found" | "not-owned" | "not-scene" | "unavailable" | undefined;
         if (!local) {
-          const inspected = await inspectTopologyScene(id);
+          const inspected = await inspectTopologyScene(id, viewerCustomerId);
           if (inspected.status === "ok") stub = inspected.document;
           else cause = inspected.status;
         }
@@ -105,6 +108,9 @@ export const useSceneStore = create<SceneState>((set, get) => ({
           return { ok: false as const, error: result.error };
         }
         let document = result.document;
+        if (!document.rootAssetId && document.platform?.glb?.objectKey) {
+          document = await hydrateRootModelFromPlatform(document);
+        }
         let persistence: SceneState["persistence"] = { available: false, bindingsSource: "local-draft", widgetsSource: "empty" };
         let sceneWidgets: SceneWidgetsDocument | null = null;
         const topologyId = document.platform?.topologyId;
@@ -117,6 +123,17 @@ export const useSceneStore = create<SceneState>((set, get) => ({
           }
           const widgets = await resolveSceneWidgets(client, topologyId, undefined, undefined, sceneId);
           sceneWidgets = widgets.document;
+          /*
+           * 数据源从**平台布局**回填（2026-11-23）。
+           *
+           * <p>`SceneDocument` 整体存在浏览器 IndexedDB，只有本机可见；
+           * 而数据源是团队共享的施工信息（「网关是这台」「9 台机组是这个范围」）。
+           * 所以保存时同步一份到 scene-widgets（平台侧），加载时以平台那份为准 ——
+           * 换台机器、清缓存都不会丢。
+           */
+          if (widgets.document?.dataSources?.length) {
+            document = { ...document, dataSources: widgets.document.dataSources };
+          }
           persistence = {
             available: bindings.source === "platform" || widgets.source === "platform",
             bindingsSource: bindings.source,
@@ -249,7 +266,16 @@ export const useSceneStore = create<SceneState>((set, get) => ({
     const sceneId = saved.scene.id;
     if (topologyId) {
       const bindings = await saveSceneBindings(client, topologyId, saved.bindings);
-      const widgets = await saveSceneWidgets(client, topologyId, sceneWidgets, undefined, sceneId);
+      /*
+       * 数据源随布局存平台（2026-11-23）—— 理由同上。
+       *
+       * <p>后端实测会原样保留未知字段（PUT 后读回仍在），所以放在布局里
+       * 不需要改后端。`dataSources` 为 undefined 时不写，避免把已有值冲掉。
+       */
+      const layoutWithSources = sceneWidgets && saved.dataSources
+        ? { ...sceneWidgets, dataSources: saved.dataSources }
+        : sceneWidgets;
+      const widgets = await saveSceneWidgets(client, topologyId, layoutWithSources, undefined, sceneId);
       sceneWidgets = widgets.document;
       persistence = {
         available: bindings.source === "platform" || widgets.source === "platform",
@@ -266,6 +292,24 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       };
     }
     set({ document: saved, persistence, sceneWidgets });
+    useEditorStore.getState().markDirty(false);
+  },
+
+  publish: async () => {
+    const document = get().document;
+    if (!document) throw new Error("场景不存在");
+    const next = await publishSceneToPlatform({
+      document,
+      widgets: get().sceneWidgets,
+    });
+    set({
+      document: next,
+      persistence: {
+        available: true,
+        bindingsSource: "platform",
+        widgetsSource: "platform",
+      },
+    });
     useEditorStore.getState().markDirty(false);
   },
 

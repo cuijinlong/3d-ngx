@@ -19,7 +19,7 @@ export function TwinScenesPage() {
         <div className="page-head">
           <div>
             <h1 className="page-title">运行场景</h1>
-            <p className="page-sub">打开已发布的场景进入 Runtime。演示数据会明确标注，不会伪装成现场采集。</p>
+            <p className="page-sub">打开已发布的场景进入 Runtime，数据来自 guard-server 实时遥测。</p>
           </div>
         </div>
         {list.length === 0 ? <Empty description="请先在工作室保存并发布一个场景" /> : (

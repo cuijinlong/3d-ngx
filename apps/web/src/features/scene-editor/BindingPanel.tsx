@@ -11,11 +11,12 @@ import type {
   SceneEntity,
   TelemetryMapping,
 } from "@idt/shared-types";
-import { describeCommandError, formatPlatformDeviceName, getCommandProvider, getDataProvider, getProviderKind, isRealtimePlatformDevice, isVirtualPlatformDevice } from "@idt/data-adapter";
+import { describeCommandError, formatPlatformDeviceName, getCommandProvider, getDataProvider, getProviderKind, isRealtimePlatformDevice, isVirtualPlatformDevice, WIDGET_MODEL_BINDING_HINT } from "@idt/data-adapter";
 import { useDeviceStore } from "../../stores/device.store";
 import { useSceneStore } from "../../stores/scene.store";
 import { createId } from "../../utils/id";
 import { buildDeviceBinding, signalsForEntity, suggestPoint } from "../../utils/bind-by-name";
+import { explainRunningState } from "../../utils/device-plates";
 import { uniqueEntitiesFromParsed } from "../../utils/hmi-entities";
 import { SceneJumpSection } from "./SceneJumpSection";
 import styles from "./BindingPanel.module.css";
@@ -168,16 +169,18 @@ export function BindingPanel({
   const isPipeOrInstrument = actionSignals.some((s) => s.entityKind === "pipe" || s.entityKind === "instrument");
 
   const patchBindings = (next: DeviceBinding[]) => {
-    const entities = document.entities.map((e) =>
-      e.id === entity.id
-        ? {
-            ...e,
-            binding: next.find((b) => b.sceneEntityId === e.id || b.sceneEntityId === e.nodeName)
-              ? { deviceId: next.find((b) => b.sceneEntityId === e.id || b.sceneEntityId === e.nodeName)!.deviceId }
-              : undefined,
-          }
-        : e,
-    );
+    const entities = document.entities.map((e) => {
+      if (e.id !== entity.id) return e;
+      const found = next.find((b) => b.sceneEntityId === e.id || b.sceneEntityId === e.nodeName);
+      /*
+       * SceneEntity.binding 只表达「这个实体挂在哪台设备上」，所以必须要有 deviceId。
+       * v2 的资产绑定条目没有 deviceId —— 它绑的是资产属性，不是设备实体，
+       * 在这里留 undefined，不要拿资产的 id 冒充 deviceId。
+       */
+      return found?.deviceId
+        ? { ...e, binding: { deviceId: found.deviceId } }
+        : { ...e, binding: undefined };
+    });
     setDocument({ ...document, bindings: next, entities }, "更新设备绑定");
   };
 
@@ -255,6 +258,7 @@ export function BindingPanel({
           </div>
         ) : null}
         {virtualBound ? <Alert type="warning" showIcon message="绑定已失效（虚拟设备），请解绑后重选实时设备" /> : null}
+        <div className={styles.muted} data-testid="model-binding-hint">{WIDGET_MODEL_BINDING_HINT}</div>
       </div>
 
       {emptyModel ? (
@@ -336,6 +340,46 @@ export function BindingPanel({
           })}
         </div>
       ) : null}
+
+      {/*
+       * 运行状态判据（2026-11-23 新增）。
+       *
+       * <p>客户原话：「启停按钮下面运行状态就是属于那个状态那个亮就行了，
+       * 但是我在平台端设备运维-实时监测中不知道哪个遥测跟这个运行状态绑定」。
+       *
+       * <p>这句话点出的缺口是真实的：实时监测页只列「设备上报了哪些遥测」，
+       * 不告诉你**哪一列被拿来判断运行状态**。而判据分散在
+       * `statusMapping.telemetryKey` / `telemetryMappings` 的 label 匹配 /
+       * 代码里的 `sys_run_state` 约定三处 —— 现场从遥测清单里推不出来。
+       *
+       * <p>所以在这里直接写出「实际读哪个键、什么语义、会不会回退」。
+       * 只读，不提供编辑：改它要走上面的「看板数据」或场景设置，
+       * 多一个入口只会让配置漂移。
+       */}
+      {boundRealtime && !virtualBound ? (() => {
+        const explain = explainRunningState(binding);
+        return (
+          <div className={styles.section} data-testid="running-state-explain">
+            <div className={styles.sectionLabel}>运行状态判据</div>
+            <div className={styles.row}>
+              <div className={styles.rowName}>判定依据</div>
+              <div className={styles.rowSummary}>{explain.text}</div>
+            </div>
+            {explain.fallsBack ? (
+              <div className={styles.muted}>
+                该键没有数据时会自动退回「运行」布尔遥测 —— 部分网关只上报布尔值，
+                这不是配置错误。3D 染色、状态格、机组状态列表三处用的是同一份判据。
+              </div>
+            ) : null}
+            {explain.source === "none" ? (
+              <div className={styles.muted}>
+                在「看板数据」里为「运行状态」选择时间序列键后，状态格才会有「运行 / 停机」；
+                在此之前显示「未知」，不会猜成运行。
+              </div>
+            ) : null}
+          </div>
+        );
+      })() : null}
 
       {showStartStop ? (
         <div className={styles.section}>
