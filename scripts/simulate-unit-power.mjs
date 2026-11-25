@@ -253,7 +253,29 @@ function readBases(deviceId, endTs) {
           AND (k.dbl_v IS NOT NULL OR k.long_v IS NOT NULL)
         ORDER BY k.ts DESC LIMIT 1;`,
     );
-    const num = Number(raw);
+    let num = Number(raw);
+    /*
+     * ★ 停机后恢复：基准是 0 时往前找最近的非零值（2026-11-26）。
+     *
+     * <p>实测 `模块机-2#`：11-23 19:43 起 `power` 一直是 0（压缩机停机），
+     * 而 11-21 02:00 的真实值是 20.1 kW。若拿 0 当基准，
+     * 生成的曲线恒为 0 —— 于是「设备已在运行（running=1）却功率 0」，
+     * 现场不可能出现，能效比也会算成 0。
+     *
+     * <p>只在 `power` 上做这个回退：温度、开度在停机时本来就该停在
+     * 环境值/0 位，回退到运行值反而是错的。
+     */
+    if (spec.key === 'power' && num === 0) {
+      const peak = psql(
+        `SELECT coalesce(k.dbl_v, k.long_v::double precision) FROM ts_kv k
+           JOIN key_dictionary d ON d.key = d.key_id
+          WHERE d.key = 'power' AND k.entity_id = '${deviceId}' AND k.ts < ${endTs}
+            AND coalesce(k.dbl_v, k.long_v::double precision) > 0
+          ORDER BY k.ts DESC LIMIT 1;`,
+      );
+      const peakNum = Number(peak);
+      if (peak !== '' && Number.isFinite(peakNum) && peakNum > 0) num = peakNum;
+    }
     bases[spec.key] = raw !== '' && Number.isFinite(num) ? num : Number.NaN;
   }
   return bases;
@@ -352,7 +374,18 @@ async function main() {
       let missing = null;
       for (const spec of KEY_SPECS) {
         if (spec.key === 'running') continue;
-        if (!Number.isFinite(bases[spec.key]) || bases[spec.key] <= 0) {
+        /*
+         * ★ 只判 NaN（= 没读到），不判 `<= 0`（2026-11-26 改）。
+         *
+         * <p>原来的 `bases[spec.key] <= 0` 把 **功率为 0 的故障机整台跳过**了：
+         * `天骄-模块机-2#` 在 11-23 19:43 起 `power` 就是 0（压缩机停机），
+         * 于是它永远补不上数据，卡上一直显示「未知」。
+         *
+         * <p>0 不是「没值」，是「停机」—— 这是现场真实且必须能显示的状态。
+         * 按 0 生成曲线也是对的：`0 × (1 + 日周期 + 噪声) = 0`，
+         * 故障机的功率线就该平在 0，不该被编成「在变负荷」。
+         */
+        if (!Number.isFinite(bases[spec.key])) {
           missing = spec.key;
           break;
         }

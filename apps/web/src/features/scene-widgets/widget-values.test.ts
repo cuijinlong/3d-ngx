@@ -1574,3 +1574,36 @@ describe("shouldDisplayWidgetInRuntime / 选中机组", () => {
     expect(shown).toBe(true);
   });
 });
+
+/**
+ * 能耗卡（`dataSource: "energy"`）在运行态必须显示（2026-11-25 修）。
+ *
+ * <p>实测事故：`plant-capacity`（碳排放核算）编辑态可见、运行态整块消失。
+ * 它的数据来自平台能耗接口（按场站聚合），**不绑任何遥测槽位** ——
+ * 而 `metric-card` 的判据只看 `deviceId` / `aggregate`，对能耗卡必然
+ * 得出 `bound: false`，于是被 `widgetsForSurface` 过滤掉。
+ *
+ * <p>这类漏卡不报错、不留痕：用户只知道「这块卡不见了」。
+ */
+describe("shouldDisplayWidgetInRuntime / 能耗卡", () => {
+  it("★ dataSource=energy 的 metric-card，没有任何遥测槽 → 仍显示", () => {
+    const widget = {
+      id: "plant-capacity", type: "metric-card", x: 79, y: 12.6, w: 18.6, h: 18,
+      dataSource: "energy", energyMetric: "carbon",
+      slots: [{ key: "main", label: "制冷量", unit: "kW" }],
+    } as never;
+    expect(shouldDisplayWidgetInRuntime(widget, {
+      bindings: [], latest: {}, devices: [],
+    } as never)).toBe(true);
+  });
+
+  it("不是能耗卡、槽位也没绑 → 仍然不显示（不能因为这次放宽而漏配的卡也露出来）", () => {
+    const widget = {
+      id: "plain", type: "metric-card", x: 0, y: 0, w: 20, h: 20,
+      slots: [{ key: "main", label: "功率", unit: "kW" }],
+    } as never;
+    expect(shouldDisplayWidgetInRuntime(widget, {
+      bindings: [], latest: {}, devices: [],
+    } as never)).toBe(false);
+  });
+});

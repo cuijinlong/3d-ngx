@@ -1313,6 +1313,21 @@ export function widgetHasResolvableValue(
     );
   }
   if (widget.type === "metric-card") {
+    /*
+     * 能耗卡（dataSource === "energy"）直接显示（2026-11-25 修）。
+     *
+     * <p>它的数据来自平台能耗接口（`/api/energy/comprehensive`，按场站聚合），
+     * **不绑任何遥测槽位** —— 下面的 `readMetricBreakdown` 只看 deviceId / aggregate，
+     * 对能耗卡必然得出 `bound: false`，于是整张卡从大屏消失。
+     *
+     * <p>实测事故：`plant-capacity`（碳排放核算）编辑态可见（不走这里），
+     * 运行态整块不见了，而它明明有值（1240 tCO₂）。`system-power` 当时没暴露
+     * 只是因为恰好配了 `aggregate: sum` 走了另一条判据。
+     *
+     * <p>与 `widget.type === "trend-chart"` / `"bar-compare"` 的 energy 分支保持
+     * 一致：能耗卡一律显示，缺数由卡片自己说「暂无数据」。
+     */
+    if (widget.dataSource === "energy") return true;
     const breakdown = readMetricBreakdown(widget, bindings, latest, devices, assetAttrs, assetError);
     /*
      * 只看「绑了没有」，不看「有没有数」（2026-11-23）。
