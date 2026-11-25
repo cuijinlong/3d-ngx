@@ -48,12 +48,15 @@ import { ProgramPanel } from "./ProgramPanel";
 import { DataSourcePanel } from "./DataSourcePanel";
 import { AlarmList } from "../alarm/AlarmList";
 import { TemplateConfigPanel } from "./TemplateConfigPanel";
+import { TemplateFilePanel } from "./TemplateFilePanel";
 import { describeDroppedBindings, reconcileBindingsOnModelReplace } from "../../utils/reconcile-model-bindings";
 import { resolveSceneEntity } from "../../utils/scene-entity";
 import { isControlDrawerOpen, resolveSelectableNode } from "../../utils/selectable-node";
 import { useStylePackRenderRules } from "../../hooks/useStylePackRenderRules";
 import { useTelemetryFeed } from "../../hooks/useTelemetryFeed";
 import { useSceneFeedDeviceIds } from "../../hooks/useSceneFeedDeviceIds";
+import { useTemplateDocs } from "../../hooks/useTemplateDocs";
+import { useCustomerName } from "../../pages/entry/useCustomerName";
 import { getGuardStatus, getProviderKind } from "@idt/data-adapter";
 import styles from "./EditorShell.module.css";
 
@@ -79,7 +82,6 @@ export function EditorShell() {
   const selectedNode = useSelectionStore((s) => s.nodeName);
   const selectedEntityId = useSelectionStore((s) => s.entityId);
   const select = useSelectionStore((s) => s.select);
-  const [hoveredNode, setHoveredNode] = useState<string | null>(null);
   const [pinnedDrawer, setPinnedDrawer] = useState(false);
   const [workbenchPanel, setWorkbenchPanel] = useState<"closed" | "bindings" | "template" | "program" | "datasources" | "alarms">("closed");
   /* 场景设置抽屉 / AI 搭建面板（2026-11-23） */
@@ -109,20 +111,38 @@ export function EditorShell() {
    * 截前 8 位 + 悬停给全量 —— 这比编一个「平台演示中心」安全，
    * 因为编的名字在换客户后就是错的。
    */
+  /*
+   * 组织（客户）名称（2026-11-24 客户报障）。
+   *
+   * <p>原显示是 `customerId` 前 8 位（`7ce48900…`）。当时的理由写在注释里：
+   * 「平台接口没有把客户名带进场景文档（只有 id），为了不让用户看到一长串 UUID
+   * 就截前 8 位」。
+   *
+   * <p>但客户说「组织不应该显示 Id 而是应该名称」—— 这是对的：
+   * 顶栏那三格的用途就是让人确认「我在给谁做」，一个 hash 前缀做不到这件事。
+   *
+   * <p>名字从平台客户名单里解析（`listPlatformCustomers`，与客户选择页同一份数据）。
+   * **解析不到时才退回短 id**：名单可能因权限/网络失败，那时显示 id 至少还能区分场站，
+   * 显示「—」会让人以为场景没归属。
+   */
+  const customerName = useCustomerName(document?.platform?.customerId);
+
   const scopeLabels = useMemo(() => {
     /* document 在这个位置还没被收窄，用可选链取值 */
     const platform = document?.platform;
     const shortId = (id?: string) => (id ? `${id.slice(0, 8)}…` : "");
+    const orgName = customerName.trim();
     return {
-      org: platform?.customerId ? shortId(platform.customerId) : "—",
-      orgFull: platform?.customerId ?? "场景没有关联客户",
+      org: orgName || (platform?.customerId ? shortId(platform.customerId) : "—"),
+      orgFull: orgName
+        || (platform?.customerId ? `客户 id ${platform.customerId}` : "场景没有关联客户"),
       site: platform?.siteName || "—",
       siteFull: platform?.siteName || "场景没有关联场站",
       group: platform?.topologyName || platform?.packId || "—",
       groupFull: platform?.topologyName
         || (platform?.packId ? `模板包 ${platform.packId}` : "场景没有关联分组"),
     };
-  }, [document?.platform]);
+  }, [document?.platform, customerName]);
 
   /*
    * 草稿状态文案（2026-11-23）。
@@ -295,6 +315,21 @@ export function EditorShell() {
     if (!templateId) return null;
     return getBuiltinScreenTemplate(templateId)?.aiExtension ?? null;
   }, [sceneWidgets?.templateId]);
+
+  /*
+   * 模板里的约定文件（2026-11-24）。
+   *
+   * <p>客户要求：「我可以在文件资源管理器中编辑我的需求，然后让 AI 读取
+   * 帮我开发 AI 构建大屏」。
+   *
+   * <p>`enabled: aiOpen` —— 面板没打开就不该读盘并发请求。
+   * 读不到时返回空数组，AI 构建照常可用（少一份需求文档是降级，不是故障）。
+   */
+  const templateDocsState = useTemplateDocs({
+    platform: document?.platform,
+    sceneName: document?.scene.name,
+    enabled: aiOpen,
+  });
 
   const devices = useDeviceStore((s) => s.devices);
   const refreshDevices = useDeviceStore((s) => s.refresh);
@@ -554,23 +589,35 @@ export function EditorShell() {
           }}
         />
         {/*
-         * 组织 / 场站 / 分组 —— 小字回显当前作用域。
-         * 用 `em` 包标签是为了让它比名称更小（客户要求「名称字小点」）。
+         * 作用域面包屑（2026-11-24 客户要求）。
+         *
+         * <p>客户原话：「左上角组织，场站，分组，这四个字去掉，他们的值用
+         * 类似面包屑的方式，但是要好看点」。
+         *
+         * <h3>为什么去掉标签字之后还要留 title</h3>
+         *
+         * <p>标签去了以后，三个名字并排放在一起，新用户（特别是客户方的
+         * 运维）可能分不出哪一级是哪一级。所以层级信息沉到 `title` 里：
+         * 悬停仍然能看到「组织 — 平台演示中心」这种完整说明，
+         * 但默认不占顶栏宽度。
          */}
-        <div className={styles.scope} data-testid="scene-scope">
-          <span className={styles.scopeItem} title={scopeLabels.orgFull}>
-            <em>组织</em>
+        <nav className={styles.scope} data-testid="scene-scope" aria-label="当前作用域">
+          <span className={styles.scopeCrumb} title={`组织 — ${scopeLabels.orgFull}`}>
             {scopeLabels.org}
           </span>
-          <span className={styles.scopeItem} title={scopeLabels.siteFull}>
-            <em>场站</em>
+          <span className={styles.scopeSep} aria-hidden="true">›</span>
+          <span className={styles.scopeCrumb} title={`场站 — ${scopeLabels.siteFull}`}>
             {scopeLabels.site}
           </span>
-          <span className={styles.scopeItem} title={scopeLabels.groupFull}>
-            <em>分组</em>
+          <span className={styles.scopeSep} aria-hidden="true">›</span>
+          {/* 最末一级是当前正在编辑的，用主色 + 稍重字重收尾 */}
+          <span
+            className={`${styles.scopeCrumb} ${styles.scopeCurrent}`}
+            title={`分组 — ${scopeLabels.groupFull}`}
+          >
             {scopeLabels.group}
           </span>
-        </div>
+        </nav>
         <span className={styles.grow} />
         <Button
           data-testid="open-ai-build"
@@ -699,6 +746,9 @@ export function EditorShell() {
             ) : null}
           </>
         }
+        templateFiles={
+          <TemplateFilePanel platform={document?.platform} sceneName={document?.scene.name} />
+        }
         assets={
           <>
             <Upload accept=".glb,.gltf" showUploadList={false} beforeUpload={(f) => importGlb(f)}>
@@ -775,7 +825,23 @@ export function EditorShell() {
          *
          * <p>都从场景文档直接读，不发请求，所以打开面板不会多打接口。
          */
-        context={buildAiSceneContext({ document, layout: sceneWidgets })}
+        context={{
+          ...buildAiSceneContext({ document, layout: sceneWidgets }),
+          templateDocs: templateDocsState.docs,
+        }}
+        /*
+         * 让界面能显示「AI 正在参考哪个模板的哪些文件」。
+         * 不显示的话，用户改完 requirements.md 却没生效时无从判断
+         * 是「AI 没读到」还是「AI 读了没照做」。
+         */
+        templateDocsMeta={{
+          templateName: templateDocsState.template?.name ?? null,
+          files: templateDocsState.docs.map((doc) => doc.name),
+          error: templateDocsState.error,
+          loading: templateDocsState.loading,
+          requirements: templateDocsState.requirements ?? null,
+          onReload: templateDocsState.reload,
+        }}
         /*
          * AI 改动的落点（2026-11-24）。
          *
@@ -809,14 +875,12 @@ export function EditorShell() {
             emptyText="还没有模型"
             gridEnabled={previewing ? false : document.settings.gridEnabled}
             selectedNode={selectedNode}
-            hoveredNode={hoveredNode}
             bindings={document.bindings}
             hmi={hmi}
             dataLabel={dataLabel}
             dataSource="live"
             drawerOpen={drawerOpen}
             resolveNode={resolveNode}
-            onHover={setHoveredNode}
             onToggleDrawer={() => {
               if (selectedNode) return;
               setPinnedDrawer((open) => !open);

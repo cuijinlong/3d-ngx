@@ -293,6 +293,8 @@ export {
   OVERVIEW_SITUATION_REPLACE_CONFIRM,
   parseSceneWidgetControl,
   parseSceneWidgetControlList,
+  energyMetricOf,
+  energyKindOf,
 } from "./scene-widget-layout";
 export type {
   SceneWidget,
@@ -379,6 +381,7 @@ export {
   WsTelemetryChannel,
   buildSubscriptionMessage,
   extractRows as extractWsTelemetryRows,
+  nextReconnectDelay,
   toWsUrl,
 } from "./ws-telemetry";
 export type { WsDeviceSubscription, WsTelemetryStatus } from "./ws-telemetry";

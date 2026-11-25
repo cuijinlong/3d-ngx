@@ -37,7 +37,7 @@ export function StudioEditorPage() {
   if (loading) {
     return (
       <div className="page" style={{ alignItems: "center", justifyContent: "center", color: "var(--ngx-color-muted)", background: "var(--ngx-color-bg)" }}>
-        <Spin tip="正在打开场景" />
+        <Spin description="正在打开场景" />
       </div>
     );
   }

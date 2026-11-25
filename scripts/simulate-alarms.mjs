@@ -124,13 +124,13 @@ function buildInsert(alarm, now) {
   const startTs = now - alarm.minutesAgo * 60 * 1000;
   return `
 INSERT INTO alarm (
-  id, created_time, start_ts, originator_id, originator_type,
+  id, created_time, start_ts, end_ts, originator_id, originator_type,
   severity, type, tenant_id, customer_id,
   acknowledged, cleared, propagate, propagate_to_owner, propagate_to_tenant,
-  propagate_to_owner_hierarchy, assign_ts, additional_info
+  propagate_to_owner_hierarchy, ack_ts, clear_ts, assign_ts, additional_info
 )
 SELECT
-  gen_random_uuid(), ${startTs}, ${startTs}, d.id, ${ORIGINATOR_DEVICE},
+  gen_random_uuid(), ${startTs}, ${startTs}, ${startTs}, d.id, ${ORIGINATOR_DEVICE},
   '${alarm.severity}', '${alarm.type.replace(/'/g, "''")}', d.tenant_id, d.customer_id,
   false, false, false, false, false,
   /*
@@ -146,7 +146,37 @@ SELECT
    * 注意：这段注释在**模板字符串内部**，所以不能写反引号 ——
    * 反引号会把模板字符串提前终止，报 "Unexpected identifier"。
    */
-  false, 0, '{"demoTag":"${DEMO_TAG}"}'
+  false,
+  /*
+   * ★ 时间戳四件套也一个都不能漏（2026-11-25 实测再次踩到）。
+   *
+   * 症状与上面那个字段一模一样，但成因不同：
+   *
+   * AlarmDataAdapter 里写的是 alarm.setAckTs((long) row.get("ack_ts"))
+   * —— (long) Object 先 checkcast 成 Long 再拆箱。列值为 SQL NULL 时
+   * Map.get 返回 null，于是抛：
+   *
+   *   Cannot invoke "java.lang.Long.longValue()" because
+   *   the return value of "java.util.Map.get(Object)" is null
+   *
+   * 这个错只在结果集里恰好含脏行时才炸：
+   *
+   *   pageSize=2&page=0  → 200   （前两条干净）
+   *   pageSize=3&page=0  → 500   （第三条 ack_ts 是 NULL）
+   *
+   * 所以以前「只插了 assign_ts=0」能跑通，是因为恰好没被翻到。
+   * 2026-11-25 客户打开「设备运维」时，某场站的 ACTIVE 告警不足一页
+   * 就翻到了那三条（天骄模块机），页面直接报红条 —— 就是这一行造成的。
+   *
+   * end_ts 语义是「最后活跃时间」，从未更新过就等于 start_ts
+   * （与 TB 自己写入的活跃告警一致，也与 scripts/49-fix-alarm-null-ts.sh
+   * 的修复口径一致）。
+   *
+   * ★ 同样地：上面那句「不能写反引号」对我这段注释也成立 ——
+   *   第一版就是写了反引号和代码块，node --check 直接报
+   *   "Unexpected identifier"。改写时把反引号全部去掉。
+   */
+  0, 0, 0, '{"demoTag":"${DEMO_TAG}"}'
 FROM device d
 WHERE d.name = '${alarm.deviceName.replace(/'/g, "''")}';`;
 }
@@ -205,6 +235,29 @@ function main() {
   if (!DRY) {
     const total = psql(`SELECT count(*) FROM alarm WHERE additional_info LIKE '%${DEMO_TAG}%';`);
     console.log(`✓ 完成，本脚本共有 ${total} 条模拟告警`);
+    console.log("");
+
+    /*
+     * ★ 自检：NULL 时间戳 / NULL 布尔列会让整页 500（2026-11-25 加）。
+     *
+     * <p>这类脏数据**不会在写入时报错**，也不影响本次插入 ——
+     * 它要等到别人用大一点的 pageSize 翻到那一行才爆，
+     * 那时已经看不出是谁写的。
+     *
+     * <p>所以写完立刻查一次，宁可在这里失败。
+     */
+    const bad = psql(
+      "SELECT count(*) FROM alarm WHERE additional_info LIKE '%" + DEMO_TAG + "%'" +
+      " AND (ack_ts IS NULL OR clear_ts IS NULL OR end_ts IS NULL OR assign_ts IS NULL" +
+      " OR propagate_to_owner_hierarchy IS NULL OR propagate IS NULL);",
+    );
+    if (bad !== "0") {
+      console.error(`✗ 有 ${bad} 条告警存在 NULL 时间戳/布尔列 —— 这会让设备运维页整页 500`);
+      console.error("  修复：bash shiyongshouce/downloads/scripts/49-fix-alarm-null-ts.sh --fix");
+      process.exitCode = 1;
+      return;
+    }
+    console.log("✓ 自检通过：时间戳与布尔列均非 NULL（不会触发告警页 500）");
     console.log("");
     console.log("注意：这些是**演示告警**，不是规则引擎产生的。");
     console.log("撤销：node scripts/simulate-alarms.mjs --purge");

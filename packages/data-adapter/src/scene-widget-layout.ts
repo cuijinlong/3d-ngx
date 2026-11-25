@@ -792,6 +792,33 @@ export function parseSceneWidgetControlList(raw: unknown): SceneWidgetControl[] 
     : [];
 }
 
+/**
+ * 能耗卡的默认统计口径（2026-11-24）。
+ *
+ * <h3>为什么从渲染层搬到这里</h3>
+ *
+ * <p>原来这个函数在 `features/scene-widgets/EnergyCards.tsx` 里。
+ * 而 AI 上下文（`features/scene-editor/ai-context.ts`）也需要知道
+ * 「这张卡现在按什么口径统计」—— 从组件文件导入会把 React / ECharts
+ * 拖进纯函数模块，测试也会跟着变慢。
+ *
+ * <p>搬到类型定义旁边（这里）之后：渲染层和 AI 上下文读**同一份**判据。
+ * 两份各写一份必然分叉，然后出现「AI 以为这张卡看碳排、卡片实际显示用量」。
+ */
+export function energyMetricOf(
+  widget: Pick<SceneWidget, "type" | "energyMetric">,
+): "usage" | "cost" | "carbon" | "tce" | "trend" | "ranking" {
+  if (widget.energyMetric) return widget.energyMetric;
+  if (widget.type === "trend-chart") return "trend";
+  if (widget.type === "bar-compare") return "ranking";
+  return "usage";
+}
+
+/** 当前卡关心的统计品种（`usage`/`trend` 用），默认电。 */
+export function energyKindOf(widget: Pick<SceneWidget, "energyKind">): string {
+  return widget.energyKind?.trim() || "elec";
+}
+
 export function parseSceneWidget(raw: unknown, index = 0): SceneWidget | null {
   if (!raw || typeof raw !== "object") return null;
   const row = raw as Record<string, unknown>;

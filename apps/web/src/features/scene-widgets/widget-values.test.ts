@@ -308,6 +308,44 @@ describe("widget-values", () => {
     expect(widgetsForSurface([unbound, bound, missing, title], "runtime", ctx).map((item) => item.id)).toEqual(["m2", "m3", "t1"]);
   });
 
+  it("★ 范围聚合槽也算「有配置」（2026-11-24 实测暴露）", () => {
+    /*
+     * `system-power`（场站用电量）只有 `main` 一个聚合槽：
+     * `{ key: "main", telemetryKey: "power", aggregate: "sum" }`，**没有 deviceId**。
+     *
+     * <p>`readSlotValue` 要求 deviceId，所以 breakdown.main.bound = false。
+     * 只按 breakdown 判断的话整张卡会从大屏消失 —— 实测就是这样：
+     * 删掉两个绑在 PLC 网关上的无用侧槽位后，「场站用电量」卡直接不见了。
+     *
+     * <p>这个缺陷一直存在，只是被那两个侧槽位撑着没暴露。
+     */
+    const aggregateOnly: SceneWidget = {
+      id: "system-power",
+      type: "metric-card",
+      x: 2, y: 12, w: 18, h: 22,
+      filterText: "模块机",
+      scope: { kind: "topology", topologyId: "t1", topologyName: "场景" },
+      slots: [{ key: "main", label: "9 台机组之和", telemetryKey: "power", aggregate: "sum" }],
+    };
+    const ctx = {
+      bindings: [binding()],
+      latest: new Map<string, TelemetryRecord>(),
+      scopeDeviceIds: { "topology:t1": ["dev-1"] },
+    };
+    expect(shouldDisplayWidgetInRuntime(aggregateOnly, ctx)).toBe(true);
+
+    /* scope 解不出设备时仍隐藏 —— 没设备就没有聚合值可算 */
+    expect(shouldDisplayWidgetInRuntime(aggregateOnly, { ...ctx, scopeDeviceIds: {} })).toBe(false);
+
+    /* 没有 aggregate 的裸槽位（无 deviceId、无 constant）依旧隐藏 */
+    const naked: SceneWidget = {
+      ...aggregateOnly,
+      id: "naked",
+      slots: [{ key: "main", label: "无来源", telemetryKey: "power" }],
+    };
+    expect(shouldDisplayWidgetInRuntime(naked, ctx)).toBe(false);
+  });
+
   it("reads a main-plus-sides metric and resolved n/m ring groups without inventing numbers", () => {
     const latest: Record<string, TelemetryRecord> = {
       "dev-1:power": { deviceId: "dev-1", key: "power", value: 286, unit: "kW", timestamp: 1, source: "guard" },

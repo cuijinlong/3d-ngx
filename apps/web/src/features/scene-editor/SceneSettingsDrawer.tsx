@@ -31,6 +31,7 @@ export function SceneSettingsDrawer({
   wiring,
   panels,
   templates,
+  templateFiles,
   appearance,
   assets,
 }: {
@@ -46,6 +47,15 @@ export function SceneSettingsDrawer({
   panels?: ReactNode;
   /** 选择画面模板 */
   templates?: ReactNode;
+  /**
+   * 模板文件资源管理器入口（2026-11-24）。
+   *
+   * <p>与上面的「画面模板」是**两件事**：
+   *   · 画面模板 = 内置的大屏布局底稿（前端常量，改当前场景的排布）；
+   *   · 模板文件 = 平台上的场景模板资产（服务端文件，改模板本身）。
+   * 客户要的是后者 —— 能编辑模板的 css/json。
+   */
+  templateFiles?: ReactNode;
   /** 主题切换 */
   appearance?: ReactNode;
   /** 导入模型 / 导入示例 */
@@ -62,6 +72,12 @@ export function SceneSettingsDrawer({
       body: panels,
     },
     { key: "templates", title: "画面模板", hint: "为这个场景选用预置大屏模板", body: templates },
+    {
+      key: "template-files",
+      title: "模板文件",
+      hint: "编辑场景模板的样式与配置（css / js / json）",
+      body: templateFiles,
+    },
     { key: "appearance", title: "外观", hint: "编辑器主题", body: appearance },
     { key: "assets", title: "模型与示例", hint: "导入自己的 GLB，或加载演示模型", body: assets },
   ];
@@ -72,7 +88,7 @@ export function SceneSettingsDrawer({
       open={open}
       onClose={onClose}
       placement="right"
-      width={420}
+      size={420}
       data-testid="scene-settings-drawer"
       /*
        * 不挂 mask：设置面板常常要「一边看画布一边改」，

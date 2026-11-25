@@ -89,6 +89,7 @@ export function AiBuildPanel({
   layout,
   aiExtension,
   onApplyLayout,
+  templateDocsMeta,
 }: {
   open: boolean;
   onClose: () => void;
@@ -118,6 +119,28 @@ export function AiBuildPanel({
    * （编辑器用 store、运行时是只读）。由调用方决定落到哪。
    */
   onApplyLayout?: (next: SceneWidgetLayout) => void;
+  /**
+   * 模板文档的加载状态（2026-11-24）。
+   *
+   * <p>只用于**显示**：「AI 正在参考 模板 X 的 requirements.md、SKILL.md」。
+   * 不显示的话，用户改完需求却没生效时无从判断是「AI 没读到」
+   * 还是「AI 读了没照做」—— 两者要采取的动作完全不同。
+   */
+  templateDocsMeta?: {
+    templateName: string | null;
+    files: string[];
+    error: string | null;
+    loading: boolean;
+    /**
+     * 需求资料的填写完整度（2026-11-24）。
+     *
+     * <p>模板是「AI 与用户沟通需求的桥梁」—— 界面必须指出桥还没搭完的地方。
+     * 用户填了 3 节就点 AI，AI 只能对着空白的统计口径猜；
+     * 与其让它编，不如告诉他「还差 5 项」。
+     */
+    requirements?: import("./requirements-skeleton").RequirementsAssessment | null;
+    onReload?: () => void;
+  };
 }) {
   const [messages, setMessages] = useState<AiChatMessage[]>([
     {
@@ -299,6 +322,78 @@ export function AiBuildPanel({
       data-testid="ai-build-panel"
     >
       <div className={styles.wrap}>
+        {/*
+         * 模板文档状态条（2026-11-24）。
+         *
+         * <p>放在消息列表**上方**而不是塞进消息里：它是持续状态的说明，
+         * 不是某一轮对话的内容 —— 混进消息流会在每次滚动时重复出现。
+         *
+         * <p>三种状态都要能看出来：
+         *   · 读到了 → 显示模板名与文件名（证明 AI 真的参考了）；
+         *   · 没读到 → 说明原因（权限 / 没配模板）；
+         *   · 加载中 → 一句话，避免用户以为「什么也没发生」。
+         */}
+        {templateDocsMeta ? (
+          <div
+            className={`${styles.tplDocs} ${templateDocsMeta.error ? styles.tplDocsWarn : ""}`}
+            data-testid="ai-template-docs"
+          >
+            {templateDocsMeta.loading ? (
+              <span>正在读取模板文件…</span>
+            ) : templateDocsMeta.error ? (
+              <>
+                <span>未读取模板文件：{templateDocsMeta.error}</span>
+                {templateDocsMeta.onReload ? (
+                  <Button size="small" type="link" onClick={templateDocsMeta.onReload}>
+                    重试
+                  </Button>
+                ) : null}
+              </>
+            ) : templateDocsMeta.files.length ? (
+              <>
+                {/*
+                 * 资料完整度优先于「已参考哪些文件」显示（2026-11-24）。
+                 *
+                 * <p>列出文件名只能证明「读到了」，不能证明「够用」。
+                 * 用户真正需要知道的是「还差哪几节，AI 才不会瞎猜」。
+                 * 全部填完才退回显示文件清单。
+                 */}
+                {templateDocsMeta.requirements && templateDocsMeta.requirements.total > 0 ? (
+                  templateDocsMeta.requirements.filledCount < templateDocsMeta.requirements.total ? (
+                    <span data-testid="ai-requirements-gap">
+                      模板「{templateDocsMeta.templateName ?? "—"}」现场资料已填{" "}
+                      {templateDocsMeta.requirements.filledCount}/{templateDocsMeta.requirements.total}，
+                      AI 还缺：
+                      {templateDocsMeta.requirements.missing.slice(0, 3).join("、")}
+                      {templateDocsMeta.requirements.missing.length > 3 ? " 等" : ""}。
+                      在「场景设置 → 模板文件 → requirements.md」补齐后点重新读取。
+                    </span>
+                  ) : (
+                    <span data-testid="ai-requirements-ok">
+                      模板「{templateDocsMeta.templateName ?? "—"}」现场资料已填全
+                      （{templateDocsMeta.requirements.total} 项），AI 会严格按它开发。
+                    </span>
+                  )
+                ) : (
+                  <span>
+                    已参考模板「{templateDocsMeta.templateName ?? "—"}」的{" "}
+                    {templateDocsMeta.files.join("、")}
+                  </span>
+                )}
+                {templateDocsMeta.onReload ? (
+                  <Button size="small" type="link" onClick={templateDocsMeta.onReload}>
+                    重新读取
+                  </Button>
+                ) : null}
+              </>
+            ) : (
+              <span>
+                模板里还没有需求文档。在「场景设置 → 模板文件」里新建{" "}
+                <code>requirements.md</code> 写明你的要求，AI 会照着做。
+              </span>
+            )}
+          </div>
+        ) : null}
         <div className={styles.list} ref={listRef} data-testid="ai-messages">
           {messages.map((msg, index) => (
             <div

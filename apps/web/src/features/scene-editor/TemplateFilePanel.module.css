@@ -1,0 +1,48 @@
+/*
+ * 场景设置抽屉里的「模板文件」块（2026-11-24）。
+ *
+ * <p>抽屉宽 420px，这一块只有三样东西：模板下拉、打开按钮、一行说明。
+ * 真正的编辑界面是 `TemplateFileExplorer`（Modal，约 1000px 宽），
+ * 所以这里不需要挤出空间 —— 挤出来的编辑器在这个宽度里没法看代码。
+ */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.select {
+  width: 100%;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+.hint {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--ngx-color-muted);
+}
+
+/*
+ * 权限不足 / 加载失败。
+ *
+ * <p>用横排而不是单独一段：这句话通常只有一行，竖排会让抽屉里多出一大块
+ * 空白，看起来像功能没做完。
+ */
+.blocked {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--ngx-color-border, rgba(255, 255, 255, 0.12));
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--ngx-color-muted);
+}

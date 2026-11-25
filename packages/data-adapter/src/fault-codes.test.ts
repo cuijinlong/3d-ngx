@@ -1,10 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   extractFaultCodes,
   findFaultCode,
   indexFaultCodes,
+  loadFaultCodes,
   lookupFaultCodes,
+  resetFaultCodeCache,
 } from "./fault-codes";
+import * as registry from "./registry";
 
 /**
  * 故障码字典的纯逻辑部分。
@@ -145,5 +148,66 @@ describe("findFaultCode", () => {
   it("查不到返回 null", () => {
     expect(findFaultCode(dict, "ZZ999")).toBeNull();
     expect(findFaultCode(null, "TH702")).toBeNull();
+  });
+});
+
+describe("loadFaultCodes 按设备/全量分档（2026-11-24）", () => {
+  afterEach(() => {
+    resetFaultCodeCache();
+    vi.restoreAllMocks();
+  });
+
+  function stubProvider() {
+    const calls: string[] = [];
+    vi.spyOn(registry, "getDataProvider").mockReturnValue({
+      requestJson: async (_m: string, path: string) => {
+        calls.push(path);
+        return { initialized: true, entries: [{ codes: ["TH702"], desc: "出水温度传感器失效" }] };
+      },
+    } as never);
+    return calls;
+  }
+
+  it("★ 不传 deviceId → 全量路径；传了 → 带 deviceId 参数", async () => {
+    const calls = stubProvider();
+    await loadFaultCodes();
+    await loadFaultCodes("dev-1");
+    expect(calls[0]).toBe("/api/energy/fault-codes");
+    expect(calls[1]).toBe("/api/energy/fault-codes?deviceId=dev-1");
+  });
+
+  it("★ 两档分别缓存 —— 不能互相污染", async () => {
+    /*
+     * 合成一份缓存会让「先打开的详情页」把局部字典塞进去，
+     * 之后告警列表就拿不到别的型号的码。这种缺失是静默的，
+     * 只表现为「有些告警没有说明」。
+     */
+    const calls = stubProvider();
+    await loadFaultCodes("dev-1");
+    await loadFaultCodes("dev-1");   /* 命中缓存 */
+    await loadFaultCodes();          /* 另一档，必须真的发请求 */
+    await loadFaultCodes();          /* 命中缓存 */
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).toContain("deviceId=dev-1");
+    expect(calls[1]).toBe("/api/energy/fault-codes");
+  });
+
+  it("deviceId 前后空白不影响缓存键", async () => {
+    const calls = stubProvider();
+    await loadFaultCodes(" dev-1 ");
+    await loadFaultCodes("dev-1");
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toContain("deviceId=dev-1");
+  });
+
+  it("requestJson 抛错 → 返回带 error 的空字典，不 reject", async () => {
+    vi.spyOn(registry, "getDataProvider").mockReturnValue({
+      requestJson: async () => {
+        throw new Error("boom");
+      },
+    } as never);
+    const dict = await loadFaultCodes("dev-1");
+    expect(dict.error).toContain("boom");
+    expect(dict.byCode.size).toBe(0);
   });
 });

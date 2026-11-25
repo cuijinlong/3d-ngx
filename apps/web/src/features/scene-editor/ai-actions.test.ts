@@ -69,10 +69,29 @@ describe("parseAiActions", () => {
 });
 
 describe("planAiActions", () => {
-  it("没有布局时给明确指引，而不是让用户以为是 id 写错", () => {
+  it("★ 空场景可以搭（2026-11-24 改）—— add-widget 正常落地", () => {
+    /*
+     * 客户要「让 AI 按模板开发大屏」，而新建场景天然是空的。
+     * 原来整份拒绝并提示「先应用一份底稿」，等于把最常见的起点封死了：
+     * 用户说「帮我搭一个大屏」，AI 回「你先自己建一个」。
+     */
+    const plan = planAiActions(null, [
+      { op: "add-widget", widget: { id: "alarm-ticker", type: "alarm-ticker", title: "告警", x: 79, y: 61.4, w: 18.6, h: 31.6 } },
+    ] as never);
+    expect(plan.proposal.ok).toBe(true);
+    expect(plan.fromEmpty).toBe(true);
+    expect(plan.proposal.next?.widgets).toHaveLength(1);
+  });
+
+  it("空场景里改/删不存在的卡片仍然报错（那个报错是准确的）", () => {
     const plan = planAiActions(null, [{ op: "remove-widget", id: "unit-list" }]);
     expect(plan.proposal.ok).toBe(false);
-    expect(plan.proposal.issues[0]?.message).toContain("还没有布局");
+    expect(plan.proposal.issues[0]?.message).toContain("unit-list");
+  });
+
+  it("已有布局时不标 fromEmpty（避免界面说「从零搭」）", () => {
+    const plan = planAiActions(layout(), [{ op: "remove-widget", id: "unit-list" }]);
+    expect(plan.fromEmpty).toBeUndefined();
   });
 
   it("合法改动 → ok + diff + next，并要求确认", () => {

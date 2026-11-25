@@ -284,6 +284,25 @@ export class SceneTemplateApi {
     return { ok: row.ok === true, size: typeof row.size === "number" ? row.size : 0 };
   }
 
+  /**
+   * 新建一个模板文本文件（2026-11-24）。
+   *
+   * <p>与 {@link writeFile} 的区别：后者要求文件**已存在**（防拼错文件名
+   * 顺手造出空文件），而模板常常只有一个只读的 `model.glb` ——
+   * 不放开新建就没有任何东西可编辑。
+   *
+   * <p>重名会被后端拒绝（不静默覆盖），所以调用方要把错误原样展示出来。
+   */
+  async createFile(templateId: string, name: string, content: string): Promise<{ ok: boolean; size: number }> {
+    const payload = await this.client.requestJson<unknown>(
+      "POST",
+      `/api/energy/scene-templates/${encodeURIComponent(templateId)}/files`,
+      { name, content },
+    );
+    const row = asRecord(payload);
+    return { ok: row.ok === true, size: typeof row.size === "number" ? row.size : 0 };
+  }
+
   async delete(templateId: string): Promise<unknown> {
     return this.client.requestJson(
       "DELETE",

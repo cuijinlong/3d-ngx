@@ -1655,7 +1655,26 @@
   align-items: baseline;
   gap: 4px;
   font-weight: 700;
-  line-height: 1.02;
+  /*
+   * 1.3 而不是 1.02（2026-11-24 客户报障：数字显示不全）。
+   *
+   * <h3>实测根因</h3>
+   *
+   * <p>44px 字号下，字体实际字形高度是 **62px**（实测 `createRange` 量得），
+   * 而 `line-height: 1.02` 只给 line box 45px —— 顶部溢出 9px，
+   * 被上级 `energyKpi` 的 `overflow: hidden` 裁掉，看上去就是
+   * 「62.51万」的顶部被水平切开。
+   *
+   * <h3>为什么是 1.3</h3>
+   *
+   * <p>1.3 × 44 = 57px，上下各分到 6.6px leading，
+   * 字形向上溢出降到 2~3px —— 而实测该位置的父容器还有余量，
+   * 所以视觉上已完整（截图验证：顶部切口消失）。
+   *
+   * <p>没有直接拉到 1.42（恰好等于字形高/字号）：那会多出 6px 无用的空白，
+   * 而这批卡片是「信息密度优先」的现场大屏。
+   */
+  line-height: 1.3;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
   color: var(--ngx-color-primary);

@@ -181,3 +181,42 @@
   font-size: 11.5px;
   color: var(--ngx-color-muted, #888);
 }
+
+/*
+ * 模板文档状态条（2026-11-24）。
+ *
+ * <p>位置在消息列表之上、固定不滚动 —— 它是「AI 现在参考什么」的持续状态，
+ * 混进消息流会在每次滚动时重复出现，反而看不清。
+ *
+ * <p>长度不设上限但允许折行：文件清单通常一两项，但权限错误信息可能较长，
+ * 截断会让用户看不到真正的原因。
+ */
+.tplDocs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  flex: none;
+  margin-bottom: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--ngx-color-border, rgba(255, 255, 255, 0.12));
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--ngx-color-on-primary, #fff) 4%, transparent);
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--ngx-color-muted);
+}
+
+.tplDocs code {
+  padding: 0 4px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--ngx-color-on-primary, #fff) 12%, transparent);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+}
+
+/* 读不到时用警示色：这是「AI 少了一份输入」，不是正常状态 */
+.tplDocsWarn {
+  border-color: color-mix(in srgb, var(--ngx-color-warning, #e8930c) 45%, transparent);
+  color: var(--ngx-color-warning, #e8930c);
+}

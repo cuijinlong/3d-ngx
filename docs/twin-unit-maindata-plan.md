@@ -2529,9 +2529,10 @@ node scripts/verify-device-focus.mjs          # 浏览器实测
   SwiftShader 下会随机挂住（多次实测超时 60–120 秒），已改为不阻断脚本。
   染色判据 `evalStatus` 与颜色差异已由 `status.test.ts` 锁住（10 条），
   但「肉眼是否够红」必须人看。
-- 铭牌徽标与底部抽屉的实际观感 —— 铭牌默认隐藏（指向/选中才出现），
-  headless 下 `Input.dispatchMouseEvent` 会挂住，无法稳定触发。
-  两者逻辑均已单测覆盖。
+- 铭牌徽标与底部抽屉的实际观感 —— 铭牌默认隐藏（**仅选中才出现**，
+  悬停不再显示，见 §42），headless 下 `Input.dispatchMouseEvent` 会挂住；
+  改用 canvas 上的 `PointerEvent` 后已能稳定验收
+  （`node scripts/verify-nameplate-select-only.mjs`）。
 
 ---
 
@@ -4966,8 +4967,9 @@ frames 5 → 14（45 秒）          ← 持续收到数据帧
 
 1. **增量推送未验证**（见 32.3）。要在网关设备在线时再测一次；
    若确认可用，轮询可降到 60 秒甚至关掉。
-2. **WS 断线重连没做**。连接断了目前只靠轮询兜底（20 秒），
-   不会自动重连。要加退避重连，需要先确认增量推送，否则重连意义有限。
+2. ~~**WS 断线重连没做**~~ —— **已做（§36.1，2026-11-24）**：退避 1→30 秒封顶，
+   实测断线后 1 秒内重建。原来「先用轮询兜底」的判断是对的，但代价是
+   断一次就永久降级成 3 秒高频轮询，用户看不出来。
 3. 属性类数据（`CLIENT_SCOPE`）不在本次范围 —— 上一轮讨论过，
    需要网关侧改造（53 台设备当前 0 条客户端属性）。
 
@@ -5217,3 +5219,927 @@ vitest run                882 通过 / 88 文件（新增 2 条：文档白名�
 ```
 
 截图证据：改动前 9 台全白/绿、无红；改动后仅 2#（`sys_run_state=8`）为红色。
+
+### 34.5 补「温度 / 功率」测点绑定（2026-11-24 客户确认「要绑定」）
+
+铭牌改成文档驱动后，「功率」如实显示「暂无数据」—— 因为平台里根本没有这条
+映射。客户确认要绑，于是补了两处（脚本 `scripts/bind-doc-metrics.mjs`，幂等）：
+
+| 位置 | 补什么 | 范围 |
+| --- | --- | --- |
+| 设备档案 `measurePoints` | `temperature`（温度 ℃）、`power`（功率 kW） | 9 台模块机 |
+| 场景绑定 `sceneBindings[].telemetryMappings` | 同上两个映射，label 与文档名**逐字相同** | 9 条绑定 |
+
+`label` 必须逐字等于文档 `data[].name`（「温度」「功率」），因为铭牌是拿文档名
+去匹配映射的。
+
+#### 顺带修掉的匹配缺陷：包含匹配必须先让位给精确匹配
+
+补完「温度」映射后，铭牌仍然显示「暂无数据」—— 因为绑定里 `water_in_temp`
+（进水温度）排在前面，而「温度」是「进水温度」的子串，只按「能不能匹配上」
+找第一个就永远选中它。实测 1#~9# 上报的键是 `temperature`，
+`water_in_temp` 一条数据都没有。
+
+改成两级匹配（`metricMatchScore`）：精确 = 2、包含 = 1，**精确优先**。
+文档说「温度」就是 `temperature`，不是「进水温度」；包含匹配保留作兜底。
+
+#### 顺带修掉的抽屉截断：运行状态占了两格
+
+控制抽屉的 KPI 有 4 格上限。第一格是「运行状态」（四态），而 `running` 映射
+又占了第二格显示「运行 停止」—— 同一件事说两遍，把功率挤到第 5 项被截掉。
+
+`device-plates.ts` 导出 `isStatusMapping`，抽屉在遍历映射时跳过状态类条目。
+现在 2# 的抽屉是：运行状态 故障 / 温度 18.6 ℃ / 功率 0 kW / 开度 0 %。
+
+#### 验证
+
+```
+写入回读   9 台 measurePoints 15→16 条 · 21 个属性 key 全部保留（未误清）
+场景绑定   13 条绑定完好，9 条模块机各 16 项映射
+接口实测   1# 温度 7.2 / 功率 21.4 / 开度 65；2# 18.6 / 0 / 0；3# 7.65 / 20.9 / 49；9# 8.55 / 25.7 / 67
+浏览器     铭牌「模块机 2# 故障 · 温度 18.6 ℃ · 功率 0 kW · 开度 0 %」，2# 仍是唯一红色
+测试       tsc 0 · vitest 883 通过（+1 条「精确优先」）
+```
+
+备份在 `/tmp/power-bind-backup/`（改前 9 台属性 + 场景属性）。
+
+## 35. 3D 空白：`Failed to create a graphics device` 的定性与处置（2026-11-24）
+
+客户报障：
+
+> 「我通过 http://192.168.31.198:5173/studio/editor/... 远程访问可视化大屏，
+> 但是中间的 3D 没有渲染，我怀疑是 GLB 的静态资源没获取到？」
+
+### 35.1 定性：与 GLB / 网络 / 平台接口无关
+
+控制台那条是 `Uncaught (in promise) Error: Failed to create a graphics device`。
+它来自 `@playcanvas/react` 的 `<Application>`：`useLayoutEffect` 里的 async 函数
+**没有 catch**，创建 WebGL2 上下文失败就直接裸抛。
+
+失败发生在**创建 3D 上下文**这一步，此时任何模型请求都还没发出 ——
+所以「GLB 没加载到」不是原因。GLB 真的拿不到会是 `404` / `fetch failed`，
+是另一种错误。
+
+实测确认服务端与网络无问题：
+
+```
+LAN 访问 http://192.168.31.198:5173/studio/editor/... 
+  → webgl2 = true
+  → renderer = ANGLE (Intel, ANGLE Metal Renderer: Intel Iris Plus Graphics 640)
+  → canvas = 2，底部「已加载 1942 个节点 · 已连接 13 台设备」
+  → 截图 3D 完整渲染，2# 故障机组红色
+本机 Chrome 157 默认参数（headless，无 GPU flag）同样 webgl2 = true
+```
+
+**结论：服务端正常，问题在访问端浏览器拿不到 WebGL2。**
+
+### 35.2 为什么原来只看到一块空白
+
+`<Application>` 创建失败时组件返回 `null`，3D 区域就是空白，
+而控制台只有一条不会指向任何可操作动作的错误。第一反应必然是往回猜
+（「是不是模型丢了」）。
+
+### 35.3 落地的做法（按客户要求收敛为「提示一下」）
+
+客户随后定调：
+
+> 「如果是电脑老旧的原因无法加载 WEBGL，那就算了提示一下就够了」
+
+这个判断是对的：拿不到 WebGL2 意味着老机器、老显卡、或公司策略禁用硬件加速，
+都不是前端能改变的。所以**不做降级渲染、不做原因推断、不做长篇排查清单**
+（第一版那套四条原因 + 步骤 + 明细表格实测反而让人以为系统有大毛病）。
+
+只做两件事：
+
+**① 渲染前预检 + 如实报告**
+
+`engine/react/webgl-support.ts` 的 `diagnoseWebgl()` 读出
+`webgl2` / `webgl1` / `webgpu` / 渲染器字符串。判定只看 `webgl2`。
+软件渲染**不单独拦截** —— 能跑就让它跑；在这个量级（1942 节点 + 实时遥测）
+下它确实很慢，但那是用户的机器现状，不是前端该替他做的决定。
+
+界面是一张窄卡片：一句结论、一句怎么办、**一行**技术细节（`WebGL2 ✗ · WebGL1 ✗ …`）、
+一个「重新检测」。技术细节平时不抢视线，客户报障时运维一眼能看出
+是「连 WebGL1 都没有」还是「只有软件渲染」。
+
+**② 捕获全局 rejection**
+
+预检通过但真建失败（典型：同时打开太多 3D 页面，上下文配额耗尽）时，
+`<Application>` 的 rejection 无人接管。加 `unhandledrejection` 监听，
+命中 `isGraphicsDeviceError` 就切成提示界面并 `preventDefault()`。
+
+### 35.4 顺带修掉：`powerPreference: "high-performance"`
+
+原来 `<Application>` 写死 `graphicsDeviceOptions={{ antialias: true, powerPreference: "high-performance" }}`。
+
+`powerPreference` 是**请求**不是保证：没有独显、GPU 被浏览器列入黑名单、
+远程桌面/虚拟机的环境里，Chrome 可能因为达不到「高性能」而不给上下文。
+传 `default` 时 PlayCanvas 会把该属性从 context 参数里删掉
+（`graphics-device.js` 里 `!== "default"` 的分支），完全交给浏览器决定，成功率最高。
+
+改用库默认值。代价是双显卡机器上可能用集显 —— 对大屏 3D，
+「能跑」比「跑在独显上」重要。
+
+### 35.5 顺带修掉两个 antd 弃用告警
+
+客户贴出的另外两条 warning：
+
+```
+[antd: Spin] `tip` is deprecated. Please use `description` instead.
+[antd: Drawer] `width` is deprecated. Please use `size` instead.
+```
+
+- `pages/studio/StudioEditorPage.tsx`：`<Spin tip=…>` → `description`
+- `features/scene-editor/SceneSettingsDrawer.tsx`：`width={420}` → `size={420}`
+
+（antd 6.7.1，两处类型都已存在。）
+
+### 35.6 提示卡片的可读性坑
+
+更早一版提示直接用主题变量 `--ngx-color-text` / `--ngx-color-muted`。
+运行时视口是深色 HUD，而浅色主题里这两个值是 `#1f2329` / `#5f6e84` ——
+深灰字配深色底，整段读不出来（截图实测）。
+
+改成卡片自带不透明深色底 + 亮色字，**与主题解耦**：视口底色从 `#dce3ed`
+到 `#0e1218` 都有人用，故障提示必须两种情况都可读。
+
+另外 `pointer-events` 要显式收回 —— 视口默认是拖拽区，`.hint` 那套是 `none`，
+复用会让「重新检测」点不动，且不报错，只表现为「按钮没反应」。
+
+### 35.7 验证
+
+```
+tsc -b                0 错误
+vitest run            888 通过 / 89 文件（新增 5 条：错误识别、诊断结果）
+--disable-gpu 实测     提示卡片正常显示（一行技术细节 + 重新检测）
+LAN IP 正常环境实测    3D 完整渲染，提示不出现
+```
+
+## 36. WS 断线重连 + 插话遗留项盘点（2026-11-24）
+
+客户：「接受建议（做 WS 重连），再检查一下有没有在开发的过程中因为我的插话
+导致没开发完或者没验证完的？」
+
+### 36.1 WS 断线重连（§32.6-2 的遗留项）
+
+**改前**：`close` 事件只报一次状态就完了，连接断了永久停在那里。
+大屏开一整天，WS 断一次就永久降级成 3 秒高频轮询 —— 用户看不出来，成本一直在。
+
+**改后**（`packages/data-adapter/src/ws-telemetry.ts`）：
+
+- `open(devices)` 保存设备清单（重连要重新订阅）
+- socket `close` → `scheduleReconnect()`，指数退避 1→2→4→8→16→30 秒封顶
+- `open` 事件里才重置退避 —— **构造成功不等于连上**。过早重置会让「网络完全不通」
+  时退避永远停在 1 秒，变成 1 秒一次的重试风暴
+- 主动 `close()` 清理定时器且标记 `closed`，卸载后不会被定时器拉起来
+- socket **构造失败**也重连（baseUrl 写错、令牌有非法字符，改完配置不该要求刷新页面）
+
+退避封顶 30 秒的理由：轮询兜底在 WS 断开时本来就是 3 秒一轮，
+重连间隔再长没意义；而无限增长会让「网络恢复后」还要等几分钟。
+
+**实测**（浏览器，注入脚本统计 WebSocket 实例数）：
+
+```
+BEFORE      total=2  log=created,open,created,open   （Vite HMR + 遥测）
+KILL        关掉遥测通道（模拟服务端断开，不是 channel.close()）
+AFTER_2S    total=3  log=close,created,open          ★ 1 秒内重建并连上
+AFTER_6S    total=3  log=close,created,open          ★ 没有重连风暴
+```
+
+测试：`vitest` 新增 4 条（退避序列、主动关闭不重连、连上后重置退避）。
+
+### 36.2 插话遗留项盘点（逐条核实，不是凭印象）
+
+客户问的是「因为插话导致没开发完或没验证完」的项。下面每一条都到代码/DOM 里核过。
+
+#### ① 有据可查的「未验证」遗留（环境限制，非插话）
+
+| 项 | 卡在哪 | 现状 |
+| --- | --- | --- |
+| 告警详情弹层视觉（§16.7） | headless 截图 90~120 秒超时 | 功能由 DOM 判据覆盖，「好不好看」需人眼 |
+| 「更新缩略图」真实产物（§20.7） | headless 下 WebGL 读不回像素 | 真浏览器才成功；代码已做空白检测 |
+| WS 增量推送（§32.3、§36.1） | 设备当前离线 | **重连已补**，增量推送仍待网关在线时验 |
+| 真实鼠标滚轮连续滚动（§21.8） | `dispatchMouseEvent` 超时 | 已有「`defaultPrevented=false` + `scrollTop` 生效」替代证据 |
+
+#### ② ★ 插话报障「机组进水温度对比 把其他功能遮挡了」—— 文档查无处理记录
+
+这条报上来的问题，在 `docs/twin-unit-maindata-plan.md` 里**搜不到任何处理记录**
+（搜「遮挡」只命中 §10 的 11-23 卡片透明度优化）。是这次盘点里最需要说明的一条。
+
+**实测当前状态**（1920×1080，运行时大屏）：
+
+```
+卡片数        7（标题 / 场站用电量 / 碳排放 / 机组状态 / 用电趋势 / 用能分项 / 告警）
+两两几何重叠  []            ★ 没有任何重叠
+3D 视口被覆盖 33.1%         （左右翼布局的预期值）
+「机组进水温度对比」这张卡  已不存在
+```
+
+结论：**遮挡问题当前不复现**，因为那张卡已经不存在了 —— `load-compare`
+现在是「用能分项占比」，槽位只剩 `load | 功率 | power`。
+
+但有一条**同源的数据缺口没修**：
+
+```
+system-power（场站用电量）槽位：
+  left  = 进水 | water_in_temp   ← 九台实测全 null
+  right = 出水 | water_out_temp  ← 只有 1#/2# 有值
+```
+
+实际有数据的是 `temperature`（九台全有）。这与今天 §34 修铭牌时发现的
+是同一个根因：配置里按「进水/出水」建模，设备实际只报一个「温度」。
+目前这两个槽位不渲染，所以不影响显示；一旦将来渲染出来就是空的。
+
+#### ③ 已被后续轮次闭环的（别当成未完成）
+
+| 原记录 | 闭环点 |
+| --- | --- |
+| §20.7「AI 面板真实对话未验证」 | §26 接通 codewhale 并实测真实模型 |
+| §22「客户角色访问模板未验证」 | §28.1 判定「客户不该建场景」，前提撤销 |
+| §26.11「AI 只看得到卡片 id/type/title」 | §30 新增 `ai-context.ts`，已喂槽位与遥测键 |
+| §31.1「保存提示只用单测覆盖」 | 已浏览器复验（`SAVE_TOAST=已保存到平台`） |
+
+#### ④ 昨天凌晨计划里仍未做的（上一轮已列，不重复展开）
+
+WS 重连（**本轮已做**）、AI 槽位语义匹配、故障码按型号隔离查询。
+
+## 37. 清遗留：删无用槽位 + AI 槽位候选 + 故障码按型号查（2026-11-24）
+
+客户：「system-power 的问题接受你的建议删掉，继续把没完成的计划完成」。
+
+### 37.1 删掉 system-power 的无用侧槽位
+
+**为什么删**：那两个槽位绑在**一台 PLC 网关**上（`07f4df20…`），
+实测该网关 `water_in_temp` / `water_out_temp` / `temperature` / `power` **四个键全是 null**；
+九台模块机里 `water_in_temp` 同样全无数据，真实有值的是 `temperature`（单一「温度」）。
+
+与 §34「铭牌数据行以设备文档为准」同源：设备文档里模块机只有「温度」，
+大屏不该虚构出「进水 / 出水」两个口径。
+
+改了两处：
+
+| 位置 | 改动 |
+| --- | --- |
+| 平台场景 `sceneWidgets.system-power.slots` | `[main, left, right]` → `[main]` |
+| 模板 JSON `screen-templates/tianjiao-heat-pump.json` | `interfaces` 去掉 `left` / `right`（新建场景不再带） |
+
+脚本 `scripts/prune-dead-slots.mjs`（幂等，白名单制）。
+**故意不用「删掉所有读不到值的槽位」这种自动判据** —— 那会在设备临时离线时
+把有用槽位也删掉，而配置删了不会自己长回来。
+
+#### ★ 删完之后卡片整块消失 —— 暴露了一个既存缺陷
+
+实测：「场站用电量」卡从大屏上不见了（卡片数 7 → 6）。
+
+根因不在删槽位，而在**可见性判据漏了范围聚合槽**：
+
+```ts
+// widgetHasResolvableValue 里（改前）
+return Boolean(breakdown.main?.bound || breakdown.left?.bound || breakdown.right?.bound);
+```
+
+`readSlotValue` 要求具体 `deviceId`，而聚合槽（`aggregate: "sum"`）本来就没有 ——
+它的值由 `MetricCardBody` 从 scope 设备集算出来。所以 `main.bound = false`。
+
+**这个缺陷一直存在**，只是那卡同时排了两个带 `deviceId` 的侧槽位
+（就是上面那两个绑在 PLC 网关上的），靠它们把卡「撑」在画面上。
+删掉后立刻暴露 —— 顺带说明那两个槽位不是纯装饰，而是**在替一个判据缺陷打补丁**。
+
+修法：补上聚合槽分支，判定条件与 `MetricCardBody` 保持一致
+（有 `aggregate` + scope 解得出设备）：
+
+```ts
+if (!widgetScopeIsBound(widget.scope)) return false;
+const scoped = widgetScopeDeviceIds(widget, input.scopeDeviceIds);
+return Boolean(scoped?.length) && (widget.slots ?? []).some((slot) => Boolean(slot.aggregate));
+```
+
+两处判据不一致会出现「卡显示了但永远暂无数据」或反过来的情况，所以必须对齐。
+
+测试新增 1 条（聚合槽显示 / scope 无设备时隐藏 / 裸槽位仍隐藏）。
+
+### 37.2 AI 槽位候选（§30.8-1、§31.9-1 的遗留项）
+
+**改前**：AI 面对 60 个可用遥测键时只能靠 label 弱猜，实测会把
+「机组功率」绑到某台设备的 `opening`，因为两者都带 `%`。
+
+**改后**（`features/scene-editor/ai-context.ts`）：
+
+新增 `suggestKeysForSlot()`，为**未绑定**槽位预算候选键（最多 3 条，带理由）：
+
+| 打分 | 判据 | reason |
+| --- | --- | --- |
+| 100 | label 完全相同 | `label-exact`（单位也同时命中则 `unit-and-label`） |
+| 70 / 60 | label 互相包含（双方 ≥2 字） | `label-partial`（同上） |
+| 20 | 只有单位一致 | `unit` |
+
+外加 `min(9, deviceCount)` 做次级排序：同一 label 下 9 台都有的键
+比 1 台特有的更适合卡片级绑定。
+
+**为什么纯单位只能当兜底**：`opening` 也带 `%`，纯单位匹配正是
+「把功率绑到开度」的成因。所以 `unit` 类永远排在所有 label 命中之后。
+
+**接线**：`buildWidgetBriefs(layout, telemetryKeys)` 只给空槽位算候选，
+每卡最多 6 个槽位有候选（prompt 有成本）。已绑槽位不算 —— 那会挤占
+「哪几格还空着」的注意力。
+
+**没有候选时不给字段**（新场景 0 绑定）：没键可选就不该编。
+
+### 37.3 故障码按型号隔离查询（§33.9-3 的遗留项）
+
+**改前**：`getFaultCodes` 永远扫全部型号（`findAssetsByTenantIdAndType` 分页），
+注释里写着「型号数量未来若上千，这里要改成按设备类型/厂商索引」。
+
+**改后**（`EnergyMetricParamController`）：
+
+- 接口加 `@RequestParam deviceId`（可选）
+- `resolveModelScope()`：设备 → 读 SERVER_SCOPE 的 `model` 属性 → 匹配型号资产名/label
+- `collectModelFaultCodes(tenantId, onlyModel)`：已知型号时走 `findAssetById`，
+  不再分页扫全表
+- 输出 `scope` / `scopeModelId` / `scopeModelName`，退回全量时给 `scopeFallback` 原因
+
+**为什么读属性而不是走关系**：现场设备与型号之间**根本没有建关系**
+（53 台设备 0 条指向「设备型号」的关系）。
+
+**匹配不上是常态**：天骄九台模块机的 `model` 属性都是「其他型号」这种自由文本，
+对不上任何型号资产。所以匹配失败**退回全量**而不是返回空 ——
+返空会让告警翻译整片失效，而多给几个型号的码最多多占点内存。
+
+前端配套（`fault-codes.ts`）：`loadFaultCodes(deviceId?)` 两档**分别缓存**。
+合成一份会让先打开的详情页把局部字典塞进缓存，之后告警列表就缺别的型号的码 ——
+这种缺失是静默的，只表现为「有些告警没有说明」。
+
+只有 `AlarmDetailDialog` 传 `alarm.deviceId`；`AlarmList` / `AlarmTickerCard`
+跨设备，必须用全量档。
+
+### 37.4 验证
+
+```
+前端  tsc -b 0 错误 · vitest 905 通过 / 89 文件
+      新增 13 条：AI 候选 6 + 接线 2 + 故障码缓存分档 4 + 聚合槽判据 1
+后端  mvn -o -pl guard-energy -am compile → BUILD SUCCESS
+      产物 class 时间戳晚于源码修改时间（确认包含改动）
+场景  7 张卡完整 · system-power slots 只剩 main · 其它卡片未受影响
+```
+
+**未验证**：后端 `deviceId` 参数的**真实回包**没测到 ——
+本地 8090 由用户本人启动（A3），新编译的 class 还没跑起来。
+前端两档缓存与 URL 拼接有单测覆盖，但「设备 → 型号」换算的
+真实结果要等后端重启后核。
+
+## 38. 设计页场景设置里的「模板文件」入口（2026-11-24）
+
+客户要求：
+
+> 「我想在 3d-ngx 的设计页面的右上角场景设置加一个模版的文件资源浏览器，
+> 然后我可以编辑这个模版」
+
+### 38.1 接的是已有能力，不是重做
+
+模板文件资源管理器（§27）本来就存在（`TemplateFileExplorer`），
+只是入口在「模板中心」页面。人在设计页改样式时正需要顺手看/改模板的
+css、布局 json —— 让他切页面再找同一张模板是纯粹的多余步骤。
+
+新增 `TemplateFilePanel`，挂在场景设置抽屉新增的「模板文件」分组里。
+抽屉宽 420px，所以这里只有三样东西：模板下拉、打开按钮、一行说明；
+真正的编辑界面是 Explorer 那个 1080px 的 Modal。
+
+### 38.2 ★ 场景 → 模板没有可靠引用字段
+
+场景资产的 `additionalInfo` 里**没有** `fromTemplate`（实测天骄科技园）。
+能用的只有 `packId` / `stylePack`。所以做成「自动猜 + 可手选」：
+
+| 判据 | 可信度 |
+| --- | --- |
+| `stylePack` 唯一命中（`hvac-hud-v1@1.0.0`） | `exact` |
+| 多个模板共用同一 stylePack → 用场景名细分 | `exact` |
+| 场景名也分不出来 | `ambiguous`，界面明说「请确认」 |
+| 退回 `packId` 命中 | `pack` |
+| 都没有 | `none`，显示列表第一项并标注「请自行确认」 |
+
+**★ stylePack 不唯一，实测踩到**：库里「tpl-冷热站标准版」与
+「tpl-天骄科技园标准版」的 `stylePack` 都是 `hvac-hud-v1@1.0.0`。
+只按 stylePack `find()` 第一个，天骄场景被指向了「冷热站标准版」——
+浏览器实测确认（请求打到 `134b61b0…` 而不是 `986c2ac0…`）。
+
+后果很隐蔽：用户以为在改自己场景的模板，实际改了另一个，
+保存成功、无报错，只是「改动看起来没生效」。
+
+修法：命中多个时用场景名细分（双向包含，去掉 `tpl-` 前缀与
+「标准版/模板」后缀再比 —— 否则两个都会因共享「标准版」而误命中）。
+仍分不出来就标 `ambiguous`，**不硬猜**。
+
+### 38.3 ★ 只读模板让功能形同虚设 → 补「新建文件」
+
+实测天骄模板里只有 `model.glb`（只读），`styleFiles` 为空 ——
+文件管理器打开后**一个可编辑项都没有**，而客户诉求正是「编辑这个模版」。
+
+后端原来只有「编辑已存在文件」（`writeTemplateObject` 明确拒绝不存在的对象，
+那是有意的：防止拼错文件名顺手造出空文件）。于是放开一条受控的新建路径：
+
+- `EnergySceneTemplateService.createFile()`：只允许白名单文本扩展名、
+  文件名不许带路径分隔符、**重名直接拒绝**（不静默覆盖）
+- `EnergyTopologyAssetService.createTemplateObject()`：与编辑端点同一套
+  `requireOwnedTemplateKey` 校验（租户前缀、禁 `..`、templateId 必须真实），
+  只额外跳过「文件必须已存在」
+- 新建后**必须登记到 `additionalInfo.styleFiles`** —— `listFiles` 的数据源
+  是档案而不是对象存储目录（S3 实现没有 LIST）。只写对象不登记，
+  文件会「存在但看不见」，而两边都不报错
+- 端点 `POST /api/energy/scene-templates/{id}/files`（`WRITE_AUTHORITIES`）
+
+### 38.4 ★ 一个 state 兼作两用导致「点按钮完全没反应」
+
+第一版把「新建对话框是否打开」和「请求是否进行中」用同一个 `creating`。
+于是点「创建并编辑」时：
+
+```ts
+const createFile = async () => {
+  if (!template || creating) return;   // ← 对话框开着 = creating 为 true
+  ...
+```
+
+**直接 return，请求一个都没发出。** 实测现象：没有 loading、没有 toast、
+没有网络请求 —— 什么都「不发生」。这种最难查，因为它不产生任何错误信号
+（探针里 `TOAST=[]` 且 `NET=[]` 才定位到）。
+
+修法：拆成 `newDialogOpen`（开关）与 `creating`（请求中）两个 state。
+成功后关对话框；失败时**不关**，用户改个名字就能重试。
+
+### 38.5 405 要说人话
+
+后端未更新时，前端拿到的是 `Request method 'POST' is not supported` ——
+用户看完不知道该怎么办。在这个端点上 405/404 只有一种解释：
+后端还是旧版本。转成「服务端还不支持新建模板文件（后端需要更新到包含该接口的版本）」。
+
+### 38.6 验证
+
+```
+前端  tsc -b 0 错误 · vitest 914 通过 / 90 文件（新增 9 条：匹配分级 + 歧义 + 名称细分）
+后端  mvn -o -pl guard-energy -am compile → BUILD SUCCESS
+      两个 class 产物（18:26）晚于源码（15:49），确认包含改动
+浏览器 抽屉出现「模板文件」分组 · 自动匹配 · 打开文件管理器 · 新建对话框
+TOAST  POST …/files → 405 → 「服务端还不支持新建模板文件…」★ 中文提示生效
+```
+
+**未完成**：端到端「新建 → 编辑 → 保存」没跑通，因为**后端未重启** ——
+本地 8090 由用户本人启动（A3 铁律），新编译的 class 还没生效，
+`POST …/files` 返回 405。前端链路已验到「请求发出 + 错误正确展示」。
+
+## 39. 风格套装变成模板文件：style-pack.json（2026-11-24）
+
+客户追问：
+
+> 「就一个 glb 文件不对吧，还应该 有 kills 吧，schema.json，还有一些 md 啊，
+> 应该还有其他的文件吧？要不怎么实现 AI 编程啊」
+> 「风格套装看看有没有相关的文件方式我跟你说是把模版和风格套装合并在一起的」
+
+### 39.1 先查清现状：确实只有一个 glb，而且套装根本不在文件里
+
+实测两个模板资产：
+
+| 模板 | `glb.fileName` | `styleFiles` | `stylePack` |
+| --- | --- | --- | --- |
+| 天骄科技园标准版 | `model.glb` | `[]` | `hvac-hud-v1@1.0.0` |
+| 冷热站标准版 | `_____.glb` | `null` | `hvac-hud-v1@1.0.0` |
+
+**风格套装本体（label / description / render 规则）是 Java 硬编码**在
+`EnergyTopologyAssetService.stylePacks()` 里（约 90 行 `put(...)`）。
+它既不是文件、也不在模板资产里，所以：
+
+- 文件管理器里看不到 → 只有那个只读的 glb；
+- AI 改不了 → 没有可读写的文件；
+- 客户说的「模板和套装合并」在**表单层**做过（§23 让套装紧跟模板选择器），
+  但**数据层从来没有合并** —— 模板只是存了一个 `stylePack` 字符串引用。
+
+另外 `docs/template-package-spec.md` 定义的 8 文件包
+（README / manifest / template / binding-plan / scene-form / object-binding / gaps / skills/SKILL.md）
+是 `scripts/export-template-package.mjs` 从**源码常量**离线导出的交接包，
+**从来不进平台资产**。所以平台里看不到它们，不是丢了，是两条不同的链路。
+
+### 39.2 改法：把套装落成模板里的真实文件
+
+新增约定：模板资产可以有 `style-pack.json`。
+
+```json
+{
+  "packId": "hvac-hud-v1",
+  "packVersion": "1.0.0",
+  "stylePack": "hvac-hud-v1@1.0.0",
+  "label": "HUD套装",
+  "description": "可折叠浮层、管三态、自适应底座",
+  "suitability": "机房/冷热源",
+  "defaultBaseType": "auto",
+  "requireWeatherSite": false,
+  "render": { "pipe": {...}, "valve": {...}, "device": {...} }
+}
+```
+
+链路（三处改动）：
+
+| 位置 | 作用 |
+| --- | --- |
+| 文件管理器 | `listFiles` 里出现、可编辑（json 在白名单）；编辑器底部换成套装专属说明 |
+| `writeFile` / `createFile` | 写入这个文件名时**先**同步进 `additionalInfo.stylePackConfig`，非法 JSON 直接拒绝（不先落盘，避免「文件改了但没生效」） |
+| `stylePacks(tenantId)` | 扫模板的 `stylePackConfig`，按 `packId` **逐字段**覆盖官方默认；官方没有的 packId 追加为新套装 |
+
+**为什么存文件 + 属性两份**：文件是给人/AI 看改的展示面，
+属性是给 `stylePacks()` 快速读的运行时快照（一次分页查询，不碰 S3，避免 N+1）。
+写入时单向同步（文件 → 属性），不反向，避免两份互相打架。
+
+**为什么逐字段覆盖而不是整体替换**：模板可能只改 `render.pipe.flowSpeed`，
+整体替换会把 `label` / `suitability` 清空。
+
+### 39.3 ★ 固有边界：同一 packId 只能有一份生效
+
+套装在运行时按 `packId` 全局查找，而「冷热站标准版」和「天骄科技园标准版」
+用的都是 `hvac-hud-v1`。两个模板各自改 `style-pack.json` 会互相覆盖。
+
+处理：**先读到的赢**，其余记 `stylePackConflicts` 下发（含两个模板名），
+后端打 warn 日志，编辑器底部也写明这条。彻底解决要给每个模板独立 packId，
+那会牵动场景的 `stylePack` 字段 —— 不在本轮范围，属于产品决策。
+
+### 39.4 现有模板怎么补上这个文件
+
+`scripts/seed-style-pack-file.mjs`（幂等，已有则跳过）：
+从官方套装清单取定义 → 写成模板的 `style-pack.json`。
+
+「发布为模板」也自动写：`publishSceneAsTemplate` 在 glb 上传后
+按场景的 `stylePack` 拉官方定义写进新模板。失败不阻断发布，
+但把原因写进返回的 `note`（静默失败会让人以为「模板本来就只有模型」）。
+
+### 39.5 验证
+
+```
+后端  mvn -o -pl guard-energy -am compile → BUILD SUCCESS
+前端  tsc -b 0 错误 · vitest 914 通过 / 90 文件
+前端链路  文件管理器已能新建（上一轮 §38.3）· 新文件按 json 白名单可编辑
+```
+
+**未验证（阻塞在后端重启）**：
+
+```
+POST /api/energy/scene-templates/{id}/files        → 405   ← 还没生效
+GET  /api/energy/topology-style-packs              → 无 stylePackConflicts 字段
+```
+
+本地 8090 由用户本人启动（A3），新 class 未加载。重启后需要跑：
+
+```bash
+node scripts/seed-style-pack-file.mjs            # 预览
+node scripts/seed-style-pack-file.mjs --apply    # 给现有模板补 style-pack.json
+```
+
+### 39.6 客户提到的「schema.json / md 等其它文件」——现状与建议
+
+| 想要的文件 | 现在在哪 | 建议 |
+| --- | --- | --- |
+| `style-pack.json` | **本轮新增**，模板资产里 | 已解决 |
+| `README.md`（模板说明） | 只在离线交接包里 | 可加：人/AI 读模板时第一眼要看的入口 |
+| `binding-plan.json`（待填绑定清单） | 只在离线交接包里 | **不适合放模板**：它描述的是「这个场景该怎么绑」，属实例层 |
+| `template.json`（布局本体） | 前端内置常量（`screen-templates/*.json`） | 可加，但要先决定「模板资产 vs 代码常量」谁是权威，否则两处漂移 |
+| `schema.json`（字段契约） | `template01/schema/binding.schema.json` | 可加，纯文档性质，运行时不用 |
+| `skills/SKILL.md`（给模型的提示词） | 仓内 `.agents/skills/` | 可加；**这才是「AI 编程」真正缺的那块** |
+
+**结论**：能编辑只是第一步。AI 要真正「编程」一个模板，还需要
+① 字段契约说明（schema + SKILL）② 当前模板的布局本体（template.json）。
+这两样现在是代码常量而非资产文件 —— 要动就得先定「资产还是代码是权威」。
+这个决策没有替客户做。
+
+## 40. 模板文件进资产 + AI 读需求构建（2026-11-24）
+
+客户定调：
+
+> 「要放在资产中，可以跨电脑共享，最起码我可以在文件资源管理器里编辑我的需求，
+> 然后让 AI 读取帮我开发 AI 构建大屏」
+
+决策：**资产是权威**（不是代码常量）。
+
+### 40.1 约定文件集
+
+模板资产里放四份「给 AI 看的」文本文件（都由文件管理器可编辑）：
+
+| 文件 | 内容 | 谁写 |
+| --- | --- | --- |
+| `requirements.md` | **人的需求** —— 要展示什么、有哪些设备、视觉要求、不要什么 | 用户 |
+| `SKILL.md` | 给模型的执行提示词（步骤编排） | 仓库同步 |
+| `schema.json` | 字段契约（能填什么、必填什么） | 仓库同步 |
+| `style-pack.json` | 风格套装定义（§39） | 发布时生成 |
+
+`template.json`（布局本体）**这轮没放**：它的权威仍是前端内置常量。
+放一份可能过期的布局进 prompt，模型会以为那是现状 —— 而真实现状
+已经在 `context.widgetList` 里（实时数据）。这个「谁是权威」的迁移要单独做。
+
+### 40.2 链路
+
+```
+文件管理器（人写 requirements.md）
+        │
+        ├── createFile / writeFile ──→ 平台对象存储 + additionalInfo.styleFiles
+        │
+        └── useTemplateDocs（前端读）
+                 │ 读 requirements.md / SKILL.md / schema.json / style-pack.json
+                 ▼
+        AiSceneContext.templateDocs
+                 │ POST /api/ngx/ai/chat
+                 ▼
+        ai-bridge buildPrompt → 【模板文件】段落
+                 │
+                 ▼
+        codewhale → actions（布局改动提案）
+```
+
+**前端**（`hooks/useTemplateDocs.ts`）：
+- 场景 → 模板用 `matchTemplateForScene`（§38.2 的 stylePack + 场景名三级判据）
+- 只读约定文件；空内容丢弃（占位空文件不等于「有要求」）
+- 顺序固定，`requirements.md` 排第一（模型对 prompt 前部更敏感）
+- 单份 404 是常态，不影响其它；全部失败返回空数组，**不让 AI 构建不可用**
+- `enabled: aiOpen` —— 面板没开不读盘
+
+**bridge**（`ai-bridge/server.js`）：`context.templateDocs` 拼成
+`【模板文件】（作者写的需求与约定，优先级高于你的默认假设）` 段落。
+逐份截断 6000 字、总量封顶 16000 字 —— 一份需求文档写成几万字，
+全塞进 prompt 会让模型抓不住重点，也会拖慢响应。
+
+**界面**：AI 面板顶部有状态条，三种状态都要能看出来：
+读到了（显示模板名 + 文件名）/ 没读到（说明原因）/ 加载中。
+
+### 40.3 ★ 端到端实测（真实模型，非 mock）
+
+直接打 bridge，`templateDocs` 里放一条独特要求：
+
+```
+requirements.md: 「大屏标题必须叫『甲方案例验证专用标题』」
+问题：根据模板需求文档，这个大屏的标题应该叫什么？只回答标题本身。
+
+回答：甲方案例验证专用标题
+model=deepseek-v4-pro  elapsed=12138ms  error=None
+```
+
+**说明 prompt 真的带上了模板文档** —— 这个标题在问题里没出现过，
+只可能来自 templateDocs。
+
+浏览器侧（真实页面，1920×1080）：
+
+```
+打开 AI 搭建面板
+  状态条先显示「正在读取模板文件…」
+  网络：4 个 /files/content 请求（4 份约定文件），全部 404（还没 seed）
+  最终显示「模板里还没有需求文档。在「场景设置 → 模板文件」里新建
+           requirements.md 写明你的要求，AI 会照着做。」
+```
+
+这是**正确的降级**：读不到时明确告诉用户怎么办，而不是静默地让 AI
+在没有需求的情况下自由发挥。
+
+### 40.4 新建模板自动带需求骨架
+
+`publishSceneAsTemplate` 在建完模板后写一份 `requirements.md` 骨架
+（四节：大屏要展示什么 / 有哪些设备与指标 / 视觉与交互要求 / 不要什么）。
+不覆盖已有内容（靠 `createFile` 的重名拒绝）。失败只记 note，不阻断发布。
+
+### 40.5 现有模板：跑一条命令补文件
+
+`scripts/seed-style-pack-file.mjs`（幂等，已有则跳过）：
+
+```
+node scripts/seed-style-pack-file.mjs            # 预览
+node scripts/seed-style-pack-file.mjs --apply    # 写入
+```
+
+预览实测：
+
+```
+tpl-冷热站标准版        → style-pack.json(509) requirements.md(252) SKILL.md(7416) schema.json(1945)
+tpl-天骄科技园标准版    → 同上
+```
+
+### 40.6 验证
+
+```
+前端      tsc -b 0 错误 · vitest 921 通过 / 91 文件（新增 7 条：约定文件顺序/空内容过滤/顺序保持）
+后端      mvn -o -pl guard-energy -am compile → BUILD SUCCESS
+bridge    server.js 语法通过 · 已重启（launchd kickstart，新 PID）· 日志正常
+端到端    真实模型回答出 templateDocs 里的独特标题 ★
+浏览器    状态条与降级文案正确 · 4 个约定文件都被请求
+```
+
+**仍阻塞在后端重启（8090）**：
+
+```
+POST /api/energy/scene-templates/{id}/files  → 405   （createFile 端点未生效）
+listFiles 只返回 model.glb                            （还没有约定文件）
+```
+
+重启后跑 `node scripts/seed-style-pack-file.mjs --apply`，
+文件就会出现，AI 面板状态条随之变成「已参考模板 X 的 requirements.md」。
+
+### 40.7 还没做的（诚实清单）
+
+1. **AI 生成的布局回写模板**：现在 AI 改的是**当前场景**的布局，
+   不会写回模板文件。用户要的「AI 帮我开发这个大屏」已通，
+   但「AI 帮我改这个模板，让别人新建也用新版」还没做 ——
+   需要决定「场景布局 → template.json → 模板资产」的写回规则。
+2. **template.json 作为资产权威**：见 40.1，需要单独迁移，涉及
+   「场景内联布局」与「模板资产布局」的优先级。
+3. **schema.json / SKILL.md 与仓库的同步**：现在是 seed 时拷一份，
+   仓库更新后不会自动跟进。要不要做同步，取决于是否允许用户改它们
+   （改了就不该被自动覆盖）。
+
+## 41. 模板 = AI 与用户沟通需求的桥梁（2026-11-24）
+
+客户定调（两句连起来看才是完整需求）：
+
+> 「最起码用户可以参与告诉 AI 现场是什么情况，好让他修改大屏的布局和统计维度啊」
+> 「每个模板最起码要让用户提供真实的资料信息，这样 AI 才会知道怎么开发，
+> 所以模板是 AI 和用户针对性沟通需求的桥梁」
+
+### 41.1 三件事：能搭、能改口径、能问
+
+| 缺口 | 改法 |
+| --- | --- |
+| 空场景 AI 一步都动不了 | `planAiActions` 以空布局为基准，不再整份拒绝 |
+| AI 不知道每张卡按什么统计 | 卡片带 `stats`（dataSource / energyMetric / energyKind）+ 下发统计词表 |
+| 实例上手工改动无法表达偏好 | 计算 `templateBaseline` + `deviations`，写明「这是用户的偏好」 |
+| 资料没填时 AI 瞎猜 | 骨架改成结构化访谈提纲 + `assessRequirements` + prompt 硬规则 |
+
+### 41.2 空场景可搭
+
+原来 `layout` 为空时整份拒绝：「先点场景设置应用一份底稿」。
+而新建场景天然是空的 —— 用户说「帮我搭一个大屏」，AI 回「你先自己建一个」。
+
+现在以空布局为基准继续算，`add-widget` 正常落地（`parseSceneWidget`
+对缺失坐标有自动错开的默认值）；改/删不存在的卡片仍然报错，那个报错是准确的。
+
+`AiPlan.fromEmpty` 标记「这份提案是从零搭的」，界面据此说清楚。
+
+实测：
+
+```
+输入：这个场景还是空的，帮我加一张告警跑马灯，放在右下角。
+输出：add-widget alarm-ticker x=79 y=61.4 w=18.6 h=31.6
+       并说明「对齐模板底稿的右下角区域」
+```
+
+### 41.3 统计维度：让 AI 能改
+
+**问题**：卡片只有「槽位」，没有「口径」。用户说「把这张改成看碳排」，
+AI 不知道该动哪个字段 —— 而 `energyMetric` 本来就是 `update-widget`
+能改的顶层字段。
+
+**改法**：
+
+1. `AiWidgetBrief.stats`：每张卡带上 `dataSource` / `energyMetric` /
+   `energyKind`，并标 `energyMetricDefaulted`（是不是类型默认值）。
+   遥测类卡片**不带** energyMetric —— 避免 AI 无故去改。
+2. `buildStatsVocabulary()`：下发词表（每个值的中文名 + 说明 + 各类型默认值）。
+   这就是客户说的「知识库」里关于口径的那份。
+3. bridge 的【现有卡片】行尾部印上口径与范围。
+
+**顺带修掉一处双份判据**：`energyMetricOf` / `energyKindOf` 原来在
+`EnergyCards.tsx`（React 组件文件）里，AI 上下文要用就得把 ECharts 拖进来。
+搬到 `scene-widget-layout.ts`，渲染层 re-export。两份必然分叉，
+然后出现「AI 以为这张卡看碳排、卡片实际显示用量」。
+
+实测：
+
+```
+输入：场站现在关心碳排，把 system-power 这张卡改成看碳排放。
+输出：update-widget patch {title:"场站碳排放", energyMetric:"carbon"}
+      并说明「dataSource 仍是 energy，品种保持 elec」
+```
+
+### 41.4 实例偏离 = 用户偏好
+
+客户说「我还是想通过不断的修改实例化的模板来更好的和 AI 交互理解」。
+
+用户手工挪卡、改标题，本身就是偏好的表达。只给现状，模型分不清
+「模板原样」还是「用户特意改的」，会好心改回去。
+
+`buildTemplateBaseline()` 按 widget id 对齐模板区域与实例卡片
+（`materializeScreenTemplate` 里 `id: region.id`），输出四类偏离：
+`removed` / `added` / `moved`（超过 2 个百分点）/ `retitled`。
+
+**★ 踩到的坑**：模板标题含 `{sceneName}` 占位符。不展开就比字符串，
+每张带占位符的卡都被判成「用户改过标题」—— 噪音，还会让 AI 去
+「还原」一个从未变过的标题。改用 `expandDefaultTitle` 展开后比。
+
+### 41.5 现场资料：结构化访谈提纲
+
+骨架从「四行提示」改成 8 节填表（`templates/requirements-skeleton.md`）：
+
+1. 项目与场站（面积 / 投运 / 值班）
+2. 系统构成（设备类型 / 品牌型号 / 数量）
+3. 每类设备上报的指标（**指标名必须与网关一致**）
+4. 统计口径（位置 / 内容 / 数据来源 / 统计项 / 时间范围）
+5. 告警与故障（什么算故障、码表在哪、最高等级表现）
+6. 布局与视觉
+7. 明确不要的
+8. 术语与叫法
+
+**单一来源**：前端用 `?raw` 引入，`seed-style-pack-file.mjs` 用 fs 读同一份文件。
+各写一份必然走样 —— 新建的模板有 8 节、补出来的老模板还是 4 行。
+
+### 41.6 资料缺项要让 AI 问，不许猜
+
+`assessRequirements(content, skeleton)`：按 `##` 分节，与骨架**逐行对照**，
+「骨架里也有这一行 → 用户没动过」。这比语法判据可靠 —— 骨架的示例行
+（`| 示例：模块机 | 开利 | 9 |`、`- 指标：温度（℃），正常范围 ____`）
+在语法上都是「有内容」，纯正则识别会漏，界面就误报「资料已填完」。
+
+阈值 8 字：用户敲「无」「好」不算填，否则界面显示 8/8 而 AI 依然无从下手。
+
+界面（AI 面板顶部）：
+- 未填全 → 「现场资料已填 3/8，AI 还缺：统计口径、告警与故障」
+- 填全 → 「现场资料已填全（8 项），AI 会严格按它开发」
+
+bridge 的 SYSTEM_PROMPT 加硬规则：留空 / 「待确认」的条目**不要猜**，
+在 content 里问清楚、actions 给空数组；口头说明与文件冲突时以口头为准并提醒更新文件。
+
+### 41.7 验证
+
+```
+前端  tsc -b 0 错误 · vitest 940 通过 / 92 文件（新增 28 条）
+bridge 语法通过 · 已重启 · 端到端三条实测：
+  ① 口径改写：update-widget {energyMetric:"carbon"} ✅
+  ② 空场景搭建：add-widget 对齐模板底稿 ✅
+  ③ 资料全空 → 追问三项、actions=[] ✅（不猜）
+seed  预览正确：两个模板各补 requirements.md(1.3KB) / SKILL.md / schema.json / style-pack.json
+```
+
+**未验证**：后端 8090 未重启，`POST …/files` 仍 405，
+所以 `requirements.md` 还没真的写进模板资产（前端读取链路与评估已单测覆盖）。
+
+### 41.8 下一步（这条链上还缺的）
+
+1. **AI 改完回写模板**：现在改的是实例。要「改模板让以后新建都用新版」，
+   需要定「场景布局 → template.json → 模板资产」的写回规则。
+2. **template.json 作为资产权威**：布局本体仍是前端常量。
+3. **AI 反向填资料**：用户口头说了现场情况，现在只会体现在回复里，
+   不会写进 requirements.md —— 下次又得重说。这是「桥梁」最该补的一环。
+
+---
+
+## 42. 铭牌只在点击后显示（2026-11-25 客户要求）
+
+客户原话：
+
+> **「鼠标指向模块机不要显示铭牌，当时当鼠标点击模块机才要显示铭牌」**
+
+### 42.1 改了什么
+
+铭牌（`DeviceLabels`）原先是「选中 **或** 悬停」都显示：
+
+```ts
+plates.filter((plate) => plate.node === selectedNode || plate.node === hoveredNode)
+```
+
+于是鼠标扫过整排机组时铭牌一路跟着冒出来，既挡画面，也看不出哪个是真正选中的。
+现在**只认选中**：`plate.node === selectedNode`。
+
+### 42.2 ★ 不能只改过滤函数
+
+这是本次最容易做漏的一步：过滤函数改对了，但 `hoveredNode` 仍从外层一路传进来 ——
+铭牌照样跟着鼠标跑，或者更糟：有人以后又把 `|| hoveredNode` 加回去。
+
+所以整条 hover → 铭牌 的链路一起删掉：
+
+| 文件 | 删了什么 |
+| --- | --- |
+| `utils/selectable-node.ts` | `visibleDevicePlates` 的 `hoveredNode` 参数 |
+| `engine/react/DeviceLabels.tsx` | `hoveredNode` / `onHover` prop 与铭牌自身的 mouseenter/leave |
+| `engine/react/EngineViewport.tsx` | `hoveredNode` prop 与传给 `DeviceLabels` 的两行 |
+| `features/scene-runtime/RuntimeShell.tsx` | `hoveredNode` state、传参与 `onHover` |
+| `features/scene-editor/EditorShell.tsx` | 同上 |
+
+`EngineViewport` 的 `onHover` **接口保留**（拾取能力还在），
+并在 `EngineBridge.onMove` 加了早退：
+
+```ts
+if (!hoverRef.current) return;   // 没人接就不 raycast
+```
+
+不早退的话，鼠标每动 120ms 就在 1942 节点的模型上跑一次拾取，结果没人用。
+将来要做悬停高亮，传 `onHover` 即自动恢复。
+
+### 42.3 验收
+
+```bash
+node scripts/verify-nameplate-select-only.mjs
+```
+
+实测输出（2026-11-25）：
+
+```
+✓ 悬停到模块机不显示铭牌 — 铭牌 0 张
+✓ 点击模块机出现且只有一张铭牌 — ["1"]
+✓ 悬停另一台机组时铭牌仍是已选中的那台
+✓ 点空白后铭牌清空
+```
+
+**headless 下的输入坑（已解决，记下来省事）**：
+`Input.dispatchMouseEvent` 在 SwiftShader 下有时不派发到 canvas。
+改用 `canvas.dispatchEvent(new PointerEvent(...))`，并且
+
+- `pointerdown` / `pointerup` **必须成对**且 `pointerId` 一致（`EngineBridge` 靠它判断同一个指头）；
+- 坐标要用 `worldToScreen` 的**画布内**像素 + `canvas.getBoundingClientRect()` 偏移，
+  漏了偏移就会点到旁边的卡片上，误得「点击没反应」的结论。

@@ -1325,7 +1325,25 @@ export function widgetHasResolvableValue(
      * <p>卡片体自己已经处理了空态（`暂无数据` / `未绑定`）。
      * 所以这里只管「该不该出现在画面上」，缺数交给卡说。
      */
-    return Boolean(breakdown.main?.bound || breakdown.left?.bound || breakdown.right?.bound);
+    if (breakdown.main?.bound || breakdown.left?.bound || breakdown.right?.bound) return true;
+    /*
+     * 范围聚合槽也算「有配置」（2026-11-24）。
+     *
+     * <p>`readSlotValue` 要求具体 `deviceId`，而聚合槽（`aggregate: sum`）
+     * 本来就没有 —— 它的值由 `MetricCardBody` 从 scope 设备集算出来。
+     * 只看 `breakdown` 就得到 `bound: false`，整张卡从大屏消失。
+     *
+     * <p>★ 这个缺陷一直存在，但被掩盖了：`system-power` 卡同时排了
+     * 两个带 `deviceId` 的侧槽位（绑在一台 PLC 网关上），靠它们把卡
+     * 撑住。2026-11-24 那两个槽位的键实测全是 `null` 被删掉，
+     * 卡片立刻消失 —— 才暴露判据漏了聚合槽。
+     *
+     * <p>判定条件与 `MetricCardBody` 保持一致：有 `aggregate` + scope 有设备。
+     * 两处不一致就会出现「卡显示了但永远暂无数据」或反过来的情况。
+     */
+    if (!widgetScopeIsBound(widget.scope)) return false;
+    const scoped = widgetScopeDeviceIds(widget, input.scopeDeviceIds);
+    return Boolean(scoped?.length) && (widget.slots ?? []).some((slot) => Boolean(slot.aggregate));
   }
   if (widget.type === "ratio-ring") {
     /*

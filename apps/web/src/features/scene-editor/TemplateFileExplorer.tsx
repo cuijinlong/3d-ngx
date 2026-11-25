@@ -1,4 +1,4 @@
-import { Button, Empty, Modal, Tag, Tooltip, message } from "antd";
+import { Button, Empty, Input, Modal, Tag, Tooltip, message } from "antd";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   getSceneTemplateApi,
@@ -98,6 +98,27 @@ export function TemplateFileExplorer({ open, template, onClose }: TemplateFileEx
   const [fileLoading, setFileLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
+  /*
+   * 新建文件（2026-11-24）。
+   *
+   * <p>为什么必须能新建：实测模板里常常只有一个只读的 `model.glb`
+   * （`styleFiles` 为空），文件管理器打开后**一个可编辑项都没有** ——
+   * 客户「编辑这个模版」的诉求无从落地。
+   */
+  /*
+   * ★ 「对话框是否打开」与「请求是否在进行」必须是**两个** state（2026-11-24 实测）。
+   *
+   * <p>第一版用同一个 `creating` 兼作两者，于是点「创建并编辑」时
+   * `createFile()` 第一行 `if (... || creating) return` 立刻命中 ——
+   * 对话框开着就意味着 creating 为 true，函数直接返回，
+   * **请求一个都没发出**。
+   *
+   * <p>表现为「点按钮完全没反应」：没有 loading、没有 toast、没有网络请求。
+   * 这种「什么都不发生」最难查，因为它不产生任何错误信号。
+   */
+  const [newDialogOpen, setNewDialogOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState("main.css");
 
   const gutterRef = useRef<HTMLDivElement | null>(null);
   const textRef = useRef<HTMLTextAreaElement | null>(null);
@@ -199,6 +220,60 @@ export function TemplateFileExplorer({ open, template, onClose }: TemplateFileEx
     }
   }, [template, file, draft, saving, dirty]);
 
+  /**
+   * 新建并立即打开一个文本文件。
+   *
+   * <p>默认填 `main.css`：模板最常见的可编辑文件就是样式。
+   * 允许改扩展名（白名单由后端校验），但**不在前端再维护一份白名单** ——
+   * 两份白名单迟早会分叉，然后出现「前端放行、后端 400」。
+   */
+  const createFile = useCallback(async () => {
+    /* 只防「重复提交」，不能把「对话框打开」也算进来 */
+    if (!template || creating) return;
+    const name = newName.trim();
+    if (!name) {
+      message.error("请填写文件名");
+      return;
+    }
+    /* 带空白/换行的文件名在列表里会撑破行高，也容易和别的文件混淆 */
+    if (/\s/.test(name)) {
+      message.error("文件名不能包含空白字符");
+      return;
+    }
+    setCreating(true);
+    try {
+      await getSceneTemplateApi().createFile(template.id, name, "");
+      await loadFiles();
+      /*
+       * 建完直接进编辑器。重新走 `openFile` 要多一次网络往返读空文件，
+       * 而内容此刻确定是空串 —— 直接置位即可。
+       */
+      setActiveName(name);
+      setFile({ name, ext: extensionOfName(name), size: 0, content: "" });
+      setDraft("");
+      setFileError(null);
+      setNewDialogOpen(false);
+      message.success(`已新建 ${name}`);
+    } catch (error) {
+      /* 失败时不关对话框 —— 用户改个名字就能重试，不用重新打开 */
+      const text = error instanceof Error ? error.message : "新建文件失败";
+      /*
+       * 405 / 404 说人话（2026-11-24 实测）。
+       *
+       * <p>服务端没更新时这里拿到的是 `Request method 'POST' is not supported`
+       * —— 用户看完不知道该怎么办。505/404 在**这个端点**上只有一种解释：
+       * 后端还是旧版本，没有「新建模板文件」这个能力。
+       */
+      message.error(
+        /405|404|not supported/i.test(text)
+          ? "服务端还不支持新建模板文件（后端需要更新到包含该接口的版本）。"
+          : text,
+      );
+    } finally {
+      setCreating(false);
+    }
+  }, [template, creating, newName, loadFiles]);
+
   /* Ctrl/Cmd + S 保存 */
   useEffect(() => {
     if (!open) return;
@@ -258,6 +333,17 @@ export function TemplateFileExplorer({ open, template, onClose }: TemplateFileEx
             </p>
           </div>
           <div className={styles.headActions}>
+            <Tooltip title="新建一个 css / js / json 等文本文件，创建后可直接编辑">
+              <Button
+                size="small"
+                type="primary"
+                disabled={!template}
+                onClick={() => setNewDialogOpen(true)}
+                data-testid="tpl-file-new"
+              >
+                新建文件
+              </Button>
+            </Tooltip>
             <Button size="small" onClick={() => void loadFiles()} loading={state.kind === "loading"}>
               刷新
             </Button>
@@ -275,8 +361,8 @@ export function TemplateFileExplorer({ open, template, onClose }: TemplateFileEx
               <div className={styles.sideHint}>读取中…</div>
             ) : files.length === 0 ? (
               <div className={styles.sideHint}>
-                这个模板还没有资源文件
-                <span className={styles.sideHintSub}>在模板库上传模型或套装后才会出现</span>
+                这个模板还没有任何文件
+                <span className={styles.sideHintSub}>可以点右上角「新建文件」建一个 css / json</span>
               </div>
             ) : (
               files.map((f) => (
@@ -379,8 +465,26 @@ export function TemplateFileExplorer({ open, template, onClose }: TemplateFileEx
                 </div>
 
                 <div className={styles.footNote}>
-                  保存即覆盖，无法撤销。改动只影响<b>之后</b>从该模板新建的场景；
-                  已有场景已经拷走了自己的副本，不会跟着变。
+                  {file.name === "style-pack.json" ? (
+                    /*
+                     * 套装文件与普通文件的行为不同，必须说清（2026-11-24）。
+                     *
+                     * <p>它是「模板和风格套装合并」的落点：`render` 里的
+                     * 流速/阀门颜色/过期淡出会**立即**影响所有用这个套装的场景，
+                     * 而不是像其它文件那样只影响「之后新建的场景」。
+                     * 说成同一句会让人以为改错了地方。
+                     */
+                    <>
+                      保存即覆盖，无法撤销。这是<b>风格套装定义</b>：`render` 里的
+                      管道流速、阀门颜色、数据过期淡出会立即对所有使用该套装的场景生效。
+                      同一套装被多个模板配置时，只有第一个模板的配置会被采用。
+                    </>
+                  ) : (
+                    <>
+                      保存即覆盖，无法撤销。改动只影响<b>之后</b>从该模板新建的场景；
+                      已有场景已经拷走了自己的副本，不会跟着变。
+                    </>
+                  )}
                 </div>
               </>
             ) : (
@@ -389,6 +493,40 @@ export function TemplateFileExplorer({ open, template, onClose }: TemplateFileEx
           </section>
         </div>
       </div>
+
+      {/*
+       * 新建文件对话框（2026-11-24）。
+       *
+       * <p>只收一个文件名：内容一律建成空文件再进编辑器 ——
+       * 一步做两件事（选名 + 写内容）会让「建错名字」的返工成本变高。
+       */}
+      <Modal
+        open={newDialogOpen}
+        title="新建模板文件"
+        okText="创建并编辑"
+        cancelText="取消"
+        confirmLoading={creating}
+        onOk={() => void createFile()}
+        onCancel={() => {
+          /* 请求进行中不允许随手关掉，否则用户会以为取消成功了 */
+          if (creating) return;
+          setNewDialogOpen(false);
+        }}
+        data-testid="tpl-file-new-dialog"
+      >
+        <p className={styles.newHint}>
+          支持 css / js / json / html / svg / txt / md 等文本格式。
+          模型（glb）与压缩包不能这样新建。
+        </p>
+        <Input
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          onPressEnter={() => void createFile()}
+          placeholder="main.css"
+          data-testid="tpl-file-new-name"
+          autoFocus
+        />
+      </Modal>
     </Modal>
   );
 }
@@ -419,4 +557,11 @@ function iconFor(ext: string): string {
     default:
       return "·";
   }
+}
+
+/** 取小写扩展名（无点）。与后端 `extensionOf` 同语义，仅用于本地置位。 */
+function extensionOfName(name: string): string {
+  const dot = name.lastIndexOf(".");
+  if (dot < 0 || dot === name.length - 1) return "";
+  return name.slice(dot + 1).toLowerCase();
 }

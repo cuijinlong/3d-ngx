@@ -138,6 +138,36 @@ describe("buildDevicePlates", () => {
     expect(plates[0]?.lines[0]?.text).toBe("26.2 ℃");
   });
 
+  it("文档「温度」优先匹配精确的同名映射，而不是前面排着的「进水温度」", () => {
+    /*
+     * 2026-11-24 实测：9 台模块机上报的是 `temperature`，
+     * 而绑定里 `water_in_temp`（进水温度）排在前面。
+     * 只按「能不能匹配上」找第一个的话，「温度」永远匹配到进水温度，
+     * 而该键一条数据都没有 —— 铭牌就永远「暂无数据」。
+     */
+    const latest = new Map<string, TelemetryRecord>([
+      [
+        "dev-1:temperature",
+        { deviceId: "dev-1", key: "temperature", value: 7.2, timestamp: 1, source: "guard" },
+      ],
+    ]);
+    const plates = buildDevicePlates({
+      devices: [device],
+      bindings: [
+        binding({
+          sceneEntityId: "1",
+          deviceId: "dev-1",
+          telemetryMappings: [
+            { field: "water_in_temp", telemetryKey: "water_in_temp", label: "进水温度", unit: "℃", displayType: "number" },
+            { field: "temperature", telemetryKey: "temperature", label: "温度", unit: "℃", displayType: "number" },
+          ],
+        }),
+      ],
+      latest,
+    });
+    expect(plates[0]?.lines[0]).toEqual({ label: "温度", text: "7.2 ℃", missing: false });
+  });
+
   it("没有测点和动作的三通不生成铭牌；泵只用已连接/未连接，不出启停", () => {
     const plates = buildDevicePlates({
       devices: [

@@ -45,12 +45,24 @@ export function resolveSelectableNode(
   return hits[0]?.node ?? null;
 }
 
+/**
+ * 该显示哪些铭牌。
+ *
+ * <h2>★ 只认选中，不认悬停（2026-11-25 客户要求）</h2>
+ *
+ * <p>客户原话：「鼠标指向模块机不要显示铭牌，当时当鼠标点击模块机才要显示铭牌」。
+ *
+ * <p>原先是 `plate.node === selectedNode || plate.node === hoveredNode`，
+ * 鼠标扫过整排机组时铭牌会一路跟着冒出来，既挡画面又看不出哪个是真正选中的。
+ *
+ * <p>悬停不再产生任何视觉反馈；`hoveredNode` 参数一起删掉，
+ * 避免以后有人以为「传进来就会显示」。
+ */
 export function visibleDevicePlates<T extends { node: string }>(
   plates: T[],
   selectedNode?: string | null,
-  hoveredNode?: string | null,
 ): T[] {
-  return plates.filter((plate) => plate.node === selectedNode || plate.node === hoveredNode);
+  return plates.filter((plate) => plate.node === selectedNode);
 }
 
 /** 抽屉是否展开：只由选中（或提手钉住）决定，指向不会升起抽屉。 */

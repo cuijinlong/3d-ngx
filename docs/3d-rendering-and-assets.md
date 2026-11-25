@@ -144,6 +144,8 @@ anim.anim?.baseLayer?.play?.(clip);
 
 **这解释了那个诡异的组合现象**：
 - 风扇能转 —— 靠 `setSpin` 手动旋转（代码级回退）
+  > ⚠️ 2026-11-24 修正：当时确实是靠手动旋转，但**绕的是 Z 轴**，
+  > 冷热机风扇的正确轴是 Y —— 于是出现了「只转一半」。详见 §2.6。
 - 指示灯能闪 —— 靠 `setIndicator`
 - **管道永远静止** —— 它只能靠动画片段，没有回退
 
@@ -212,9 +214,102 @@ V-101    V-101_close                 playing: false   ← 关阀未播 ✓
 1        1_blink_led                 playing: true    ← 指示灯闪 ✓
 ```
 
-挂载日志：`[engine] 已为 94 段 GLB 动画挂载播放器（68 个节点）`
+挂载日志（LCA 改动前）：`[engine] 已为 94 段 GLB 动画挂载播放器（68 个挂载点）`；
+LCA 改动后变成 **79 个挂载点** —— 多出来的那些是「同一台设备里兄弟节点的公共祖先」，
+正是因为以前挂在其中一个兄弟上，另一个才会不动。
 
-### 2.6 关于「管道流动该不该由风格套装管」
+> ⚠️ 上面这张表里「`1  Base(1_spin_fan)  playing: true ← 风扇转 ✓`」是**误判**。
+> layer 在播 ≠ 节点在动：手动的 `setSpin` 当时也在转同一个 `localRotation`，
+> 所以画面看起来「有风扇在转」。真相见下一节。
+
+### 2.6 「冷热机风扇只转一半」——两个风扇都在转，但绕错了轴（2026-11-24 实测）
+
+客户原话：「看看 3d 中的冷热机的转动风扇为什么只有一半」。
+
+**结论：不是「一个转一个不转」，是两个都在转，只是手动兜底绕错了轴。**
+
+#### 事实一：每台冷热机有两组风扇
+
+```
+1_spin_fan    → 1_fan-hub + 1_fan-blade.._6     位置 x=-0.533, y=0.9
+1_spin_fan_2  → 1_fan-hub_2 + 1_fan-blade_7.._12 位置 x=+0.317, y=0.9
+```
+
+一条 GLB 动画（`1_spin_fan`）同时驱动这两个节点 —— 所以在 PlayCanvas 里
+**必须挂在它们的最近公共祖先**上（实测是 `1_model`），挂在其中任何一个都会漏掉另一个。
+
+#### 事实二：正确的转轴是 Y
+
+叶片 mesh 包围盒：`1_fan-blade` 在 X/Z 展开 `0.23 × 0.2`，Y 方向只有 **9mm 厚**
+→ 叶片盘面在 XZ 平面，转轴（盘面法线）是 **Y**。
+GLB 动画关键帧也印证：0→0.625s 绕 Y 转满 360°。
+
+#### 事实三：绑定一直是通的，坏在手写旋转
+
+`tickAnimations` 里写死：
+
+```ts
+entity.rotateLocal(0, 0, dt * 180);   // 绕本地 Z ← 错
+```
+
+它和动画写的是**同一个 `localRotation`**：动画在正转，代码在旁边让风扇翻跟头，
+下半圈钻进机壳被挡住 —— 这就是「只看到一半」。
+
+浏览器实测（`scripts/verify-fan-spin.mjs`）：
+
+```
+binder.nodes            37 个（含 1_spin_fan、1_spin_fan_2）
+evaluatorTargets        2   ← 两个风扇都绑上了
+layer.playing           true
+```
+
+所以「绑不上节点」的怀疑可以排除。
+
+#### 修法（已落地）
+
+| 改动 | 文件 | 为什么 |
+| --- | --- | --- |
+| 从旋转关键帧**推断转轴**（`inferSpinAxis`） | `engine/animation/track-mount.ts` | 写死 Z 是错的；换模型（立式泵叶轮）也未必是 Y |
+| 挂载点取**目标节点的最近公共祖先** | 同上 + `EngineManager.attachModelAnimations` | 兄弟风扇必须同在一个子树里 |
+| **有动画的节点不再手动转** | `EngineManager.setSpin` | 两者抢同一个 `localRotation` |
+| 绑定漏配 clip 时由引擎补播，且停机时停回来 | 同上（`spinAutoPlayed`） | 「交给动画」不能变成「什么都不做」 |
+| 播放优先用挂载时存下的 layer 对象 | `EngineManager.playNamedAnimation` | 挂载点是公共祖先，再按设备根 `findLayer` 必然找不到 |
+
+验收：
+
+```bash
+node scripts/verify-fan-spin.mjs
+# ✓ 模型里发现风扇节点 — 18 个
+# ✓ 每个风扇都有关联的转动 clip — 18 个节点全部有 clip
+# ✓ 全部 18 个风扇都被动画驱动
+# ✓ 全部风扇绕 Y 轴
+```
+
+> **验收必须覆盖全部 9 台，不能只测 1 号（2026-11-25 补）**。
+>
+> 该 GLB 实际有 **18 个**风扇节点（9 台 × 2），而动画只有 **9 个 clip**
+> （`X_spin_fan`，没有 `X_spin_fan_2`）—— 每台的第二个风扇靠同一 clip 的
+> 两条 path 驱动。原脚本写死 `['1_spin_fan', '1_spin_fan_2']`，
+> 2~9 号的挂载或 clip 映射一旦坏掉，脚本照样全绿。
+> 客户说的「一半」正是「18 个里只有 9 个」这种形态。
+>
+> 现在脚本动态扫 `/^[0-9]+_spin_fan(_[0-9]+)?$/`，按 clip 分组逐组推进，
+> 逐个节点采样，`moved` 必须等于该 clip 的节点数（实测每组 2/2）。
+
+> **凌晨跑脚本会看到「18 个都不转」，那是正确行为。**
+> `applyBindingsToScene` 每个 update 都按遥测 play/pause（停机就 pause）。
+> 演示模拟器 6:00 前给模块机写 `running: 0`，于是页面上风扇静止。
+> 验收脚本因此**手动推进 clip layer**，只回答「动画能否驱动节点」，
+> 不依赖业务状态 —— 否则会把「设备停机」误判成「渲染坏了」。
+
+**两个坑值得记住**（都在验收脚本里留了注释）：
+
+1. `import('/src/engine/...')` 拿到的是**另一个模块实例**，`model` 永远 null。
+   引擎因此在 `DEV` 下把单例挂到 `globalThis.__idtEngine`（生产不挂）。
+2. headless 新标签页可能是 `hidden`，**rAF 完全停摆** → 画面一动不动。
+   必须先 `Page.bringToFront`，并断言 `document.visibilityState === 'visible'`。
+
+### 2.7 关于「管道流动该不该由风格套装管」
 
 客户提出「管道不流动和没纳入风格套装有关」。
 
@@ -305,6 +400,8 @@ curl -H "X-Authorization: Bearer $TOKEN" \
 | --- | --- | --- |
 | 3D 空白，但页面正常 | `/api` 没代理（preview / nginx） | 网络面板看 `topology-assets` 是否 404 |
 | 管道不动，风扇却转 | 动画播放器未创建 | `entity.anim === undefined` |
+| 风扇只转一半（下半圈钻进机壳） | 手动兜底旋转写死 Z 轴 | 帧间四元数差的轴不是 Y（`verify-fan-spin.mjs`） |
+| 兄弟节点中只有一个在动 | 播放器挂在其中一个兄弟上 | 挂载点是否是两个目标的公共祖先 |
 | 阀门 open/close 同时动 | 用了 `stop?.()`（方法不存在） | layer.playing 全为 true |
 | 卡片数字被裁一位 | 复用三列 grid，主值只占 1/3 宽 | `597.75` 显示成 `7.75` |
 | 同一屏数字自己跳 | 统计窗口未对齐周期边界 | 对齐到自然日/月后稳定 |
@@ -313,7 +410,7 @@ curl -H "X-Authorization: Bearer $TOKEN" \
 
 ---
 
-## 四、本轮改动清单
+## 四、本轮改动清单（2026-11-23）
 
 | 文件 | 改了什么 | 为什么 |
 | --- | --- | --- |
@@ -325,3 +422,18 @@ curl -H "X-Authorization: Bearer $TOKEN" \
 | `packages/data-adapter/src/scene-widget-layout.ts` | 加 `dataSource` / `energyMetric` 白名单解析 | 漏解析会被静默丢弃 |
 
 验证：`tsc -b` 0、`vitest run` 67 文件 / 594 测试通过、`pnpm build` 0。
+
+---
+
+## 五、本轮改动清单（2026-11-24 · 风扇转一半）
+
+| 文件 | 改了什么 | 为什么 |
+| --- | --- | --- |
+| `engine/animation/track-mount.ts` | 新增：`inferSpinAxis` / `trackTargetNames` / `nearestCommonAncestor` / `isSpinClip` | 转轴必须从关键帧推断，挂载点必须是目标公共祖先 |
+| `engine/core/EngineManager.ts` | `tickAnimations` 改用推断轴；`setSpin` 跳过动画节点；`playNamedAnimation` 优先用存下的 layer 对象；`DEV` 下暴露 `globalThis.__idtEngine` | 手动 Z 轴与动画抢写 `localRotation` |
+| `engine/animation/track-mount.test.ts` | 新增 11 条单测（含 GLB 真实关键帧复刻） | 轴推断与 LCA 都要能被回归 |
+| `scripts/verify-fan-spin.mjs` | 新增浏览器验收（帧间四元数差 → 轴向） | 「layer 在播」不能证明「节点在动」 |
+| `docs/3d-rendering-and-assets.md` | §2.6 + 静默失败清单 | 文档与代码不能断档 |
+
+验证：`tsc -b` 0、`vitest run` 96 文件 / 998 测试通过、
+`node scripts/verify-fan-spin.mjs` 全判据通过（两个风扇同绕 Y 轴）。

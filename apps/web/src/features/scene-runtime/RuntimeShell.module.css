@@ -181,3 +181,64 @@
 :global([data-ngx-hud]) .clockTime {
   color: var(--ngx-hud-text, #e8f4ff);
 }
+
+/*
+ * 天气 + 最新数据时间（2026-11-24 客户要求）。
+ *
+ * 与 `.clock` 同尺寸同色系，三段在右上角排成一行：
+ *   ☀ 晴 6℃   最新数据 19:03 · 3 分钟前   2026.11.24 19:26
+ * 字号比时钟更小一档 —— 它是上下文，不能比时间本身更抢眼。
+ */
+.statusGroup {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 14px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.weather {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+  letter-spacing: 0.3px;
+  color: var(--ngx-color-text);
+}
+
+/* 今日预报淡一档：它是辅助信息，当前天气才是主读数 */
+.forecast {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--ngx-color-muted);
+}
+
+.freshness {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  color: var(--ngx-color-muted);
+}
+
+/* 相对时间（「3 分钟前」）弱化：绝对时刻才是判据，相对值只是辅助阅读 */
+.freshness em {
+  font-style: normal;
+  opacity: 0.75;
+}
+
+:global([data-ngx-hud]) .weather {
+  color: var(--ngx-hud-text, #e8f4ff);
+  /* 与 HUD 其它顶栏文本一致：轻微幽光，不刺眼 */
+  text-shadow: 0 0 10px rgba(46, 199, 240, 0.28);
+}
+
+:global([data-ngx-hud]) .forecast {
+  color: var(--ngx-hud-muted, #7f9bb0);
+  text-shadow: none;
+}
+
+:global([data-ngx-hud]) .freshness {
+  color: var(--ngx-hud-muted, #7f9bb0);
+}

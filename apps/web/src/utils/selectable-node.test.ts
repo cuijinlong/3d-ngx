@@ -56,13 +56,26 @@ describe("resolveSelectableNode", () => {
 describe("visibleDevicePlates and drawer open", () => {
   const plates = [{ node: "module-9" }, { node: "pump-2" }, { node: "plc-1" }];
 
-  it("hides plates that are neither hovered nor selected", () => {
-    expect(visibleDevicePlates(plates, null, null)).toEqual([]);
-    expect(visibleDevicePlates(plates, "module-9", null).map((p) => p.node)).toEqual(["module-9"]);
-    expect(visibleDevicePlates(plates, null, "pump-2").map((p) => p.node)).toEqual(["pump-2"]);
-    expect(visibleDevicePlates(plates, "module-9", "pump-2").map((p) => p.node)).toEqual(["module-9", "pump-2"]);
+  it("★ 只显示选中的铭牌：没有选中就一个都不显示", () => {
+    expect(visibleDevicePlates(plates, null)).toEqual([]);
+    expect(visibleDevicePlates(plates, undefined)).toEqual([]);
+    expect(visibleDevicePlates(plates, "module-9").map((p) => p.node)).toEqual(["module-9"]);
+    expect(visibleDevicePlates(plates, "pump-2").map((p) => p.node)).toEqual(["pump-2"]);
   });
 
+  it("签收悬停不再显示铭牌：多传参数也不会生效（2026-11-25 客户要求）", () => {
+    /*
+     * 用 `as never` 模拟「旧代码/第三方仍按三参调用」——
+     * 第三参被忽略，铭牌只跟着选中走。
+     */
+    const call = visibleDevicePlates as (
+      plates: Array<{ node: string }>,
+      selected?: string | null,
+      hovered?: string | null,
+    ) => Array<{ node: string }>;
+    expect(call(plates, null, "pump-2")).toEqual([]);
+    expect(call(plates, "module-9", "pump-2").map((p) => p.node)).toEqual(["module-9"]);
+  });
   it("opens the drawer on selection or pin, never on hover alone", () => {
     expect(isControlDrawerOpen(null, false)).toBe(false);
     expect(isControlDrawerOpen("module-9", false)).toBe(true);

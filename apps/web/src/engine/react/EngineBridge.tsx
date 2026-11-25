@@ -121,6 +121,14 @@ export function EngineBridge(props: EngineBridgeProps) {
         down.dragging = true;
       }
       if (down.pointerId !== -1) return;
+      /*
+       * 没人接悬停就不拾取（2026-11-25）。
+       *
+       * <p>铭牌改为「只认选中」后，`onHover` 当前没有消费者。
+       * 不早退的话，鼠标每动 120ms 就在 1942 节点的模型上跑一次 raycast，
+       * 而结果没人用。将来要做悬停高亮时传 `onHover` 即自动恢复。
+       */
+      if (!hoverRef.current) return;
       const now = Date.now();
       if (now - lastHover < 120) return;
       lastHover = now;

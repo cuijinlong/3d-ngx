@@ -301,3 +301,76 @@
   border-color: var(--ngx-hud-accent);
   color: var(--ngx-hud-accent);
 }
+
+/*
+ * WebGL 不可用时的提示（2026-11-24）。
+ *
+ * <p>客户定调「提示一下就够了」，所以整块只有一个居中的窄卡片：
+ * 一句结论、一句怎么办、一行技术细节、一个重新检测按钮。
+ *
+ * <p>卡片自带深色底，**与主题解耦** —— 视口底色从浅灰 `#dce3ed`
+ * 到深黑 `#0e1218` 都有人用，跟着主题走就会出现某一种情况读不出来
+ * （第一版实测在深色 HUD 下几乎全不可读）。
+ *
+ * <p>`pointer-events` 要显式收回：视口默认是拖拽区，`.hint` 那套是 `none`，
+ * 复用会让按钮点不动且不报错，只表现为「点了没反应」。
+ */
+.gpuError {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  pointer-events: auto;
+}
+
+.gpuErrorCard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 420px;
+  padding: 20px 24px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  background: rgba(12, 16, 22, 0.94);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  color: #e8edf4;
+  font-size: 12.5px;
+  line-height: 1.7;
+}
+
+.gpuErrorTitle {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.gpuErrorText {
+  margin: 0;
+  color: #b7c2d0;
+}
+
+/* 技术细节：一行小字，平时不抢视线，报障时够运维定位 */
+.gpuErrorDetail {
+  margin: 2px 0 0;
+  color: #7b8798;
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  overflow-wrap: anywhere;
+}
+
+.gpuErrorRetry {
+  align-self: flex-start;
+  margin-top: 6px;
+  padding: 5px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.26);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.10);
+  color: #ffffff;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.gpuErrorRetry:hover {
+  background: rgba(255, 255, 255, 0.20);
+}

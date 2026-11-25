@@ -210,31 +210,41 @@
 .scope {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
   min-width: 0;
-  padding-left: 4px;
+  padding-left: 10px;
   border-left: 1px solid var(--ngx-color-border);
 }
 
-.scopeItem {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 4px;
+/*
+ * 作用域面包屑（2026-11-24）。
+ *
+ * 去掉「组织/场站/分组」三个标签字后，靠**层次色差**区分：
+ * 前两级 muted，「分组」是当前正在编辑的那一级，用正文色 + 稍重字重。
+ * 斜杠很淡（opacity .4）—— 它是分隔符，不是内容。
+ */
+.scopeCrumb {
   min-width: 0;
+  max-width: 150px;
   font-size: 12px;
-  color: var(--ngx-color-text);
+  color: var(--ngx-color-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 150px;
 }
 
-.scopeItem em {
-  font-style: normal;
-  font-size: 10.5px;
-  color: var(--ngx-color-muted);
-  /* 标签不参与缩略，只有名称可以省略 */
+.scopeCurrent {
+  color: var(--ngx-color-text);
+  font-weight: 600;
+}
+
+.scopeSep {
   flex: none;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--ngx-color-muted);
+  opacity: 0.4;
+  user-select: none;
 }
 
 /*

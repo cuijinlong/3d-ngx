@@ -1,5 +1,5 @@
 import type { DeviceBinding, ParsedHmiScene, TelemetryRecord } from "@idt/shared-types";
-import { FAULT_CODE_KEYS, SYS_RUN_STATE_KEY, bindingRunningState, formatMetricNumber, formatTelemetryText, mappingKeys, readLatest, type DevicePlate } from "./device-plates";
+import { FAULT_CODE_KEYS, SYS_RUN_STATE_KEY, bindingRunningState, formatMetricNumber, formatTelemetryText, isStatusMapping, mappingKeys, readLatest, type DevicePlate } from "./device-plates";
 import { uniqueEntitiesFromParsed } from "./hmi-entities";
 
 export type DrawerChip = {
@@ -196,8 +196,13 @@ function selectedDeviceKpis(args: {
   /*
    * ② 该设备自己的遥测。
    *
-   * <p>排除状态类键（已在第一格说过了），否则会重复显示
-   * 「运行状态 运行」和「状态 5」两行，而后者是原始寄存器值。
+   * <p>剔除两类：
+   *   · `sys_run_state` 与故障码键 —— 已在第一格说过了，否则会重复显示
+   *     「运行状态 运行」和「状态 5」两行，而后者是原始寄存器值；
+   *   · **运行状态类映射**（`running` / 「运行状态」等）—— 同理，
+   *     第一格已经是四态。「运行状态 故障」和「运行 停止」并排，
+   *     同一件事说两遍，还把有限的 4 格占满：实测功率因此被截掉
+   *     （2026-11-24 客户要求看功率，而它排在第 5 项）。
    */
   const skip = new Set([SYS_RUN_STATE_KEY, ...FAULT_CODE_KEYS]);
   const seen = new Set<string>();
@@ -206,6 +211,7 @@ function selectedDeviceKpis(args: {
     for (const mapping of binding.telemetryMappings) {
       const keys = mappingKeys(mapping);
       if (keys.some((k) => skip.has(k))) continue;
+      if (isStatusMapping(mapping)) continue;
       const label = mapping.label || mapping.field || mapping.telemetryKey || "";
       if (!label || seen.has(label)) continue;
       const row = readLatest(latest, binding.deviceId, keys);

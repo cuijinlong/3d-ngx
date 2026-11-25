@@ -186,7 +186,16 @@ export function useEnergyRollup(
 
       const now = new Date();
       const windows = rollupWindows(now);
-      const keys: RollupKey[] = ["today", "week", "month", "year"];
+      /*
+       * 只取今日与本月（2026-11-24 客户要求）。
+       *
+       * <p>客户原话：「左侧部件的只保留今日和本月，其他的本周和本年都去掉」。
+       * 四格在 18.6% 宽的卡里排成两行两列，字号被压得很小；
+       * 只留两格后一行排开，数字能回到正常字号。
+       *
+       * <p>请求数也从 4 降到 2 —— 这块卡所在的面打开时少两次往返。
+       */
+      const keys: RollupKey[] = ["today", "month"];
 
       /*
        * 并发四个请求。用 `Promise.all` + 每个自己 catch：

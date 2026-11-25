@@ -11,6 +11,13 @@ import {
 } from "playcanvas";
 import { DEFAULT_ENGINE_CONFIG } from "./EngineConfig";
 import { pickDoorNodeNames, pickGaugeNodeNames, pickIndicatorNodeNames, pickSpinNodeNames } from "../animation/visual-nodes";
+import {
+  inferSpinAxis,
+  isSpinClip,
+  nearestCommonAncestor,
+  trackTargetNames,
+  type AnimTrackLike,
+} from "../animation/track-mount";
 import { disposeSharedPicker } from "../interaction/PickingManager";
 
 export interface LoadedModel {
@@ -48,6 +55,32 @@ export const DEFAULT_RENDER_RULES: ResolvedRenderRules = {
   valve: { openColor: "#27ae60", closedColor: "#c0392b", tintClosed: false },
   device: { statusRing: false, staleFadeMs: 0 },
 };
+
+/**
+ * 推断不出转轴时手动兜底用哪根轴（2026-11-24）。
+ *
+ * <p>历史实现写死 Z，这里保留同一个值 —— 只是把「写死」改成「最后手段」。
+ * 真正的轴由 GLB 旋转关键帧推断（见 `inferSpinAxis`）：
+ * 冷热机风扇盘面在 XZ 平面、法线是 Y，绕 Z 会翻跟头、下半圈被机壳挡住，
+ * 那正是「风扇只转一半」的真实原因。
+ */
+export const FALLBACK_SPIN_AXIS: [number, number, number] = [0, 0, 1];
+
+/** `AnimComponentLayer` 在本项目用到的两个方法。 */
+interface LayerPlayback {
+  play?: (stateName?: string) => void;
+  pause?: () => void;
+}
+
+/** `attachModelAnimations` 要回写到引擎实例的状态。 */
+interface AnimAttachContext {
+  clipLayer: Map<string, string>;
+  clipLayerRef: Map<string, unknown>;
+  spinAnimated: Set<Entity>;
+  spinAxisByNode: Map<Entity, [number, number, number]>;
+  spinClipByNode: Map<Entity, string>;
+  flowSpeed: number;
+}
 
 export class EngineManager {
   static readonly instance = new EngineManager();
@@ -96,7 +129,35 @@ export class EngineManager {
   private pipeOpacity = new Map<object, number>();
   /** 每条管道当前已应用的流动状态（幂等判断用） */
   private pipeFlowState = new Map<string, boolean>();
-  private spinNodes = new Set<Entity>();
+  /**
+   * 需要代码级兜底旋转的节点 → 轴向与角速度（度/秒）。
+   *
+   * <h3>为什么从 Set 改成 Map（2026-11-24）</h3>
+   *
+   * <p>原来 `tickAnimations` 写死 `rotateLocal(0, 0, dt * 180)`（绕 **Z**）。
+   * 冷热机的风扇是水平轴流，叶片盘面在 XZ 平面、法线是 **Y** ——
+   * 绕 Z 转等于让风扇翻跟头，下半圈钻进机壳，看起来「只转了一半」。
+   * 轴向必须从 GLB 动画里推断，不能猜。
+   */
+  private spinNodes = new Map<Entity, { axis: [number, number, number]; speed: number }>();
+  /**
+   * 已被 GLB 自带动画驱动的节点。
+   *
+   * <p>这些节点**不能再手动转**：`setSpin` 的 `rotateLocal` 与动画通道写的是
+   * 同一个 `localRotation`，谁后写谁生效 —— 同时开会抖，或者动画白播。
+   */
+  private spinAnimated = new Set<Entity>();
+  /** 节点 → 从动画关键帧推断出的转轴（归一化）。没有记录时退回 Z 并留痕。 */
+  private spinAxisByNode = new Map<Entity, [number, number, number]>();
+  /**
+   * 节点 → 它自己的转动 clip。
+   *
+   * <p>绑定里可能漏配 `clip`，此时 `DeviceStateAnimator` 只会调 `setSpin`。
+   * 知道 clip 就能由引擎补播，而不是「交给动画」变成什么都不做。
+   */
+  private spinClipByNode = new Map<Entity, string>();
+  /** 由 `setSpin` 兜底补播的节点（停机时要负责停回来）。 */
+  private spinAutoPlayed = new Set<Entity>();
   private swingNodes = new Map<Entity, { kind: "gauge" | "door"; t: number; base: [number, number, number] }>();
   private tintState = new Map<string, string>();
   /**
@@ -301,11 +362,14 @@ export class EngineManager {
      *
      * <p>所以挂载动画时必须带上当前规则值，而不是假定之后会有人来改。
      */
-    attachModelAnimations(
-      app, asset, byName,
-      this.clipLayer, this.clipLayerRef,
-      this.renderRules.pipe.flowSpeed,
-    );
+    attachModelAnimations(app, asset, byName, {
+      clipLayer: this.clipLayer,
+      clipLayerRef: this.clipLayerRef,
+      spinAnimated: this.spinAnimated,
+      spinAxisByNode: this.spinAxisByNode,
+      spinClipByNode: this.spinClipByNode,
+      flowSpeed: this.renderRules.pipe.flowSpeed,
+    });
     enableMeshShadows(root);
     this.resizeToContainer();
     this.fitCameraToModel(root);
@@ -329,6 +393,10 @@ export class EngineManager {
     this.pipeOpacity.clear();
     this.pipeFlowState.clear();
     this.spinNodes.clear();
+    this.spinAnimated.clear();
+    this.spinAxisByNode.clear();
+    this.spinClipByNode.clear();
+    this.spinAutoPlayed.clear();
     this.swingNodes.clear();
     this.tintState.clear();
     /*
@@ -639,14 +707,63 @@ export class EngineManager {
     // 只转 spin_fan / 叶轮，不要把带 fan 字样的机柜或风圈转起来
     const named = collectSubtree(entity).filter((node) => node !== entity);
     const picked = new Set(pickSpinNodeNames(named.map((node) => node.name || "")));
-    const nodes = named.filter((node) => picked.has(node.name));
-    for (const node of nodes) {
-      if (playing) this.spinNodes.add(node);
-      else this.spinNodes.delete(node);
-    }
     if (!playing) {
-      for (const node of collectSubtree(entity)) this.spinNodes.delete(node);
+      for (const node of collectSubtree(entity)) {
+        this.spinNodes.delete(node);
+        /*
+         * 补播的动画也得停下 —— 否则「设备已停机、风扇还在转」。
+         * 只停我们自己的（`spinAutoPlayed`），不动业务驱动的 layer。
+         */
+        if (!this.spinAutoPlayed.delete(node)) continue;
+        const clip = this.spinClipByNode.get(node);
+        if (clip) this.pauseClip(clip);
+      }
+      return;
     }
+    for (const node of named) {
+      if (!picked.has(node.name)) continue;
+      /*
+       * 有 GLB 自带动画的节点交给动画，不要手动转。
+       * 两者写同一个 `localRotation`：手动转会把动画覆盖掉（或反过来抖）。
+       *
+       * <p>但绑定里可能漏配 clip，那时没人会调 `playNamedAnimation` ——
+       * 「交给动画」就变成什么都不做。所以这里按已知 clip 补播。
+       *
+       * <p>补播**不进 `animationState`**：那是业务状态的账本，
+       * 写进去会让「业务说停机」和「兜底说转」互相覆盖，事后看不出谁干的。
+       */
+      if (this.spinAnimated.has(node)) {
+        const clip = this.spinClipByNode.get(node);
+        if (clip && !this.isClipManaged(clip)) {
+          this.playClipDirect(clip);
+          this.spinAutoPlayed.add(node);
+        }
+        continue;
+      }
+      const axis = this.spinAxisByNode.get(node) ?? FALLBACK_SPIN_AXIS;
+      this.spinNodes.set(node, { axis, speed: 180 });
+    }
+  }
+
+  /** 直接对 layer 播放，绕过 `animationState`（供 `setSpin` 兜底用）。 */
+  private playClipDirect(clip: string): void {
+    const layer = this.clipLayerRef.get(clip) as LayerPlayback | undefined;
+    layer?.play?.(clip.split(".")[0]);
+  }
+
+  private pauseClip(clip: string): void {
+    const layer = this.clipLayerRef.get(clip) as LayerPlayback | undefined;
+    layer?.pause?.();
+  }
+
+  /** 这个 clip 是否已经由 `playNamedAnimation` 接管（不管调用方传的是哪个 ownerNode）。 */
+  private isClipManaged(clip: string): boolean {
+    if (this.animationState.has(clip)) return true;
+    const tail = `:${clip}`;
+    for (const key of this.animationState.keys()) {
+      if (key.endsWith(tail)) return true;
+    }
+    return false;
   }
 
   setIndicator(nodeName: string, on: boolean): void {
@@ -670,8 +787,17 @@ export class EngineManager {
   }
 
   tickAnimations(dt: number): void {
-    for (const entity of this.spinNodes) {
-      entity.rotateLocal(0, 0, dt * 180);
+    for (const [entity, motion] of this.spinNodes) {
+      /*
+       * 绕**推断出的轴**转，不再写死 Z（2026-11-24）。
+       * 参数是角度制，和 `setLocalEulerAngles` 一致。
+       */
+      const degrees = motion.speed * dt;
+      entity.rotateLocal(
+        motion.axis[0] * degrees,
+        motion.axis[1] * degrees,
+        motion.axis[2] * degrees,
+      );
     }
     for (const [entity, state] of this.swingNodes) {
       state.t += dt;
@@ -746,24 +872,33 @@ export class EngineManager {
      */
     const anim = entity as unknown as {
       anim?: {
-        findLayer?: (name: string) => { play?: (stateName?: string) => void; pause?: () => void } | null;
-        baseLayer?: { play?: (stateName?: string) => void; pause?: () => void };
+        findLayer?: (name: string) => LayerPlayback | null;
+        baseLayer?: LayerPlayback;
       };
       /* 旧版 AnimationComponent（某些导出会带），保留兜底 */
       animation?: { play?: (name: string) => void; stop?: () => void };
     };
     try {
       /*
-       * 精确查找 clip 所在的 layer（见 `clipLayer` 的说明）。
-       * 找不到映射时退回 baseLayer —— 兼容不经 `attachModelAnimations` 的模型。
+       * ★ 优先用挂载时存下的 **layer 对象**（2026-11-24）。
+       *
+       * <p>挂载点已改为 track 自己的场景根（`trackMountName`），
+       * 不再是 `stripClipSuffix` 算出来的设备根。再按 `ownerNode`（设备根）
+       * 去 `findLayer` 就必然找不到 —— layer 长在场景根那个组件上。
+       *
+       * <p>挂载时我们手里就有 layer 对象，直接存下来最可靠，也不需要猜命名。
        */
+      const stored = this.clipLayerRef.get(clip) as LayerPlayback | undefined;
+      /* state 名 = clip 的 `.` 前部分（与 `AnimController.assignAnimation` 一致） */
+      const stateName = clip.split(".")[0];
       const layerName = this.clipLayer.get(clip) ?? null;
       const layer = (layerName ? anim.anim?.findLayer?.(layerName) : null)
         ?? anim.anim?.findLayer?.(clip)
         ?? null;
       if (play) {
-        if (layer?.play) layer.play(clip);
-        else anim.anim?.baseLayer?.play?.(clip);
+        if (stored?.play) stored.play(stateName);
+        else if (layer?.play) layer.play(stateName);
+        else anim.anim?.baseLayer?.play?.(stateName);
         anim.animation?.play?.(clip);
       } else {
         /*
@@ -772,7 +907,8 @@ export class EngineManager {
          * 结果所有 layer 一直 playing（阀门 open 与 close 同时播）。
          * 旧版 AnimationComponent 那条路径保留 stop（它确实有）。
          */
-        if (layer?.pause) layer.pause();
+        if (stored?.pause) stored.pause();
+        else if (layer?.pause) layer.pause();
         else anim.anim?.baseLayer?.pause?.();
         anim.animation?.stop?.();
       }
@@ -876,6 +1012,22 @@ export class EngineManager {
       visible: inFront && screen.x >= -48 && screen.x <= w + 48 && screen.y >= -48 && screen.y <= h + 48,
     };
   }
+}
+
+/*
+ * 开发态把引擎单例挂到 `globalThis`（2026-11-24）。
+ *
+ * <h3>为什么需要</h3>
+ *
+ * <p>验收脚本（`scripts/verify-fan-spin.mjs`）要在页面里读**正在跑的那个**引擎状态。
+ * 通过 `import('/src/engine/...')` 拿到的是**另一个模块实例** ——
+ * Vite 的模块 URL 带时间戳，同一份源码会被实例化两次，
+ * `model` 永远是 null。实测踩过。
+ *
+ * <p>生产构建里 `DEV` 为 false，不挂 —— 不给线上留调试口。
+ */
+if (import.meta.env?.DEV && typeof globalThis !== "undefined") {
+  (globalThis as Record<string, unknown>).__idtEngine = EngineManager.instance;
 }
 
 function readStatCount(value: number | { total?: number } | undefined): number {
@@ -1102,7 +1254,27 @@ export function stripClipSuffix(clip: string): string | null {
 }
 
 /**
- * 给每个动画的**目标节点**建播放器，并把该动画注册成独立 layer。
+ * 给每段动画建播放器，并把它注册成独立 layer。
+ *
+ * <h3>★ 挂载点必须是「所有目标节点的公共祖先」（2026-11-24 实测修正）</h3>
+ *
+ * <p>试过两条错的路，记下来免得重踩：
+ *
+ * <ul>
+ *   <li><b>按 `entityPath[0]` 找场景根</b> —— GLB 里首段是「天骄科技园」，
+ *       但 PlayCanvas 实例化时丢掉了那层包装，实测 `byName.has("天骄科技园") === false`，
+ *       这条查找永远失败（失败后总是回退，所以此前从未被发现）。</li>
+ *   <li><b>按 `stripClipSuffix` 找单个目标节点</b> —— `1_spin_fan` 和 `1_spin_fan_2`
+ *       是兄弟，挂在其中一个上，另一个就不在子树里，`findNode` 返回 `undefined`，
+ *       那半边永远不动。</li>
+ * </ul>
+ *
+ * <p>正确做法：取所有目标节点的**最近公共祖先**。PlayCanvas 的
+ * `findNode` 路径匹配失败后会用 `nodes[<末段名>]` 兜底，而 `nodes` 是
+ * 从挂载点子树摊平的 —— 只要目标都在子树里就行。
+ *
+ * <p>实测（挂到 `1` 上）：`binderNodes: 37`、`hasFanNode: true`、`evaluatorTargets: 2`
+ * —— 两个风扇都绑上了。所以问题从来不是「绑不上」，而是下面的手动旋转抢写。
  *
  * <h3>为什么每段动画一个 layer</h3>
  *
@@ -1111,22 +1283,15 @@ export function stripClipSuffix(clip: string): string | null {
  * 塞进同一个 base layer 会互相顶掉 —— 只剩最后播的那条。
  *
  * <p>所以用 `assignAnimation(clip, track, clip)`：state 名与 layer 名都取 clip 名，
- * 一段动画一条 layer，互不干扰。`playNamedAnimation` 通过 `findLayer(clip)` 精确找到它。
- *
- * <h3>为什么不挂在根节点上统一播</h3>
- *
- * <p>实测 `AnimTrack` 上**没有 `_targets`**（那是绑定阶段才生成的），
- * 无法在挂载时确认 track 的相对路径基准。逐个挂到目标节点，
- * 由 PlayCanvas 用该节点做绑定基准，路径必然正确。
+ * 一段动画一条 layer，互不干扰。`playNamedAnimation` 直接用挂载时存下的 layer 对象。
  */
 function attachModelAnimations(
   app: Application,
   asset: Asset,
   byName: Map<string, Entity>,
-  clipLayer: Map<string, string>,
-  clipLayerRef: Map<string, unknown>,
-  flowSpeed: number,
+  ctx: AnimAttachContext,
 ): void {
+  const { clipLayer, clipLayerRef, spinAnimated, spinAxisByNode, spinClipByNode, flowSpeed } = ctx;
   /*
    * PlayCanvas 把 glTF 动画拆成独立 asset，命名 `<containerName>/animation/<i>`。
    * 不依赖 `asset.resource.animations` —— 实测它是 null（2.x 已改结构）。
@@ -1139,21 +1304,62 @@ function attachModelAnimations(
   if (!tracks.length) return;
 
   /*
-   * 按目标节点分组：同一节点上的多条动画（`1_spin_fan` + `1_blink_led`）
-   * 要共享一个 AnimComponent，但各占一条 layer。
+   * 按**挂载点**分组（目标节点的公共祖先）。同一实体上的多条动画共享一个
+   * AnimComponent，各占一条 layer。
    */
-  const byEntity = new Map<Entity, Array<{ clip: string; track: unknown }>>();
+  const byEntity = new Map<Entity, Array<{ clip: string; track: AnimTrackLike }>>();
+  const missing: string[] = [];
+  let spinClips = 0;
+  const spinAxisVotes = new Map<string, number>();
   for (const trackAsset of tracks) {
-    const track = trackAsset.resource as { _name?: string };
-    const clip = track?._name;
+    const track = trackAsset.resource as AnimTrackLike;
+    const clip = track?.name ?? track?._name;
     if (!clip) continue;
-    const nodeName = stripClipSuffix(clip);
-    if (!nodeName) continue;
-    const entity = byName.get(nodeName);
-    if (!entity) continue;
+    /*
+     * 挂载点 = 所有目标节点的最近公共祖先（详见图上方的说明）。
+     * 目标一个都找不到时才回退到按 clip 名剥后缀的那个设备节点。
+     */
+    const targetEntities = trackTargetNames(track)
+      .map((name) => byName.get(name))
+      .filter((item): item is Entity => Boolean(item));
+    const entity =
+      nearestCommonAncestor(targetEntities) ?? byName.get(stripClipSuffix(clip) ?? "");
+    if (!entity) {
+      missing.push(clip);
+      continue;
+    }
     const list = byEntity.get(entity) ?? [];
-    list.push({ clip, track: trackAsset.resource });
+    list.push({ clip, track });
     byEntity.set(entity, list);
+
+    /*
+     * 转动类动画额外记两件事：
+     *  1. 目标节点由 GLB 驱动 → `setSpin` 不得再手动转；
+     *  2. 从关键帧推断转轴 → 无动画时的代码级兜底才有正确方向。
+     */
+    if (!isSpinClip(clip)) continue;
+    spinClips += 1;
+    const axis = inferSpinAxis(track);
+    if (axis) {
+      const key = axis.map((item) => item.toFixed(2)).join(",");
+      spinAxisVotes.set(key, (spinAxisVotes.get(key) ?? 0) + 1);
+    }
+    for (const name of trackTargetNames(track)) {
+      const target = byName.get(name);
+      if (!target) continue;
+      spinAnimated.add(target);
+      spinClipByNode.set(target, clip);
+      if (axis) spinAxisByNode.set(target, axis);
+    }
+  }
+  if (missing.length) {
+    /*
+     * 不要静默：挂载点找不到就意味着这段动画永远不会动。
+     * 只打一条汇总，避免 94 条 track 刷满控制台。
+     */
+    console.warn(
+      `[engine] ${missing.length} 段动画找不到挂载节点，已跳过：${missing.slice(0, 5).join("、")}${missing.length > 5 ? "…" : ""}`,
+    );
   }
 
   let attached = 0;
@@ -1167,8 +1373,8 @@ function attachModelAnimations(
       const anim = entity.anim as unknown as {
         assignAnimation: (nodePath: string, track: unknown, layerName?: string, speed?: number, loop?: boolean) => void;
         addLayer: (name: string, weight?: number) => unknown;
-        findLayer?: (name: string) => { play?: (stateName?: string) => void; pause?: () => void } | null;
-        baseLayer?: { play?: (stateName?: string) => void; pause?: () => void };
+        findLayer?: (name: string) => LayerPlayback | null;
+        baseLayer?: LayerPlayback;
       };
 
       /*
@@ -1217,7 +1423,12 @@ function attachModelAnimations(
     }
   }
   if (attached) {
-    console.info(`[engine] 已为 ${attached} 段 GLB 动画挂载播放器（${byEntity.size} 个节点）`);
+    const axisNote = spinClips
+      ? `，其中 ${spinClips} 段转动动画（轴 ${[...spinAxisVotes.keys()].join(" / ") || "未能推断"}）`
+      : "";
+    console.info(
+      `[engine] 已为 ${attached} 段 GLB 动画挂载播放器（${byEntity.size} 个挂载点${axisNote}）`,
+    );
 
     /*
      * ★ 显式设速度，不依赖 `assignAnimation` 的 speed 参数（2026-11-23）。

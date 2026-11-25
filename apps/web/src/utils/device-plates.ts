@@ -152,10 +152,22 @@ export function mappingKeys(mapping: DeviceBinding["telemetryMappings"][number])
   return [mapping.telemetryKey, mapping.field].filter((k): k is string => Boolean(k));
 }
 
-function isRunningMapping(mapping: DeviceBinding["telemetryMappings"][number]): boolean {
+/**
+ * 映射是不是「运行状态类」。导出是因为抽屉也要用它。
+ *
+ * <p>抽屉的 KPI 格里有专门一格「运行状态」（复用铭牌四态）。
+ * 若不把 `running` 这类映射剔掉，它会在第二格再显示一次「运行 停止」——
+ * 同一件事说两遍，还把有限的 4 格挤满（实测功率因此被截掉，
+ * 而功率是客户明确要求要看的数据）。
+ *
+ * <p>`启停` 不算：那是命令映射，不是状态读数。
+ */
+export function isStatusMapping(mapping: DeviceBinding["telemetryMappings"][number]): boolean {
   const text = `${mapping.label} ${mapping.field} ${mapping.telemetryKey}`.toLowerCase();
   return /状态|running|runstate/.test(text) && !/启停/.test(text);
 }
+
+const isRunningMapping = isStatusMapping;
 
 /**
  * 热泵机组的运行状态键（手册 §17 MODBUS 30001 / 30003+100×address）。
@@ -354,26 +366,54 @@ function docMetricNames(device: HmiDevice): string[] {
 }
 
 /**
- * 文档指标名 ↔ 绑定映射（label / field / telemetryKey）。
+ * 文档指标名 ↔ 绑定映射（label / field / telemetryKey）的匹配强度。
  *
- * <p>文档写「温度」，绑定写「进水温度」—— 必须允许互相包含，
- * 否则一条都匹配不上，铭牌反而变空。包含匹配要求候选至少 2 个字符，
- * 免得「水」「in」这类片段把不相干的映射全捞进来。
+ * <p>两级，**精确优先**（2026-11-24 实测发现必须分级）：
+ *
+ * <ul>
+ *   <li>2 = 精确：`label`/`field`/`telemetryKey` 与文档指标名完全相同；</li>
+ *   <li>1 = 包含：互相包含，候选至少 2 个字符（免得「水」「in」把全部映射含进来）。</li>
+ * </ul>
+ *
+ * <p>为什么要分级：文档写「温度」，绑定里同时有「进水温度」（`water_in_temp`）
+ * 和「温度」（`temperature`）。只看「能不能匹配上」的话，排在前面的
+ * 进水温度（`温度` 是 `进水温度` 的子串）会先把这一行占掉 ——
+ * 而实测 1#~9# 上的键是 `temperature`，`water_in_temp` 一条都没上报，
+ * 于是铭牌永远「暂无数据」。文档说的是「温度」，不是「进水温度」，
+ * 精确匹配才是它真正的含义。
+ *
+ * <p>包含匹配仍然保留：文档写「温度」而绑定只有「进水温度」时，
+ * 退一步显示进水温度总比空白好。
  */
-function mappingMatchesMetric(
+function metricMatchScore(
   mapping: DeviceBinding["telemetryMappings"][number],
   name: string,
-): boolean {
+): 0 | 1 | 2 {
   const norm = (value?: string) => (value ?? "").replace(/\s+/g, "").toLowerCase();
   const target = norm(name);
-  if (!target) return false;
+  if (!target) return 0;
+  let partial = 0;
   for (const candidate of [mapping.label, mapping.field, mapping.telemetryKey]) {
     const value = norm(candidate);
     if (!value) continue;
-    if (value === target) return true;
-    if (value.length >= 2 && (value.includes(target) || target.includes(value))) return true;
+    if (value === target) return 2;
+    if (value.length >= 2 && (value.includes(target) || target.includes(value))) partial = 1;
   }
-  return false;
+  return partial as 0 | 1;
+}
+
+/** 在映射列表里按「精确 > 包含」挑一条最匹配的。没有就返回 undefined。 */
+function bestMappingFor(
+  mappings: DeviceBinding["telemetryMappings"],
+  name: string,
+): DeviceBinding["telemetryMappings"][number] | undefined {
+  let fallback: DeviceBinding["telemetryMappings"][number] | undefined;
+  for (const mapping of mappings) {
+    const score = metricMatchScore(mapping, name);
+    if (score === 2) return mapping;
+    if (score === 1 && !fallback) fallback = mapping;
+  }
+  return fallback;
 }
 
 export function buildDevicePlates(args: {
@@ -448,7 +488,7 @@ export function buildDevicePlates(args: {
        */
       const mappings = preferredMappings(nodeBindings);
       for (const name of docMetricNames(device).slice(0, MAX_LINES)) {
-        const mapping = mappings.find((item) => mappingMatchesMetric(item, name));
+        const mapping = bestMappingFor(mappings, name);
         const binding = mapping
           ? nodeBindings.find((b) => b.telemetryMappings.includes(mapping)) ?? nodeBindings[0]
           : undefined;

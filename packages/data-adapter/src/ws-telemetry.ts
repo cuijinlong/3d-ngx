@@ -178,10 +178,32 @@ export function extractRows(
  * 不做增量重订阅 —— 设备集变化不频繁，而重订阅的边界情况（旧 cmdId、
  * 重复数据）很容易出错，收益不值。
  */
+/**
+ * 重连退避：指数增长、封顶 30 秒（2026-11-24）。
+ *
+ * <p>为什么要重连：原来 `close` 事件只报一次状态就完了，连接断了永久停在那里，
+ * 只靠 provider 的 20 秒轮询兜底 —— 大屏开一整天，WS 断一次就永久降级成
+ * 高频轮询，用户看不出来，成本一直在。
+ *
+ * <p>为什么封顶 30 秒：轮询兜底在 WS 断开时是 3 秒一轮，重连间隔再长也没意义；
+ * 而无限指数增长会让「网络恢复后」还要等几分钟才连回去。
+ *
+ * <p>为什么从 1 秒起：平台重启、网络抖动是最常见的原因，快速重试一次
+ * 往往就恢复了；真断网时 1→2→4→8→16→30 也很快退到低频。
+ */
+export function nextReconnectDelay(attempt: number): number {
+  const safe = Math.max(0, Math.floor(attempt));
+  return Math.min(30_000, 1_000 * 2 ** safe);
+}
+
 export class WsTelemetryChannel {
   private socket: WebSocket | null = null;
   private closed = false;
   private readonly options: WsTelemetryOptions;
+  /** 重连要重新订阅，所以设备清单必须留着（`open` 时传进来）。 */
+  private devices: WsDeviceSubscription[] = [];
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private attempt = 0;
 
   constructor(options: WsTelemetryOptions) {
     this.options = options;
@@ -190,7 +212,14 @@ export class WsTelemetryChannel {
   /** 建立连接并订阅。返回是否成功发起（不代表推送已验证）。 */
   open(devices: WsDeviceSubscription[]): void {
     if (this.closed) return;
-    const { cmds } = buildSubscriptionMessage(devices);
+    this.devices = devices;
+    this.attempt = 0;
+    this.connect();
+  }
+
+  private connect(): void {
+    if (this.closed) return;
+    const { cmds } = buildSubscriptionMessage(this.devices);
     if (!cmds.length) return;
 
     this.options.onStatus?.("connecting");
@@ -200,12 +229,22 @@ export class WsTelemetryChannel {
     } catch (error) {
       this.options.log?.(`WS 构造失败: ${String(error)}`);
       this.options.onStatus?.("closed");
+      /*
+       * 构造失败也要重连：常见原因是 baseUrl 写错或令牌里有非法字符，
+       * 改完配置后不该要求用户手动刷新页面。
+       */
+      this.scheduleReconnect();
       return;
     }
     this.socket = socket;
 
     socket.addEventListener("open", () => {
       if (this.closed) { try { socket.close(); } catch { /* 忽略 */ } return; }
+      /*
+       * 连上了才重置退避 —— 构造成功不等于连上。
+       * 过早重置会让「网络完全不通」时退避永远停在 1 秒，变成 1 秒一次的重试风暴。
+       */
+      this.attempt = 0;
       this.options.onStatus?.("open");
       try {
         socket.send(JSON.stringify({ cmds }));
@@ -240,12 +279,33 @@ export class WsTelemetryChannel {
     });
 
     socket.addEventListener("close", () => {
+      /*
+       * 主动 close() 时 `closed` 已置 true，不能再排重连 ——
+       * 否则组件卸载后还会留一个定时器把连接又拉起来（泄漏 + 幽灵数据）。
+       */
+      if (this.closed) return;
       this.options.onStatus?.("closed");
+      this.scheduleReconnect();
     });
+  }
+
+  private scheduleReconnect(): void {
+    if (this.closed || this.reconnectTimer) return;
+    const delay = nextReconnectDelay(this.attempt);
+    this.attempt += 1;
+    this.options.log?.(`WS ${delay}ms 后重连（第 ${this.attempt} 次）`);
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      this.connect();
+    }, delay);
   }
 
   close(): void {
     this.closed = true;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
     const socket = this.socket;
     this.socket = null;
     if (!socket) return;

@@ -10,20 +10,17 @@ export type DeviceLabelItem = DevicePlate;
 export function DeviceLabels({
   items,
   selectedNode,
-  hoveredNode,
   onSelect,
-  onHover,
 }: {
   items: DeviceLabelItem[];
   selectedNode?: string | null;
-  hoveredNode?: string | null;
   onSelect?: (node: string) => void;
-  onHover?: (node: string | null) => void;
 }) {
-  const visible = useMemo(
-    () => visibleDevicePlates(items, selectedNode, hoveredNode),
-    [items, selectedNode, hoveredNode],
-  );
+  /*
+   * 只按**选中**过滤（2026-11-25 客户要求）：
+   * 鼠标悬停不显示铭牌，点击后才显示。
+   */
+  const visible = useMemo(() => visibleDevicePlates(items, selectedNode), [items, selectedNode]);
   const [placed, setPlaced] = useState<Array<DeviceLabelItem & { x: number; y: number }>>([]);
 
   useEffect(() => {
@@ -72,8 +69,6 @@ export function DeviceLabels({
               className={`${styles.tag} ${item.kind === "badge" ? styles.tagBadge : ""} ${item.bound ? styles.tagBound : styles.tagMuted} ${selectedNode === item.node ? styles.tagSelected : ""}`}
               style={{ transform: `translate(${item.x}px, ${item.y}px) translate(-50%, calc(-100% - 8px))` }}
               onClick={() => onSelect?.(item.node)}
-              onMouseEnter={() => onHover?.(item.node)}
-              onMouseLeave={() => onHover?.(null)}
             >
               <div className={styles.tagTitle}>
                 <span>{item.title}</span>

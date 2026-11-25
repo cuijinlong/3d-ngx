@@ -92,36 +92,49 @@ export interface AiPlan {
   proposal: LayoutProposal;
   /** 是否还有「需要人看一眼」的改动 —— 有就必须等确认 */
   needsConfirm: boolean;
+  /**
+   * 这份提案是在**空场景**上算的（2026-11-24）。
+   *
+   * <p>界面要把这件事说出来：用户看到「+ 新增卡片 × 7」时
+   * 得知道那是「从零搭」而不是「在已有大屏上加了 7 块」。
+   * 两者确认时的心理预期完全不同。
+   */
+  fromEmpty?: boolean;
+}
+
+/** 空布局的基准值。写在这里而不是共用常量：避免调用方拿到后被误改。 */
+function emptyLayout(): SceneWidgetLayout {
+  return { schemaVersion: "1.0.0", widgets: [] };
 }
 
 /**
  * 把操作变成一份待确认的计划。
  *
- * <p>`layout` 为 null（场景还没布局）时返回一条明确的拒绝，
- * 而不是拿空布局去算 —— 空布局下 `update-widget` 只会报
- * 「找不到卡片」，那个报错会让人以为是 AI 写错了 id。
+ * <h3>空场景可搭（2026-11-24 改）</h3>
+ *
+ * <p>原来 `layout` 为空时**整份拒绝**，提示「先点场景设置应用一份底稿」。
+ * 而客户要的正是「让 AI 按模板开发大屏」—— 新建场景天然是空的，
+ * 那道门等于把最常见的起点封死了：「AI 帮我搭一个大屏」
+ * 得到的回覆是「你先自己建一个」。
+ *
+ * <p>现在以空布局为基准继续算：`add-widget` 能正常落地
+ * （`parseSceneWidget` 对缺失坐标有自动错开的默认值）；
+ * `update-widget` / `remove-widget` / `bind-telemetry` 会报
+ * 「找不到卡片」—— 那个报错在空场景里是**准确的**，不该掩盖。
  */
 export function planAiActions(
   layout: SceneWidgetLayout | null | undefined,
   operations: LayoutOperation[],
   extension?: AiExtension | null,
 ): AiPlan {
-  if (!layout) {
-    return {
-      proposal: {
-        ok: false,
-        issues: [{ code: "empty-operation", message: "当前场景还没有布局，无法应用 AI 改动。先点「场景设置 → 应用综合态势」建一份底稿。" }],
-        diff: [],
-      },
-      needsConfirm: true,
-    };
-  }
-  const proposal = examineLayoutProposal(layout, operations, extension ?? DEFAULT_AI_EXTENSION);
+  const fromEmpty = !layout || !Array.isArray(layout.widgets) || layout.widgets.length === 0;
+  const base = layout && Array.isArray(layout.widgets) ? layout : emptyLayout();
+  const proposal = examineLayoutProposal(base, operations, extension ?? DEFAULT_AI_EXTENSION);
   /*
    * 只要有改动就要求确认。
    *
    * <p>不因为「改动小」就自动应用：AI 理解偏差是常态，
    * 而大屏改动会立刻被现场看到。宁可多一次点击。
    */
-  return { proposal, needsConfirm: proposal.ok && proposal.diff.length > 0 };
+  return { proposal, needsConfirm: proposal.ok && proposal.diff.length > 0, ...(fromEmpty ? { fromEmpty } : {}) };
 }

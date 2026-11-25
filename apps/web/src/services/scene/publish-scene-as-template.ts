@@ -1,4 +1,5 @@
 import type { SceneDocument } from "@idt/shared-types";
+import { buildRequirementsSkeleton } from "../../features/scene-editor/requirements-skeleton";
 import {
   getConnectedGuardClient,
   getSceneTemplateApi,
@@ -120,11 +121,77 @@ export async function publishSceneAsTemplate(
     }
   }
 
+  /*
+   * 把风格套装落成模板里的**真实文件**（2026-11-24）。
+   *
+   * <h3>为什么必须这么做</h3>
+   *
+   * <p>客户提出：「风格套装看看有没有相关的文件方式…要不怎么实现 AI 编程」。
+   *
+   * <p>此前模板里只有 `model.glb`（只读），套装定义是 Java 硬编码 ——
+   * 文件管理器打开后没有任何可编辑文件，AI 也无从下手。
+   * 现在写成 `style-pack.json`：人能改、AI 能改，保存后
+   * 后端同步进 `additionalInfo.stylePackConfig`，
+   * `GET /energy/topology-style-packs` 会用模板里的配置覆盖官方默认。
+   *
+   * <p>失败**不阻断发布**：模板已经建好了，少一个配置文件比整体失败好。
+   * 但要留下来源说明 —— 静默失败会让人以为「模板本来就只有模型」。
+   */
+  let styleNote = "";
+  if (stylePack) {
+    try {
+      const catalog = await getTopologyApi().stylePacks();
+      const packId = stylePack.split("@")[0]?.trim();
+      const pack = (catalog?.packs ?? []).find((item) => item?.packId === packId);
+      if (!pack) {
+        styleNote = `官方套装清单里找不到 ${stylePack}，模板未附 style-pack.json。`;
+      } else {
+        /* 只保留定义字段：source / templateId 是后端合并时补的运行时信息 */
+        const config = {
+          packId: pack.packId,
+          packVersion: pack.packVersion ?? "1.0.0",
+          stylePack: pack.stylePack ?? stylePack,
+          label: pack.label ?? pack.packId,
+          description: pack.description ?? "",
+          suitability: pack.suitability ?? "",
+          defaultBaseType: pack.defaultBaseType ?? "auto",
+          requireWeatherSite: Boolean(pack.requireWeatherSite),
+          render: pack.render ?? {},
+        };
+        await api.createFile(template.id, "style-pack.json", JSON.stringify(config, null, 2));
+      }
+    } catch (error) {
+      styleNote = `style-pack.json 写入失败（${error instanceof Error ? error.message : "网络异常"}）。`;
+    }
+  }
+
+  /*
+   * 附一份「现场资料与需求」骨架（2026-11-24）。
+   *
+   * <p>客户原话：「每个模板最起码要让用户提供真实的资料信息，这样 AI 才会
+   * 知道怎么开发，所以模板是 AI 和用户针对性沟通需求的桥梁」。
+   *
+   * <p>骨架是一份**结构化访谈提纲**（场站 / 设备清单 / 上报指标 / 统计口径 /
+   * 告警定义 / 布局视觉 / 禁忌 / 术语），不是泛泛几行 ——
+   * 空模板配一份含糊的说明，AI 只能说正确的废话。
+   *
+   * <p>不覆盖已有内容（`createFile` 重名即拒）。失败只记 note：
+   * 模板已经建好，少一份骨架不影响可用性。
+   */
+  let requirementsNote = "";
+  try {
+    await api.createFile(template.id, "requirements.md", buildRequirementsSkeleton(template.name));
+  } catch (error) {
+    requirementsNote = `requirements.md 写入失败（${error instanceof Error ? error.message : "网络异常"}）。`;
+  }
+
   return {
     template,
     modelUploaded,
     note:
       `已创建模板档案${modelNote ? `；${modelNote}` : ""}`
+      + (styleNote ? `；${styleNote}` : "")
+      + (requirementsNote ? `；${requirementsNote}` : "")
       + "布局与设备绑定属于实例层，不会进模板。",
   };
 }

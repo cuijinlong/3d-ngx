@@ -62,11 +62,11 @@ const EMPTY: FaultCodeDictionary = {
  * 不缓存就是每次渲染都发一个 HTTP 请求。用 Promise 缓存而不是结果缓存：
  * 并发调用（多个卡片同时挂载）共享同一个 in-flight 请求，不会打出多个。
  */
-let cache: Promise<FaultCodeDictionary> | null = null;
+const cache = new Map<string, Promise<FaultCodeDictionary>>();
 
 /** 测试用：清空缓存。生产代码不要调。 */
 export function resetFaultCodeCache(): void {
-  cache = null;
+  cache.clear();
 }
 
 /** 把 `{ initialised, entries }` 转成按码索引。区间已在后端展开，这里只做扁平化。 */
@@ -101,10 +101,27 @@ export function indexFaultCodes(raw: {
  *
  * <p>返回的 Promise 永不 reject —— 失败时给一个带 `error` 的空字典。
  * 理由：诊断信息是**增强**，不是主流程。它挂了不该让告警列表打不开。
+ *
+ * <h3>`deviceId` 的含义（2026-11-24）</h3>
+ *
+ * <p>不传 = 拉**全部型号**的码。告警列表必须用这一档：一条告警属于哪台
+ * 设备都还没确定，只拉某个型号的码会让其它型号的告警翻不出说明。
+ *
+ * <p>传了 = 只拉该设备型号的码（后端按「设备 → 型号」反查）。
+ * 告警详情页已经知道设备，用这一档能少拿一堆无关条目。
+ *
+ * <p>两档**分别缓存**（缓存键不同）。合成一份会互相污染：先打开的详情页
+ * 把局部字典塞进缓存，之后告警列表就会拿不到别的型号的码 ——
+ * 而这种缺失是静默的，只表现为「有些告警没有说明」。
+ *
+ * <p>后端定位不到型号时（设备 `model` 属性是「其他型号」这类自由文本）
+ * 会**自动退回全量**并在 `scopeFallback` 里说明，所以传 deviceId 也不会更少。
  */
-export function loadFaultCodes(): Promise<FaultCodeDictionary> {
-  if (cache) return cache;
-  cache = (async () => {
+export function loadFaultCodes(deviceId?: string): Promise<FaultCodeDictionary> {
+  const key = deviceId?.trim() || "";
+  const hit = cache.get(key);
+  if (hit) return hit;
+  const pending = (async () => {
     const provider = getDataProvider();
     if (!provider.requestJson) {
       return {
@@ -113,13 +130,16 @@ export function loadFaultCodes(): Promise<FaultCodeDictionary> {
       };
     }
     try {
+      const path = key
+        ? `/api/energy/fault-codes?deviceId=${encodeURIComponent(key)}`
+        : "/api/energy/fault-codes";
       const raw = await provider.requestJson<{
         initialized?: boolean;
         version?: number;
         total?: number;
         entries?: FaultCodeEntry[];
         error?: string;
-      }>("GET", "/api/energy/fault-codes");
+      }>("GET", path);
       return indexFaultCodes(raw ?? {});
     } catch (error) {
       return {
@@ -128,7 +148,8 @@ export function loadFaultCodes(): Promise<FaultCodeDictionary> {
       };
     }
   })();
-  return cache;
+  cache.set(key, pending);
+  return pending;
 }
 
 /**

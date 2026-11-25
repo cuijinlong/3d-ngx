@@ -4,7 +4,7 @@ import { Camera } from "@playcanvas/react/components";
 import { OrbitControls } from "@playcanvas/react/scripts";
 import { ngxHudTokens } from "@idt/config";
 import type { DeviceBinding, ParsedHmiScene } from "@idt/shared-types";
-import { useMemo, type ReactNode } from "react";
+import { useEffect, useMemo, useState, useCallback, type ReactNode } from "react";
 import { EngineManager } from "../core/EngineManager";
 import { DEFAULT_ENGINE_CONFIG } from "../core/EngineConfig";
 import { readViewportCssClearColor, viewportClearColor } from "./viewport-clear-color";
@@ -21,6 +21,7 @@ import type { ControlDrawerModel } from "../../utils/control-drawer";
 import { buildControlDrawerModel } from "../../utils/control-drawer";
 import { buildDevicePlates, readLatest } from "../../utils/device-plates";
 import { useTelemetryStore } from "../../stores/telemetry.store";
+import { diagnoseWebgl, isGraphicsDeviceError, type WebglDiagnosis, type WebglSupport } from "./webgl-support";
 import styles from "./EngineViewport.module.css";
 
 interface EngineViewportProps {
@@ -28,7 +29,6 @@ interface EngineViewportProps {
   mode: "studio" | "runtime";
   gridEnabled?: boolean;
   selectedNode?: string | null;
-  hoveredNode?: string | null;
   bindings?: DeviceBinding[];
   hmi?: ParsedHmiScene | null;
   emptyText?: string;
@@ -59,9 +59,63 @@ export function EngineViewport(props: EngineViewportProps) {
   const { modelUrl, gridEnabled = true, emptyText = "把模型拖到这里，或点右上角「导入模型」" } = props;
   const { theme } = useAppTheme();
   const hud = useHudSkin();
+  /*
+   * WebGL2 预检 + 诊断（2026-11-24）。
+   *
+   * <p>未就绪前不能直接渲染 `<Application>`：它在没有 WebGL2 时会抛
+   * `Failed to create a graphics device`，而组件本身返回 null ——
+   * 现场看到的是「中间一块空白 + 一条看不懂的控制台错误」。
+   *
+   * <p>判定只用 `diagnosis.webgl2`：软件渲染（SwiftShader）**不阻断**，
+   * 能跑就让它跑，只是慢 —— 把还能用的场景直接挡掉是更糟的失败。
+   *
+   * <p>测试环境（jsdom）没有 canvas 实现，必然拿不到上下文 ——
+   * 若不跳过，所有渲染视口的用例都会看到「不支持 WebGL」而不是被测内容。
+   */
+  const [support, setSupport] = useState<WebglSupport>(() =>
+    import.meta.env?.MODE === "test" ? "ok" : "checking",
+  );
+  /**
+   * 诊断明细。客户报障时这是唯一的自证材料 —— 光说「不支持」
+   * 他无法判断该关硬件加速、升级浏览器，还是换成实机访问。
+   */
+  const [diagnosis, setDiagnosis] = useState<WebglDiagnosis | null>(null);
+  const runDiagnosis = useCallback(() => {
+    const next = diagnoseWebgl();
+    setDiagnosis(next);
+    setSupport(next.webgl2 ? "ok" : "unavailable");
+  }, []);
+  useEffect(() => {
+    if (import.meta.env?.MODE === "test") return;
+    runDiagnosis();
+  }, [runDiagnosis]);
+  /*
+   * 预检通过但真正创建仍失败时（典型：同时打开的页面太多，WebGL 上下文配额耗尽），
+   * `<Application>` 的 rejection 没有 catch，只能从全局兜住 ——
+   * 否则界面就是一块永久空白，刷新也不知道该刷新几次。
+   */
+  useEffect(() => {
+    const onRejection = (event: PromiseRejectionEvent) => {
+      if (!isGraphicsDeviceError(event.reason)) return;
+      /* 重跑一次诊断：这次失败可能只是配额耗尽，判断依据要反映**当前**事实 */
+      runDiagnosis();
+      setSupport("unavailable");
+      /* 已经接管了这条错误，不让它继续在控制台里裸着 */
+      event.preventDefault();
+    };
+    window.addEventListener("unhandledrejection", onRejection);
+    return () => window.removeEventListener("unhandledrejection", onRejection);
+  }, [runDiagnosis]);
   const clearColor = viewportClearColor(theme, {
     cssVariable: hud ? ngxHudTokens.viewport : readViewportCssClearColor(),
   });
+  if (support === "unavailable") {
+    return (
+      <div className={styles.wrap} data-hud={hud ? "on" : undefined}>
+        <GpuUnavailable diagnosis={diagnosis} onRetry={runDiagnosis} />
+      </div>
+    );
+  }
   return (
     <div className={styles.wrap} data-hud={hud ? "on" : undefined}>
       {!modelUrl ? <div className={styles.hint}>{emptyText}</div> : null}
@@ -80,7 +134,20 @@ export function EngineViewport(props: EngineViewportProps) {
       {modelUrl && props.dataLabel ? (
         <div className={`${styles.badge} idt-demo-tag`}>{props.dataLabel}</div>
       ) : null}
-      <Application fillMode="NONE" resolutionMode="AUTO" graphicsDeviceOptions={{ antialias: true, powerPreference: "high-performance" }}>
+      {/**
+       * `powerPreference` 不传（用 @playcanvas/react 的默认 `default`，2026-11-24）。
+       *
+       * <p>原来写死 `"high-performance"`。这是个**请求**不是保证：
+       * 在没有独显、或 GPU 被浏览器列入黑名单、或远程桌面/虚拟机的环境里，
+       * Chrome 可能因为达不到「高性能」而不给上下文 —— 结果就是
+       * `Failed to create a graphics device`。传 `default` 时 PlayCanvas
+       * 会把该属性从 context 参数里删掉（`graphics-device.js` 里 `!== "default"`
+       * 的分支），完全交给浏览器决定，成功率最高。
+       *
+       * <p>代价：双显卡机器上可能用集显。对一个大屏 3D 场景来说，
+       * 「能跑」比「跑在用独显」重要得多。
+       */}
+      <Application fillMode="NONE" resolutionMode="AUTO" graphicsDeviceOptions={{ antialias: true }}>
         {/*
          * clearColor 交给 SceneLights 设到 scene 上。
          * 不要写在 <Camera/> 上 —— 它不生效也不报错，见 SceneLights 的说明。
@@ -179,9 +246,7 @@ function ViewportLiveLayer(props: EngineViewportProps) {
       <DeviceLabels
         items={labels}
         selectedNode={props.selectedNode}
-        hoveredNode={props.hoveredNode}
         onSelect={(node) => props.onSelect?.(node)}
-        onHover={props.onHover}
       />
       {drawerModel ? (
         <ControlDrawer
@@ -217,5 +282,55 @@ function ViewportLiveLayer(props: EngineViewportProps) {
         </button>
       ) : null}
     </>
+  );
+}
+
+/**
+ * 3D 引擎无法初始化时的提示（2026-11-24）。
+ *
+ * <h2>为什么只给一句提示</h2>
+ *
+ * <p>客户原话：「如果是电脑老旧的原因无法加载 WEBGL，那就算了提示一下就够了」。
+ *
+ * <p>第一版罗列了四条可能原因 + 排查步骤 + 探测明细。那是按「必须修好」
+ * 设计的，而实际结论往往是**这台机器就是跑不了** —— 老机器、老显卡、
+ * 公司策略禁用硬件加速，前端做什么都改变不了。这时候长篇排查
+ * 只会让人以为系统有毛病，继续花时间。
+ *
+ * <p>所以收敛成一句话：不支持，不影响其它功能，换台机器或开硬件加速。
+ * 「重新检测」保留 —— 有人改完浏览器设置不用刷新整页。
+ */
+function GpuUnavailable({ diagnosis, onRetry }: { diagnosis: WebglDiagnosis | null; onRetry: () => void }) {
+  /*
+   * 技术细节压成一行小字。平时不占视线，但客户报障时
+   * 运维能直接看到是「连 WebGL1 都没有」还是「只有软件渲染」，
+   * 省掉一轮来回问。不展开、不做表格。
+   */
+  const detail = diagnosis
+    ? `WebGL2 ${diagnosis.webgl2 ? "✓" : "✗"} · WebGL1 ${diagnosis.webgl1 ? "✓" : "✗"} · WebGPU ${diagnosis.webgpu ? "✓" : "✗"}${
+        diagnosis.renderer ? ` · ${diagnosis.renderer}` : ""
+      }`
+    : null;
+  return (
+    <div className={styles.gpuError} data-testid="gpu-unavailable">
+      <div className={styles.gpuErrorCard}>
+        <div className={styles.gpuErrorTitle}>当前设备无法显示 3D 视图</div>
+        <p className={styles.gpuErrorText}>
+          这台设备的浏览器未能启用 WebGL2（3D 渲染能力），属于设备或浏览器限制。
+          除 3D 视图外，其它功能不受影响。
+        </p>
+        <p className={styles.gpuErrorText}>
+          如需要在当前设备查看，可开启浏览器「使用硬件加速」后重启浏览器；否则请换一台较新的设备访问。
+        </p>
+        {detail ? (
+          <p className={styles.gpuErrorDetail} data-testid="gpu-facts">
+            {detail}
+          </p>
+        ) : null}
+        <button type="button" className={styles.gpuErrorRetry} onClick={onRetry}>
+          重新检测
+        </button>
+      </div>
+    </div>
   );
 }

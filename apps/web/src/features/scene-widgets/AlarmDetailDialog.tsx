@@ -38,7 +38,11 @@ export function AlarmDetailDialog({
   alarm: AlarmRecord;
   onClose: () => void;
 }) {
-  const { dictionary } = useFaultCodes();
+  /*
+   * 详情弹层知道是哪台设备，按型号拉 —— 比全量少拿无关条目。
+   * 列表（AlarmList / TickerCard）**不能**这么传，它们跨设备。
+   */
+  const { dictionary } = useFaultCodes(true, alarm.deviceId);
   const refreshAlarms = useTelemetryStore((s) => s.refreshAlarms);
   const provider = getDataProvider();
 

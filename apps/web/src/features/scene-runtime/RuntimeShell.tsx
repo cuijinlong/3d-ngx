@@ -25,6 +25,7 @@ import { useAuthSession } from "../../auth/AuthSession";
 import { HudSkinProvider } from "../../theme/HudSkin";
 import { sceneSurfaceChrome } from "./runtime-surface";
 import { RuntimeChrome } from "./RuntimeChrome";
+import { useWeatherPlace } from "./useWeatherPlace";
 import { ViewportFrame } from "./ViewportFrame";
 import {
   pushSceneNav,
@@ -54,7 +55,6 @@ export function RuntimeShell() {
   const select = useSelectionStore((s) => s.select);
   const [modelUrl, setModelUrl] = useState<string>();
   const [fullscreen, setFullscreen] = useState(false);
-  const [hoveredNode, setHoveredNode] = useState<string | null>(null);
   const [pinnedDrawer, setPinnedDrawer] = useState(false);
   const [choices, setChoices] = useState<SceneJumpTarget[] | null>(null);
   const [focusWidgetId, setFocusWidgetId] = useState<string | null>(null);
@@ -240,6 +240,19 @@ export function RuntimeShell() {
   const platformConnected = guardStatus.connected && getProviderKind() === "guard";
   const dataLabel = platformConnected ? "" : "未连接平台";
 
+  /*
+   * 天气行政区划（2026-11-24 客户要求）：场站 address → 组织 address → 场景 weatherSite。
+   *
+   * <p>放在 `if (!document) return null` **之前** —— React 的 hooks 不能在
+   * 条件返回后面调，否则从「没文档」变成「有文档」时 hook 数量变了，直接报错。
+   * 入参用可选链，document 为空时 hook 内部得到全 null，不发请求。
+   */
+  const weatherPlace = useWeatherPlace({
+    siteId: document?.platform?.siteId ?? null,
+    customerId: customerId ?? null,
+    scenePlace: document?.platform?.weatherSite ?? null,
+  });
+
   const enterTopology = (nextId: string, nextName: string) => {
     if (!customerId || !topologyId) {
       nav(routes.twinRuntime(nextId));
@@ -294,6 +307,9 @@ export function RuntimeShell() {
           crumbs={crumbNodes}
           dataLabel={dataLabel}
           showDataLabel={Boolean(dataLabel)}
+          weatherPlace={weatherPlace.place}
+          weatherPlaceSource={weatherPlace.source}
+          latest={latest}
           showReturnToStudio={surface.showReturnToStudio}
           onReturnToStudio={() => nav(customerScopePath(customerId))}
           showLogout={surface.showLogout}
@@ -341,7 +357,6 @@ export function RuntimeShell() {
             modelUrl={modelUrl}
             gridEnabled={false}
             selectedNode={selectedNode}
-            hoveredNode={hoveredNode}
             bindings={document.bindings}
             hmi={hmi}
             emptyText="还没有模型"
@@ -350,7 +365,6 @@ export function RuntimeShell() {
             dataSource="live"
             drawerOpen={drawerOpen}
             resolveNode={resolveNode}
-            onHover={setHoveredNode}
             onToggleDrawer={() => {
               if (selectedNode) return;
               setPinnedDrawer((open) => !open);

@@ -325,3 +325,16 @@
     border-bottom: 1px solid var(--ngx-color-border, #eee);
   }
 }
+
+/*
+ * 新建文件对话框里的说明（2026-11-24）。
+ *
+ * <p>必须写清「支持哪些格式」：用户第一反应是建 `.glb` 或 `.zip`，
+ * 而那是二进制，后端会拒绝。不提前说明就变成「点了创建没反应」。
+ */
+.newHint {
+  margin: 0 0 10px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--ngx-color-muted);
+}

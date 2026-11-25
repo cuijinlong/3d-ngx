@@ -1,6 +1,7 @@
 import { useMemo, type ReactElement } from "react";
 import ReactECharts from "echarts-for-react";
 import type { SceneWidget } from "@idt/data-adapter";
+import { energyKindOf, energyMetricOf } from "@idt/data-adapter";
 import { formatMetricNumber } from "../../utils/device-plates";
 import {
   ENERGY_GRANULARITIES,
@@ -32,25 +33,14 @@ import styles from "./WidgetOverlay.module.css";
  * （`byKind[].unit`），不是这里硬编码的。
  */
 
-/**
- * 能耗口径的默认展示项 —— 按部件类型给默认，布局里可用 `energyMetric` 覆盖。
+/*
+ * 默认口径判定已搬到 `@idt/data-adapter`（2026-11-24）。
  *
- * <p>默认 `usage`（用量）+ `elec`（电能）：绝大多数场站最先关心的是电。
- * 这不是硬编码"只能看电" —— 分类卡/趋势卡都能用 `energyKind` 换成任何品种。
+ * <p>AI 上下文也要读同一份判据 —— 从组件文件导入会把 React/ECharts
+ * 拖进纯函数模块。这里 re-export 保持调用点不变，**不要在这里再写一份**：
+ * 两份必然分叉，然后出现「AI 以为看碳排、卡片实际显示用量」。
  */
-export function energyMetricOf(
-  widget: SceneWidget,
-): "usage" | "cost" | "carbon" | "tce" | "trend" | "ranking" {
-  if (widget.energyMetric) return widget.energyMetric;
-  if (widget.type === "trend-chart") return "trend";
-  if (widget.type === "bar-compare") return "ranking";
-  return "usage";
-}
-
-/** 当前卡关心的品种（`usage`/`trend` 用），默认电。 */
-export function energyKindOf(widget: SceneWidget): string {
-  return widget.energyKind?.trim() || "elec";
-}
+export { energyMetricOf, energyKindOf };
 
 /**
  * 品种 code → 单位。
@@ -527,7 +517,24 @@ export function EnergyTrendBody({
         trigger: "axis",
         valueFormatter: (v: number) => `${compactNumber(v)} ${kindUnit}`,
       },
-      grid: { left: 32, right: 12, top: 26, bottom: 22 },
+      /*
+       * `top: 46` 而不是 26（2026-11-24 客户报障）。
+       *
+       * <p>客户原话：「柱形图分辨率稍稍小点，因为现在最高值的水涕显示不全」。
+       *
+       * <h3>为什么会被裁</h3>
+       *
+       * <p>`markPoint` 默认 `symbol` 是 `pin`（水滴图钉），`symbolSize: 44`
+       * 意味着它从坐标点**向上伸出约 44px**，而原来 `top: 26` 只给 26px ——
+       * 最高柱的水涕被绘图区上方裁掉一大截，连里面的数字一起看不见。
+       *
+       * <h3>为什么同时缩 symbolSize</h3>
+       *
+       * <p>只加 padding 会把绘图区压得太矮（卡高只有 24%）。
+       * 水滴从 44 收到 38，再把顶部留白提到 46，两边各让一步：
+       * 柱体只矮了不到 10%，而水滴完整。
+       */
+      grid: { left: 32, right: 14, top: 46, bottom: 22 },
       xAxis: {
         type: "category",
         data: buckets,
@@ -550,8 +557,12 @@ export function EnergyTrendBody({
           itemStyle: { borderRadius: [2, 2, 0, 0] },
           markPoint: markPointData.length
             ? {
-                symbolSize: 44,
-                label: { fontSize: 9, formatter: (p: { value: string }) => p.value },
+                symbolSize: 38,
+                /*
+                 * label 字号从 9 降到 8.5：水涕收到 38 后内部宽度变紧，
+                 * `compactNumber` 可能返回「1.2万」四个字 —— 9px 会顶到水滴边缘。
+                 */
+                label: { fontSize: 8.5, formatter: (p: { value: string }) => p.value },
                 data: markPointData,
               }
             : undefined,
